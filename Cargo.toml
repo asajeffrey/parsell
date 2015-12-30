@@ -1,0 +1,15 @@
+[package]
+
+name = "wasm"
+version = "0.0.1"
+authors = [ "Alan Jeffrey <ajeffrey@mozilla.com>" ]
+
+description = "Web Assembly tools libraries for Rust"
+repository = "https://github.com/asajeffrey/wasm"
+readme = "README.md"
+keywords = [ "wasm", "web assembly" ]
+license = "MPL-2.0"
+
+[dependencies]
+nom = "1.0.1"
+
