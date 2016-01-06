@@ -30,6 +30,8 @@ pub struct Memory {
 
 pub struct Module {
     pub memory: Option<Memory>,
+    pub imports: Vec<Import>,
+    pub exports: Vec<Export>,
     pub functions: Vec<Function>,
 }
 
@@ -44,7 +46,6 @@ pub enum Typ {
     F32,
     F64,
 }
-
 
 pub struct Var {
     pub name: String,
