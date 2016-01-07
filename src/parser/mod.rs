@@ -1,1 +1,1 @@
-pub mod text;
+pub mod combinators;
