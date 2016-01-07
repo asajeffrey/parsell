@@ -48,10 +48,42 @@ pub trait Consumer<T> where T: 'static+for<'a> RefType<'a> {
 pub trait Parser<S,T> where S: 'static+for<'a> RefType<'a>, T: 'static+for<'a> RefType<'a> {
     fn push<'a>(&mut self, value: Ref<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<Ref<'a,S>>;
     fn done(&mut self, downstream: &mut Consumer<T>);
+    // fn and_then<R: Parser<S,T>>(self, other: R) -> AndThenParser<Self,R> {
+    //     AndThenParser{ lhs: self, rhs: other, in_lhs: true }
+    // }
 }
 
 pub trait BufferableMatcher<S,T> where S: 'static+for<'a> RefType<'a>, T: Parser<S,S> {
     fn buffer(self) -> T;
+}
+
+// ----------- Sequencing ---------------
+
+pub struct AndThenParser<L,R> {
+    lhs: L,
+    rhs: R,
+    in_lhs: bool,
+}
+
+impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser<S,T>, S: 'static+for<'a> RefType<'a>, T: 'static+for<'a> RefType<'a>  {
+    fn push<'a>(&mut self, value: Ref<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<Ref<'a,S>> {
+        if self.in_lhs {
+            match self.lhs.push(value, downstream) {
+                WillMatch => MightMatch, // TODO: we are returning MightMatch even though lhs may have side-effects
+                MightMatch => MightMatch,
+                WontMatch => WontMatch,
+                MatchedAll => { self.in_lhs = false; MightMatch },
+                MatchedSome(_,rest) => { self.in_lhs = false; self.rhs.push(rest, downstream) } // TODO: if this returns MatchedSome(matched,rest) then this is the wrong matched
+            }
+        } else {
+            self.rhs.push(value, downstream)
+        }
+    }
+    fn done(&mut self, downstream: &mut Consumer<T>) {
+        self.lhs.done(downstream);
+        self.rhs.done(downstream);
+        self.in_lhs = true;
+    }
 }
 
 // ----------- Matching strings -------------
