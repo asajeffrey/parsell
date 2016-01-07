@@ -15,6 +15,14 @@ pub trait RefType<'a> {
 
 pub type Ref<'a,T> where T: RefType<'a> = T::Ref;
 
+pub struct ConstRef<T> (T);
+
+pub type UnitRef = ConstRef<()>;
+
+impl<'a,T> RefType<'a> for ConstRef<T> {
+    type Ref = T;
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum MatchResult<T> {
     WillMatch,
@@ -53,6 +61,38 @@ pub struct StrRef;
 impl<'a> RefType<'a> for StrRef {
     type Ref = &'a str;
 }
+
+// ----------- Constant parsers -------------
+
+pub struct ConstantParser {
+    constant: String,
+    offset: Option<usize>,
+}
+
+impl Parser<StrRef,UnitRef> for ConstantParser {
+    fn push<'a>(&mut self, string: &'a str, downstream: &mut Consumer<UnitRef>) -> MatchResult<&'a str> {
+        match self.offset.take() {
+            None => MatchedSome("",string),
+            Some(index) if string == &self.constant[index..]           => { downstream.accept(()); MatchedAll },
+            Some(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); MatchedSome(&string[..index],&string[index..]) },
+            Some(index) if self.constant[index..].starts_with(string)  => { self.offset = Some(index + string.len()); MightMatch },
+            Some(_)                                                    => { WontMatch },
+        }
+    }
+    fn done(&mut self, _: &mut Consumer<UnitRef>) {
+        self.offset = Some(0);
+    }
+}
+
+pub fn constant(string: String) -> ConstantParser {
+    ConstantParser{ constant: string, offset: Some(0) }
+}
+
+// If m is a Matcher<StrRef> then m.buffer() is a Parser<StrRef,StrRef>.
+// It does as little buffering as it can, but it does allocate as buffer for the case
+// where the boundary marker of the input is misaligned with that of the matcher.
+// For example, m is matching string literals, and the input is '"abc' followed by 'def"'
+// we have to buffer up '"abc'.
 
 enum WillOrMight {
     Will,
