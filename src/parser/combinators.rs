@@ -71,7 +71,8 @@ pub trait Parser<S,T> where S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+
     // push(a ++ b) is the same as push(a); push(b)
     fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>>;
     // Resets the parser state back to its initial state
-    fn done(&mut self, downstream: &mut Consumer<T>);
+    // Returns true if there was a match.
+    fn done(&mut self, downstream: &mut Consumer<T>) -> bool;
 }
 
 pub trait BufferableMatcher<S,T> where S: 'static+for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
@@ -93,7 +94,7 @@ impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: 'static+
             Failed(_)     => Failed(false),
         }
     }
-    fn done(&mut self, downstream: &mut Consumer<T>) {
+    fn done(&mut self, downstream: &mut Consumer<T>) -> bool {
         self.parser.done(downstream)
     }
 }
@@ -119,9 +120,8 @@ impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser
             self.rhs.push(value, downstream)
         }
     }
-    fn done(&mut self, downstream: &mut Consumer<T>) {
-        self.lhs.done(downstream);
-        self.rhs.done(downstream)
+    fn done(&mut self, downstream: &mut Consumer<T>) -> bool {
+        self.lhs.done(downstream) && self.rhs.done(downstream)
     }
 }
 
@@ -135,6 +135,7 @@ impl<'a> TypeWithLifetime<'a> for Str {
 
 // ----------- Constant parsers -------------
 
+#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum ConstantParserState {
     AtOffset(usize),
     AtEnd(bool),
@@ -156,8 +157,10 @@ impl Parser<Str,Unit> for ConstantParser {
             AtEnd(false)                                                   => { Failed(true) },
         }
     }
-    fn done(&mut self, _: &mut Consumer<Unit>) {
+    fn done(&mut self, _: &mut Consumer<Unit>) -> bool {
+        let result = self.state == AtEnd(true);
         self.state = AtOffset(0);
+        result
     }
 }
 
@@ -171,6 +174,7 @@ pub fn constant(string: String) -> ConstantParser {
 // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
 // we have to buffer up '"abc'.
 
+#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 enum BufferedParserState {
     Beginning,
     Middle(String),
@@ -210,11 +214,10 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
             EndFail(b) => Failed(b),
         }
     }
-    fn done(&mut self, downstream: &mut Consumer<Str>) {
-        self.parser.done(&mut DiscardConsumer);
-        match mem::replace(&mut self.state, Beginning) {
-            Middle(buffer) => downstream.accept(&*buffer),
-            _              => (),
-        }
+    fn done(&mut self, downstream: &mut Consumer<Str>) -> bool {
+        let result = self.parser.done(&mut DiscardConsumer);
+        if result { if let Middle(ref buffer) = self.state { downstream.accept(&*buffer) } }
+        self.state = Beginning;
+        result
     }
 }
