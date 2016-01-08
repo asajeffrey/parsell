@@ -88,6 +88,9 @@ pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWith
     fn done(&mut self) -> bool {
         self.done_to(&mut DiscardConsumer::new())
     }
+    fn and_then<R>(self, other: R) -> AndThenParser<Self,R> where Self: Sized, R: Parser<S,T> {
+        AndThenParser{ lhs: self, rhs: CommittedParser{ parser: other }, in_lhs: true }
+    }
 }
 
 pub trait BufferableMatcher<S,T> where S: for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
@@ -136,7 +139,8 @@ impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser
         }
     }
     fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
-        self.lhs.done_to(downstream) && self.rhs.done_to(downstream)
+        self.in_lhs = true;
+        self.lhs.done_to(downstream) & self.rhs.done_to(downstream)
     }
 }
 
@@ -248,5 +252,29 @@ fn test_constant() {
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("ab"), Undecided);
     assert_eq!(parser.push("cd"), Matched("d"));
+    assert_eq!(parser.done(), true);
+}
+
+#[test]
+fn test_and_then() {
+    let mut parser = constant(String::from("abc")).and_then(constant(String::from("def")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("fred"), Failed(true));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abc"), Committed);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcd"), Committed);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcfred"), Failed(false));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcdefghi"), Matched("ghi"));
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("a"), Undecided);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("cd"), Committed);
+    assert_eq!(parser.push("efg"), Matched("g"));
     assert_eq!(parser.done(), true);
 }
