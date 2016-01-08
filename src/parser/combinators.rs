@@ -149,8 +149,7 @@ pub struct ConstantParser {
 impl Parser<Str,Unit> for ConstantParser {
     fn push<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Unit>) -> MatchResult<&'a str> {
         match self.state {
-            AtOffset(index) if string == &self.constant[index..]           => { downstream.accept(()); self.state = AtEnd(true); Matched("") },
-            AtOffset(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); self.state = AtEnd(true); Matched(&string[index..]) },
+            AtOffset(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); self.state = AtEnd(true); Matched(&string[(self.constant.len() - index)..]) },
             AtOffset(index) if self.constant[index..].starts_with(string)  => { self.state = AtOffset(index + string.len()); Undecided },
             AtOffset(_)                                                    => { self.state = AtEnd(false); Failed(true) },
             AtEnd(true)                                                    => { Matched(string) },            
@@ -220,4 +219,19 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
         self.state = Beginning;
         result
     }
+}
+
+#[test]
+fn test_constant() {
+    let mut parser = constant(String::from("abc"));
+    assert_eq!(parser.done(&mut DiscardConsumer), false);
+    assert_eq!(parser.push("fred", &mut DiscardConsumer), Failed(true));
+    assert_eq!(parser.done(&mut DiscardConsumer), false);
+    assert_eq!(parser.push("abcdef", &mut DiscardConsumer), Matched("def"));
+    assert_eq!(parser.done(&mut DiscardConsumer), true);
+    assert_eq!(parser.push("a", &mut DiscardConsumer), Undecided);
+    assert_eq!(parser.done(&mut DiscardConsumer), false);
+    assert_eq!(parser.push("ab", &mut DiscardConsumer), Undecided);
+    assert_eq!(parser.push("cd", &mut DiscardConsumer), Matched("d"));
+    assert_eq!(parser.done(&mut DiscardConsumer), true);
 }
