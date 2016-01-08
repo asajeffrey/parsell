@@ -25,7 +25,7 @@ pub type Unit = Always<()>;
 
 // ----------- Types for consumers ------------
 
-pub trait Consumer<T> where T: 'static+for<'a> TypeWithLifetime<'a> {
+pub trait Consumer<T> where T: for<'a> TypeWithLifetime<'a> {
     fn accept<'a>(&mut self, arg: At<'a,T>);
 }
 
@@ -64,7 +64,7 @@ pub enum MatchResult<T> {
     Failed(bool),
 }
 
-pub trait Parser<S,T> where S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a> {
+pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
     // If push returns Undecided or Failed(true), it is side-effect-free
     // In the case where T is "list-like" (e.g. &str or &[T])
     // push(nil) is a no-op
@@ -75,7 +75,7 @@ pub trait Parser<S,T> where S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+
     fn done(&mut self, downstream: &mut Consumer<T>) -> bool;
 }
 
-pub trait BufferableMatcher<S,T> where S: 'static+for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
+pub trait BufferableMatcher<S,T> where S: for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
     fn buffer(self) -> T;
 }
 
@@ -85,7 +85,7 @@ pub struct CommittedParser<P> {
     parser: P,
 }
 
-impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a>  {
+impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
     fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
         match self.parser.push(value, downstream) {
             Undecided     => Committed,
@@ -107,7 +107,7 @@ pub struct AndThenParser<L,R> {
     in_lhs: bool,
 }
 
-impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser<S,T>, S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a>  {
+impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
     fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
         if self.in_lhs {
             match self.lhs.push(value, downstream) {
