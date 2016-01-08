@@ -99,6 +99,7 @@ pub trait BufferableMatcher<S,T> where S: for<'a> TypeWithLifetime<'a>, T: Parse
 
 // ----------- Always commit ---------------
 
+#[derive(Clone, Debug)]
 pub struct CommittedParser<P> {
     parser: P,
 }
@@ -119,6 +120,7 @@ impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: for<'a> 
 
 // ----------- Sequencing ---------------
 
+#[derive(Clone, Debug)]
 pub struct AndThenParser<L,R> {
     lhs: L,
     rhs: CommittedParser<R>,
@@ -160,6 +162,7 @@ pub enum ConstantParserState {
     AtEnd(bool),
 }
 
+#[derive(Clone, Debug)]
 pub struct ConstantParser {
     constant: String,
     state: ConstantParserState,
@@ -200,6 +203,7 @@ enum BufferedParserState {
     EndFail(bool),
 }
 
+#[derive(Clone, Debug)]
 pub struct BufferedParser<P> {
     parser: P,
     state: BufferedParserState,
