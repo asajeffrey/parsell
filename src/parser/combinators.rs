@@ -4,7 +4,7 @@ use self::BufferedParserState::{Beginning, Middle, EndMatch, EndFail};
 use self::MatchResult::{Undecided, Committed, Matched, Failed};
 use self::ConstantParserState::{AtOffset, AtEnd};
 
-// ----------- Types for matching -------------
+// ----------- Types with lifetimes -------------
 
 // Borrowing encoding of paramaterized types from
 // https://github.com/rust-lang/rfcs/blob/master/text/0195-associated-items.md#encoding-higher-kinded-types
@@ -22,6 +22,20 @@ impl<'a,T> TypeWithLifetime<'a> for Always<T> {
 }
 
 pub type Unit = Always<()>;
+
+// ----------- Types for consumers ------------
+
+pub trait Consumer<T> where T: 'static+for<'a> TypeWithLifetime<'a> {
+    fn accept<'a>(&mut self, arg: At<'a,T>);
+}
+
+struct DiscardConsumer;
+
+impl Consumer<Unit> for DiscardConsumer {
+    fn accept(&mut self, _: ()) {}
+}
+
+// ----------- Types for parsers ------------
 
 // State machine transitions are:
 //
@@ -50,26 +64,13 @@ pub enum MatchResult<T> {
     Failed(bool),
 }
 
-// TODO: Replace Matcher<T> by Parser<T,Unit>
-
-pub trait Matcher<T> where T: 'static+for<'a> TypeWithLifetime<'a> {
+pub trait Parser<S,T> where S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a> {
     // If push returns Undecided or Failed(true), it is side-effect-free
     // In the case where T is "list-like" (e.g. &str or &[T])
     // push(nil) is a no-op
     // push(a ++ b) is the same as push(a); push(b)
-    fn push<'a>(&mut self, value: At<'a,T>) -> MatchResult<At<'a,T>>;
-    // Resets the matcher state back to its initial state
-    fn done(&mut self);
-}
-
-// ----------- Types for parsers ------------
-
-pub trait Consumer<T> where T: 'static+for<'a> TypeWithLifetime<'a> {
-    fn accept<'a>(&mut self, arg: At<'a,T>);
-}
-
-pub trait Parser<S,T> where S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a> {
     fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>>;
+    // Resets the parser state back to its initial state
     fn done(&mut self, downstream: &mut Consumer<T>);
 }
 
@@ -84,7 +85,7 @@ pub struct CommittedParser<P> {
 }
 
 impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a>  {
-    fn push<'a>(&mut self, mut value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+    fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
         match self.parser.push(value, downstream) {
             Undecided     => Committed,
             Committed     => Committed,
@@ -106,7 +107,7 @@ pub struct AndThenParser<L,R> {
 }
 
 impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser<S,T>, S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a>  {
-    fn push<'a>(&mut self, mut value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+    fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
         if self.in_lhs {
             match self.lhs.push(value, downstream) {
                 Undecided     => Undecided,
@@ -164,9 +165,9 @@ pub fn constant(string: String) -> ConstantParser {
     ConstantParser{ constant: string, state: AtOffset(0) }
 }
 
-// If m is a Matcher<Str> then m.buffer() is a Parser<Str,Str>.
+// If m is a Parser<Str,Unit> then m.buffer() is a Parser<Str,Str>.
 // It does as little buffering as it can, but it does allocate as buffer for the case
-// where the boundary marker of the input is misaligned with that of the matcher.
+// where the boundary marker of the input is misaligned with that of the parser.
 // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
 // we have to buffer up '"abc'.
 
@@ -177,16 +178,16 @@ enum BufferedParserState {
     EndFail(bool),
 }
 
-pub struct BufferedParser<S> {
-    matcher: S,
+pub struct BufferedParser<P> {
+    parser: P,
     state: BufferedParserState,
 }
 
-impl<S> Parser<Str,Str> for BufferedParser<S> where S: Matcher<Str> {
+impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
     fn push<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Str>) -> MatchResult<&'a str> {
         match mem::replace(&mut self.state, EndMatch) {
             Beginning => {
-                let result = self.matcher.push(string);
+                let result = self.parser.push(string, &mut DiscardConsumer);
                 match result {
                     Undecided     => self.state = Middle(String::from(string)),
                     Committed     => self.state = Middle(String::from(string)),
@@ -196,7 +197,7 @@ impl<S> Parser<Str,Str> for BufferedParser<S> where S: Matcher<Str> {
                 result
             },
             Middle(mut buffer) => {
-                let result = self.matcher.push(string);
+                let result = self.parser.push(string, &mut DiscardConsumer);
                 match result {
                     Undecided     => { buffer.push_str(string); self.state = Middle(buffer); },
                     Committed     => { buffer.push_str(string); self.state = Middle(buffer); },
@@ -210,15 +211,10 @@ impl<S> Parser<Str,Str> for BufferedParser<S> where S: Matcher<Str> {
         }
     }
     fn done(&mut self, downstream: &mut Consumer<Str>) {
+        self.parser.done(&mut DiscardConsumer);
         match mem::replace(&mut self.state, Beginning) {
             Middle(buffer) => downstream.accept(&*buffer),
             _              => (),
         }
-    }
-}
-
-impl<S> BufferableMatcher<Str,BufferedParser<S>> for S where S: Matcher<Str> {
-    fn buffer(self) -> BufferedParser<S> {
-        BufferedParser{ matcher: self, state: Beginning }
     }
 }
