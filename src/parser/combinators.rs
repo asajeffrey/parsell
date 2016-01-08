@@ -75,8 +75,8 @@ pub enum MatchResult<T> {
 pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
     // If push_to returns Undecided or Failed(true), it is side-effect-free
     // In the case where T is "list-like" (e.g. &str or &[T])
-    // push_to(nil) is a no-op
-    // push_to(a ++ b) is the same as push_to(a); push_to(b)
+    // push_to(nil,d) is a no-op
+    // push_to(a ++ b, d) is the same as push_to(a,d); push_to(b,d)
     fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>>;
     // Resets the parser state back to its initial state
     // Returns true if there was a match.
