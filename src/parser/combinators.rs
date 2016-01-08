@@ -1,8 +1,8 @@
 use std::mem;
 
-use self::WillOrMight::{Will,Might};
-use self::BufferedParserState::{Beginning,Middle,End};
-use self::MatchResult::{WillMatch, MightMatch, WontMatch, MatchedAll, MatchedSome};
+use self::BufferedParserState::{Beginning, Middle, EndMatch, EndFail};
+use self::MatchResult::{Undecided, Committed, Matched, Failed};
+use self::ConstantParserState::{AtOffset, AtEnd};
 
 // ----------- Types for matching -------------
 
@@ -23,17 +23,40 @@ impl<'a,T> TypeWithLifetime<'a> for Always<T> {
 
 pub type Unit = Always<()>;
 
+// State machine transitions are:
+//
+// init -Undecided->  init
+// init -Committed->  committed
+// init -Matched(s)-> matched
+// init -Failed(b)->  failed(b)
+//
+// committed -Committed->     committed
+// committed -Matched(s)->    matched
+// committed -Failed(false)-> failed(false)
+//
+// matched -Matched(s)-> matched
+//
+// failed(b) -Failed(b)-> failed(b)
+//
+// The Failed(b) action carries a boolean indicating if backtracking is allowed.
+// Note that there is no transition . -Committed-> . -Failed(true)-> . so
+// once a parser has committed, we can clean up space associated with backtracking.
+
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum MatchResult<T> {
-    WillMatch,
-    MightMatch,
-    WontMatch,
-    MatchedAll,
-    MatchedSome(T,T),
+    Undecided,
+    Committed,
+    Matched(T),
+    Failed(bool),
 }
 
+// TODO: Replace Matcher<T> by Parser<T,Unit>
+
 pub trait Matcher<T> where T: 'static+for<'a> TypeWithLifetime<'a> {
-    // If push returns MightMatch or WontMatch, it is side-effect-free
+    // If push returns Undecided or Failed(true), it is side-effect-free
+    // In the case where T is "list-like" (e.g. &str or &[T])
+    // push(nil) is a no-op
+    // push(a ++ b) is the same as push(a); push(b)
     fn push<'a>(&mut self, value: At<'a,T>) -> MatchResult<At<'a,T>>;
     // Resets the matcher state back to its initial state
     fn done(&mut self);
@@ -48,32 +71,48 @@ pub trait Consumer<T> where T: 'static+for<'a> TypeWithLifetime<'a> {
 pub trait Parser<S,T> where S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a> {
     fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>>;
     fn done(&mut self, downstream: &mut Consumer<T>);
-    // fn and_then<R: Parser<S,T>>(self, other: R) -> AndThenParser<Self,R> {
-    //     AndThenParser{ lhs: self, rhs: other, in_lhs: true }
-    // }
 }
 
 pub trait BufferableMatcher<S,T> where S: 'static+for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
     fn buffer(self) -> T;
 }
 
+// ----------- Always commit ---------------
+
+pub struct CommittedParser<P> {
+    parser: P,
+}
+
+impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a>  {
+    fn push<'a>(&mut self, mut value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+        match self.parser.push(value, downstream) {
+            Undecided     => Committed,
+            Committed     => Committed,
+            Matched(rest) => Matched(rest),
+            Failed(_)     => Failed(false),
+        }
+    }
+    fn done(&mut self, downstream: &mut Consumer<T>) {
+        self.parser.done(downstream)
+    }
+}
+
 // ----------- Sequencing ---------------
 
 pub struct AndThenParser<L,R> {
     lhs: L,
-    rhs: R,
+    rhs: CommittedParser<R>,
     in_lhs: bool,
 }
 
 impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser<S,T>, S: 'static+for<'a> TypeWithLifetime<'a>, T: 'static+for<'a> TypeWithLifetime<'a>  {
-    fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+    fn push<'a>(&mut self, mut value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
         if self.in_lhs {
             match self.lhs.push(value, downstream) {
-                WillMatch => MightMatch, // TODO: we are returning MightMatch even though lhs may have side-effects
-                MightMatch => MightMatch,
-                WontMatch => WontMatch,
-                MatchedAll => { self.in_lhs = false; MightMatch },
-                MatchedSome(_,rest) => { self.in_lhs = false; self.rhs.push(rest, downstream) } // TODO: if this returns MatchedSome(matched,rest) then this is the wrong matched
+                Undecided     => Undecided,
+                Committed     => Committed,
+                Matched(rest) => { self.in_lhs = false; self.rhs.push(rest, downstream) },
+                Failed(b)     => Failed(b),
             }
         } else {
             self.rhs.push(value, downstream)
@@ -81,8 +120,7 @@ impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser
     }
     fn done(&mut self, downstream: &mut Consumer<T>) {
         self.lhs.done(downstream);
-        self.rhs.done(downstream);
-        self.in_lhs = true;
+        self.rhs.done(downstream)
     }
 }
 
@@ -96,28 +134,34 @@ impl<'a> TypeWithLifetime<'a> for Str {
 
 // ----------- Constant parsers -------------
 
+pub enum ConstantParserState {
+    AtOffset(usize),
+    AtEnd(bool),
+}
+
 pub struct ConstantParser {
     constant: String,
-    offset: Option<usize>,
+    state: ConstantParserState,
 }
 
 impl Parser<Str,Unit> for ConstantParser {
     fn push<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Unit>) -> MatchResult<&'a str> {
-        match self.offset.take() {
-            None => MatchedSome("",string),
-            Some(index) if string == &self.constant[index..]           => { downstream.accept(()); MatchedAll },
-            Some(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); MatchedSome(&string[..index],&string[index..]) },
-            Some(index) if self.constant[index..].starts_with(string)  => { self.offset = Some(index + string.len()); MightMatch },
-            Some(_)                                                    => { WontMatch },
+        match self.state {
+            AtOffset(index) if string == &self.constant[index..]           => { downstream.accept(()); self.state = AtEnd(true); Matched("") },
+            AtOffset(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); self.state = AtEnd(true); Matched(&string[index..]) },
+            AtOffset(index) if self.constant[index..].starts_with(string)  => { self.state = AtOffset(index + string.len()); Undecided },
+            AtOffset(_)                                                    => { self.state = AtEnd(false); Failed(true) },
+            AtEnd(true)                                                    => { Matched(string) },            
+            AtEnd(false)                                                   => { Failed(true) },
         }
     }
     fn done(&mut self, _: &mut Consumer<Unit>) {
-        self.offset = Some(0);
+        self.state = AtOffset(0);
     }
 }
 
 pub fn constant(string: String) -> ConstantParser {
-    ConstantParser{ constant: string, offset: Some(0) }
+    ConstantParser{ constant: string, state: AtOffset(0) }
 }
 
 // If m is a Matcher<Str> then m.buffer() is a Parser<Str,Str>.
@@ -126,15 +170,11 @@ pub fn constant(string: String) -> ConstantParser {
 // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
 // we have to buffer up '"abc'.
 
-enum WillOrMight {
-    Will,
-    Might,
-}
-
 enum BufferedParserState {
     Beginning,
-    Middle(String,WillOrMight),
-    End,
+    Middle(String),
+    EndMatch,
+    EndFail(bool),
 }
 
 pub struct BufferedParser<S> {
@@ -144,36 +184,35 @@ pub struct BufferedParser<S> {
 
 impl<S> Parser<Str,Str> for BufferedParser<S> where S: Matcher<Str> {
     fn push<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Str>) -> MatchResult<&'a str> {
-        match mem::replace(&mut self.state, End) {
+        match mem::replace(&mut self.state, EndMatch) {
             Beginning => {
                 let result = self.matcher.push(string);
                 match result {
-                    WillMatch               => self.state = Middle(String::from(string), Will),
-                    MightMatch              => self.state = Middle(String::from(string), Might),
-                    WontMatch               => (),
-                    MatchedAll              => downstream.accept(string),
-                    MatchedSome(matched, _) => downstream.accept(matched),
+                    Undecided     => self.state = Middle(String::from(string)),
+                    Committed     => self.state = Middle(String::from(string)),
+                    Failed(b)     => self.state = EndFail(b),
+                    Matched(rest) => downstream.accept(&string[..(string.len()-rest.len())]),
                 }
                 result
             },
-            Middle(mut buffer, _) => {
+            Middle(mut buffer) => {
                 let result = self.matcher.push(string);
                 match result {
-                    WillMatch               => { buffer.push_str(string); self.state = Middle(buffer, Will); },
-                    MightMatch              => { buffer.push_str(string); self.state = Middle(buffer, Might); },
-                    WontMatch               => (),
-                    MatchedAll              => { buffer.push_str(string); downstream.accept(&*buffer); },
-                    MatchedSome(matched, _) => { buffer.push_str(matched); downstream.accept(&*buffer); },
+                    Undecided     => { buffer.push_str(string); self.state = Middle(buffer); },
+                    Committed     => { buffer.push_str(string); self.state = Middle(buffer); },
+                    Failed(b)     => { self.state = EndFail(b); },
+                    Matched(rest) => { buffer.push_str(&string[..(string.len()-rest.len())]); downstream.accept(&*buffer); },
                 }
                 result
             }
-            End => MatchedSome("",string),
+            EndMatch => Matched(string),
+            EndFail(b) => Failed(b),
         }
     }
     fn done(&mut self, downstream: &mut Consumer<Str>) {
         match mem::replace(&mut self.state, Beginning) {
-            Middle(buffer, Will) => downstream.accept(&*buffer),
-            _                    => (),
+            Middle(buffer) => downstream.accept(&*buffer),
+            _              => (),
         }
     }
 }
