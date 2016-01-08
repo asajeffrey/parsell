@@ -4,6 +4,8 @@ use self::BufferedParserState::{Beginning, Middle, EndMatch, EndFail};
 use self::MatchResult::{Undecided, Committed, Matched, Failed};
 use self::ConstantParserState::{AtOffset, AtEnd};
 
+use std::marker::PhantomData;
+
 // ----------- Types with lifetimes -------------
 
 // Borrowing encoding of paramaterized types from
@@ -29,10 +31,16 @@ pub trait Consumer<T> where T: for<'a> TypeWithLifetime<'a> {
     fn accept<'a>(&mut self, arg: At<'a,T>);
 }
 
-struct DiscardConsumer;
+struct DiscardConsumer<T> (PhantomData<T>);
 
-impl Consumer<Unit> for DiscardConsumer {
-    fn accept(&mut self, _: ()) {}
+impl<T> Consumer<T> for DiscardConsumer<T> where T: for<'a> TypeWithLifetime<'a> {
+    fn accept<'a>(&mut self, _: At<'a,T>) {}
+}
+
+impl<T> DiscardConsumer<T> {
+    fn new() -> DiscardConsumer<T> {
+        DiscardConsumer(PhantomData)
+    }
 }
 
 // ----------- Types for parsers ------------
@@ -65,14 +73,21 @@ pub enum MatchResult<T> {
 }
 
 pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
-    // If push returns Undecided or Failed(true), it is side-effect-free
+    // If push_to returns Undecided or Failed(true), it is side-effect-free
     // In the case where T is "list-like" (e.g. &str or &[T])
-    // push(nil) is a no-op
-    // push(a ++ b) is the same as push(a); push(b)
-    fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>>;
+    // push_to(nil) is a no-op
+    // push_to(a ++ b) is the same as push_to(a); push_to(b)
+    fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>>;
     // Resets the parser state back to its initial state
     // Returns true if there was a match.
-    fn done(&mut self, downstream: &mut Consumer<T>) -> bool;
+    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool;
+    // Helper methods
+    fn push<'a>(&mut self, value: At<'a,S>) -> MatchResult<At<'a,S>> {
+        self.push_to(value, &mut DiscardConsumer::new())
+    }
+    fn done(&mut self) -> bool {
+        self.done_to(&mut DiscardConsumer::new())
+    }
 }
 
 pub trait BufferableMatcher<S,T> where S: for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
@@ -86,16 +101,16 @@ pub struct CommittedParser<P> {
 }
 
 impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
-    fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
-        match self.parser.push(value, downstream) {
+    fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+        match self.parser.push_to(value, downstream) {
             Undecided     => Committed,
             Committed     => Committed,
             Matched(rest) => Matched(rest),
             Failed(_)     => Failed(false),
         }
     }
-    fn done(&mut self, downstream: &mut Consumer<T>) -> bool {
-        self.parser.done(downstream)
+    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
+        self.parser.done_to(downstream)
     }
 }
 
@@ -108,20 +123,20 @@ pub struct AndThenParser<L,R> {
 }
 
 impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
-    fn push<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+    fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
         if self.in_lhs {
-            match self.lhs.push(value, downstream) {
+            match self.lhs.push_to(value, downstream) {
                 Undecided     => Undecided,
                 Committed     => Committed,
-                Matched(rest) => { self.in_lhs = false; self.rhs.push(rest, downstream) },
+                Matched(rest) => { self.in_lhs = false; self.rhs.push_to(rest, downstream) },
                 Failed(b)     => Failed(b),
             }
         } else {
-            self.rhs.push(value, downstream)
+            self.rhs.push_to(value, downstream)
         }
     }
-    fn done(&mut self, downstream: &mut Consumer<T>) -> bool {
-        self.lhs.done(downstream) && self.rhs.done(downstream)
+    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
+        self.lhs.done_to(downstream) && self.rhs.done_to(downstream)
     }
 }
 
@@ -147,7 +162,7 @@ pub struct ConstantParser {
 }
 
 impl Parser<Str,Unit> for ConstantParser {
-    fn push<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Unit>) -> MatchResult<&'a str> {
+    fn push_to<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Unit>) -> MatchResult<&'a str> {
         match self.state {
             AtOffset(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); self.state = AtEnd(true); Matched(&string[(self.constant.len() - index)..]) },
             AtOffset(index) if self.constant[index..].starts_with(string)  => { self.state = AtOffset(index + string.len()); Undecided },
@@ -156,7 +171,7 @@ impl Parser<Str,Unit> for ConstantParser {
             AtEnd(false)                                                   => { Failed(true) },
         }
     }
-    fn done(&mut self, _: &mut Consumer<Unit>) -> bool {
+    fn done_to(&mut self, _: &mut Consumer<Unit>) -> bool {
         let result = self.state == AtEnd(true);
         self.state = AtOffset(0);
         result
@@ -187,10 +202,10 @@ pub struct BufferedParser<P> {
 }
 
 impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
-    fn push<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Str>) -> MatchResult<&'a str> {
+    fn push_to<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Str>) -> MatchResult<&'a str> {
         match mem::replace(&mut self.state, EndMatch) {
             Beginning => {
-                let result = self.parser.push(string, &mut DiscardConsumer);
+                let result = self.parser.push(string);
                 match result {
                     Undecided     => self.state = Middle(String::from(string)),
                     Committed     => self.state = Middle(String::from(string)),
@@ -200,7 +215,7 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
                 result
             },
             Middle(mut buffer) => {
-                let result = self.parser.push(string, &mut DiscardConsumer);
+                let result = self.parser.push(string);
                 match result {
                     Undecided     => { buffer.push_str(string); self.state = Middle(buffer); },
                     Committed     => { buffer.push_str(string); self.state = Middle(buffer); },
@@ -213,8 +228,8 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
             EndFail(b) => Failed(b),
         }
     }
-    fn done(&mut self, downstream: &mut Consumer<Str>) -> bool {
-        let result = self.parser.done(&mut DiscardConsumer);
+    fn done_to(&mut self, downstream: &mut Consumer<Str>) -> bool {
+        let result = self.parser.done();
         if result { if let Middle(ref buffer) = self.state { downstream.accept(&*buffer) } }
         self.state = Beginning;
         result
@@ -224,14 +239,14 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
 #[test]
 fn test_constant() {
     let mut parser = constant(String::from("abc"));
-    assert_eq!(parser.done(&mut DiscardConsumer), false);
-    assert_eq!(parser.push("fred", &mut DiscardConsumer), Failed(true));
-    assert_eq!(parser.done(&mut DiscardConsumer), false);
-    assert_eq!(parser.push("abcdef", &mut DiscardConsumer), Matched("def"));
-    assert_eq!(parser.done(&mut DiscardConsumer), true);
-    assert_eq!(parser.push("a", &mut DiscardConsumer), Undecided);
-    assert_eq!(parser.done(&mut DiscardConsumer), false);
-    assert_eq!(parser.push("ab", &mut DiscardConsumer), Undecided);
-    assert_eq!(parser.push("cd", &mut DiscardConsumer), Matched("d"));
-    assert_eq!(parser.done(&mut DiscardConsumer), true);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("fred"), Failed(true));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcdef"), Matched("def"));
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("a"), Undecided);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("cd"), Matched("d"));
+    assert_eq!(parser.done(), true);
 }
