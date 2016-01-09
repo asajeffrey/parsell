@@ -47,22 +47,21 @@ impl<T> DiscardConsumer<T> {
 
 // State machine transitions are:
 //
-// init -Undecided->  init
-// init -Committed->  committed
-// init -Matched(s)-> matched
-// init -Failed(b)->  failed(b)
+// init -Undecided(true)->  init
+// init -Undecided(false)-> committed
+// init -Matched(s)->       matched
+// init -Failed(s)->        failed
 //
-// committed -Committed->     committed
-// committed -Matched(s)->    matched
-// committed -Failed(false)-> failed(false)
+// committed -Undecided(false)-> committed
+// committed -Matched(s)->       matched
+// committed -Failed(false)->    failed(false)
 //
 // matched -Matched(s)-> matched
 //
-// failed(b) -Failed(b)-> failed(b)
+// failed -Failed(s)-> failed
 //
-// The Failed(b) action carries a boolean indicating if backtracking is allowed.
-// Note that there is no transition . -Committed-> . -Failed(true)-> . so
-// once a parser has committed, we can clean up space associated with backtracking.
+// The Failed(s) action carries a Option<T> indicating if backtracking is allowed,
+// and if so, the value to backtrack with.
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum MatchResult<T> {
@@ -72,9 +71,9 @@ pub enum MatchResult<T> {
 }
 
 pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
-    // If push_to returns Undecided or Failed(true), it is side-effect-free
+    // If push_to returns Undecided(true) or Failed(Some(s)), it is side-effect-free
     // In the case where T is "list-like" (e.g. &str or &[T])
-    // push_to(nil,d) is a no-op
+    // push_to(nil,d) returns Undecided(true)
     // push_to(a ++ b, d) is the same as push_to(a,d); push_to(b,d)
     fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>>;
     // Resets the parser state back to its initial state
