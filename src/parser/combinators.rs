@@ -89,6 +89,9 @@ pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWith
     fn and_then<R>(self, other: R) -> AndThenParser<Self,R> where Self: Sized, R: Parser<S,T> {
         AndThenParser{ lhs: self, rhs: CommittedParser{ parser: other }, in_lhs: true }
     }
+    fn or_else<R>(self, other: R) -> OrElseParser<Self,R> where Self: Sized, R: Parser<S,T> {
+        OrElseParser{ lhs: self, rhs: other, in_lhs: true }
+    }
     fn star(self) -> StarParser<Self> where Self: Sized {
         StarParser{ parser: self, matched: true, first_time: true }
     }
@@ -142,6 +145,36 @@ impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser
     fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
         if self.in_lhs {
             self.lhs.done_to(downstream) && self.rhs.done_to(downstream)
+        } else {
+            self.in_lhs = true;
+            self.rhs.done_to(downstream)
+        }
+    }
+}
+
+// ----------- Choice ---------------
+
+#[derive(Clone, Debug)]
+pub struct OrElseParser<L,R> {
+    lhs: L,
+    rhs: R,
+    in_lhs: bool,
+}
+
+impl<S,T,L,R> Parser<S,T> for OrElseParser<L,R> where L: Parser<S,T>, R: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
+    fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+        if self.in_lhs {
+            match self.lhs.push_to(value, downstream) {
+                Failed(Some(rest)) => { self.in_lhs = false; self.lhs.done_to(downstream); self.rhs.push_to(rest, downstream) },
+                result             => result,
+            }
+        } else {
+            self.rhs.push_to(value, downstream)
+        }
+    }
+    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
+        if self.in_lhs {
+            self.lhs.done_to(downstream)
         } else {
             self.in_lhs = true;
             self.rhs.done_to(downstream)
@@ -281,6 +314,8 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
     }
 }
 
+// ----------- Tests -------------
+
 #[test]
 fn test_constant() {
     let mut parser = constant(String::from("abc"));
@@ -333,6 +368,38 @@ fn test_and_then() {
     assert_eq!(parser.push("cd"), Undecided(false));
     assert_eq!(parser.push("ef"), Matched(""));
     assert_eq!(parser.done(), true);
+}
+
+#[test]
+fn test_or_else() {
+    let mut parser = constant(String::from("abc")).or_else(constant(String::from("def")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("fred"), Failed(Some("fred")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("alice"), Failed(None));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcdef"), Matched("def"));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abc"), Matched(""));
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("a"), Undecided(false));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push(""), Undecided(true));
+    assert_eq!(parser.push("ab"), Undecided(false));
+    assert_eq!(parser.push("cd"), Matched("d"));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("dave"), Failed(None));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("defghi"), Matched("ghi"));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("def"), Matched(""));
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("d"), Undecided(false));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push(""), Undecided(true));
+    assert_eq!(parser.push("de"), Undecided(false));
+    assert_eq!(parser.push("fg"), Matched("g"));
+    assert_eq!(parser.done(), false);
 }
 
 #[test]
