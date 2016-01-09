@@ -89,8 +89,8 @@ pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWith
     fn and_then<R>(self, other: R) -> AndThenParser<Self,R> where Self: Sized, R: Parser<S,T> {
         AndThenParser{ lhs: self, rhs: CommittedParser{ parser: other }, in_lhs: true }
     }
-    fn many0(self) -> Many0Parser<Self> where Self: Sized {
-        Many0Parser{ parser: self, first_time: true }
+    fn star(self) -> StarParser<Self> where Self: Sized {
+        StarParser{ parser: self, matched: true, first_time: true }
     }
 }
 
@@ -152,23 +152,26 @@ impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser
 // ----------- Kleene star ---------------
 
 #[derive(Clone, Debug)]
-pub struct Many0Parser<P> {
+pub struct StarParser<P> {
     parser: P,
+    matched: bool,
     first_time: bool,
 }
 
-impl<S,T,P> Parser<S,T> for Many0Parser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
+impl<S,T,P> Parser<S,T> for StarParser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
     fn push_to<'a>(&mut self, mut value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
-        loop { match self.parser.push_to(value, downstream) {
-            Undecided(b)        => return Undecided(b & self.first_time),
-            Matched(rest)       => { self.first_time = false; value = rest; },
-            Failed(Some(rest))  => return Matched(rest),
-            Failed(None)        => return Failed(None),
-        } }
+        loop {
+            match self.parser.push_to(value, downstream) {
+                Undecided(b)        => { self.matched = b; return Undecided(b & self.first_time) },
+                Matched(rest)       => { self.parser.done_to(downstream); self.matched = true; self.first_time = false; value = rest; },
+                Failed(Some(rest))  => { self.matched = false; return Matched(rest) },
+                Failed(None)        => { self.matched = false; return Failed(None) },
+            }
+        }
     }
     fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
         self.first_time = true;
-        self.parser.done_to(downstream)
+        self.parser.done_to(downstream) | self.matched
     }
 }
 
@@ -329,5 +332,39 @@ fn test_and_then() {
     assert_eq!(parser.push("ab"), Undecided(false));
     assert_eq!(parser.push("cd"), Undecided(false));
     assert_eq!(parser.push("ef"), Matched(""));
+    assert_eq!(parser.done(), true);
+}
+
+#[test]
+fn test_star() {
+    let mut parser = constant(String::from("abc")).star();
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("fred"), Matched("fred"));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("alice"), Failed(None));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("ab"), Undecided(false));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abc"), Undecided(false));
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("abca"), Undecided(false));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcfred"), Matched("fred"));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcabc"), Undecided(false));
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("abcabcghi"), Matched("ghi"));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("a"), Undecided(false));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push(""), Undecided(true));
+    assert_eq!(parser.push("ab"), Undecided(false));
+    assert_eq!(parser.push("ca"), Undecided(false));
+    assert_eq!(parser.push("bcg"), Matched("g"));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push(""), Undecided(true));
+    assert_eq!(parser.push("ab"), Undecided(false));
+    assert_eq!(parser.push("ca"), Undecided(false));
+    assert_eq!(parser.push("bc"), Undecided(false));
     assert_eq!(parser.done(), true);
 }
