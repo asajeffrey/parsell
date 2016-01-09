@@ -1,8 +1,8 @@
 use std::mem;
 
 use self::BufferedParserState::{Beginning, Middle, EndMatch, EndFail};
-use self::MatchResult::{Undecided, Committed, Matched, Failed};
-use self::ConstantParserState::{AtOffset, AtEnd};
+use self::MatchResult::{Undecided, Matched, Failed};
+use self::ConstantParserState::{AtOffset, AtEndMatched, AtEndFailed};
 
 use std::marker::PhantomData;
 
@@ -66,10 +66,9 @@ impl<T> DiscardConsumer<T> {
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum MatchResult<T> {
-    Undecided,
-    Committed,
+    Undecided(bool),
     Matched(T),
-    Failed(bool),
+    Failed(Option<T>),
 }
 
 pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
@@ -91,6 +90,9 @@ pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWith
     fn and_then<R>(self, other: R) -> AndThenParser<Self,R> where Self: Sized, R: Parser<S,T> {
         AndThenParser{ lhs: self, rhs: CommittedParser{ parser: other }, in_lhs: true }
     }
+    fn many0(self) -> Many0Parser<Self> where Self: Sized {
+        Many0Parser{ parser: self, first_time: true }
+    }
 }
 
 pub trait BufferableMatcher<S,T> where S: for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
@@ -107,10 +109,9 @@ pub struct CommittedParser<P> {
 impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
     fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
         match self.parser.push_to(value, downstream) {
-            Undecided     => Committed,
-            Committed     => Committed,
+            Undecided(_)  => Undecided(false),
             Matched(rest) => Matched(rest),
-            Failed(_)     => Failed(false),
+            Failed(_)     => Failed(None),
         }
     }
     fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
@@ -131,20 +132,47 @@ impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser
     fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
         if self.in_lhs {
             match self.lhs.push_to(value, downstream) {
-                Undecided     => Undecided,
-                Committed     => Committed,
-                Matched(rest) => { self.in_lhs = false; self.rhs.push_to(rest, downstream) },
-                Failed(b)     => Failed(b),
+                Undecided(b)  => Undecided(b),
+                Matched(rest) => { self.in_lhs = false; self.lhs.done_to(downstream); self.rhs.push_to(rest, downstream) },
+                Failed(rest)  => Failed(rest),
             }
         } else {
             self.rhs.push_to(value, downstream)
         }
     }
     fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
-        self.in_lhs = true;
-        self.lhs.done_to(downstream) & self.rhs.done_to(downstream)
+        if self.in_lhs {
+            self.lhs.done_to(downstream) && self.rhs.done_to(downstream)
+        } else {
+            self.in_lhs = true;
+            self.rhs.done_to(downstream)
+        }
     }
 }
+
+// ----------- Kleene star ---------------
+
+#[derive(Clone, Debug)]
+pub struct Many0Parser<P> {
+    parser: P,
+    first_time: bool,
+}
+
+impl<S,T,P> Parser<S,T> for Many0Parser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
+    fn push_to<'a>(&mut self, mut value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+        loop { match self.parser.push_to(value, downstream) {
+            Undecided(b)        => return Undecided(b & self.first_time),
+            Matched(rest)       => { self.first_time = false; value = rest; },
+            Failed(Some(rest))  => return Matched(rest),
+            Failed(None)        => return Failed(None),
+        } }
+    }
+    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
+        self.first_time = true;
+        self.parser.done_to(downstream)
+    }
+}
+
 
 // ----------- Matching strings -------------
 
@@ -159,7 +187,8 @@ impl<'a> TypeWithLifetime<'a> for Str {
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum ConstantParserState {
     AtOffset(usize),
-    AtEnd(bool),
+    AtEndMatched(bool),
+    AtEndFailed(bool),
 }
 
 #[derive(Clone, Debug)]
@@ -171,15 +200,20 @@ pub struct ConstantParser {
 impl Parser<Str,Unit> for ConstantParser {
     fn push_to<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Unit>) -> MatchResult<&'a str> {
         match self.state {
-            AtOffset(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); self.state = AtEnd(true); Matched(&string[(self.constant.len() - index)..]) },
-            AtOffset(index) if self.constant[index..].starts_with(string)  => { self.state = AtOffset(index + string.len()); Undecided },
-            AtOffset(_)                                                    => { self.state = AtEnd(false); Failed(true) },
-            AtEnd(true)                                                    => { Matched(string) },            
-            AtEnd(false)                                                   => { Failed(true) },
+            AtOffset(0)     if string.is_empty()                           => { Undecided(true) },
+            AtOffset(index) if string == &self.constant[index..]           => { downstream.accept(()); self.state = AtEndMatched(true); Matched("") },
+            AtOffset(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); self.state = AtEndMatched(false); Matched(&string[(self.constant.len() - index)..]) },
+            AtOffset(index) if self.constant[index..].starts_with(string)  => { self.state = AtOffset(index + string.len()); Undecided(false) },
+            AtOffset(0)     if !string.starts_with(&self.constant[..1])    => { self.state = AtEndFailed(true); Failed(Some(string)) },
+            AtOffset(_)                                                    => { self.state = AtEndFailed(false); Failed(None) },
+            AtEndMatched(true)                                             => { self.state = AtEndMatched(string.is_empty()); Matched(string) },
+            AtEndMatched(false)                                            => { Matched(string) },
+            AtEndFailed(true)                                              => { Failed(Some(string)) },
+            AtEndFailed(false)                                             => { Failed(None) },
         }
     }
     fn done_to(&mut self, _: &mut Consumer<Unit>) -> bool {
-        let result = self.state == AtEnd(true);
+        let result = self.state == AtEndMatched(true);
         self.state = AtOffset(0);
         result
     }
@@ -215,25 +249,26 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
             Beginning => {
                 let result = self.parser.push(string);
                 match result {
-                    Undecided     => self.state = Middle(String::from(string)),
-                    Committed     => self.state = Middle(String::from(string)),
-                    Failed(b)     => self.state = EndFail(b),
-                    Matched(rest) => downstream.accept(&string[..(string.len()-rest.len())]),
+                    Undecided(_)    => self.state = Middle(String::from(string)),
+                    Failed(Some(_)) => self.state = EndFail(true),
+                    Failed(None)    => self.state = EndFail(false),
+                    Matched(rest)   => downstream.accept(&string[..(string.len()-rest.len())]),
                 }
                 result
             },
             Middle(mut buffer) => {
                 let result = self.parser.push(string);
                 match result {
-                    Undecided     => { buffer.push_str(string); self.state = Middle(buffer); },
-                    Committed     => { buffer.push_str(string); self.state = Middle(buffer); },
-                    Failed(b)     => { self.state = EndFail(b); },
-                    Matched(rest) => { buffer.push_str(&string[..(string.len()-rest.len())]); downstream.accept(&*buffer); },
+                    Undecided(_)    => { buffer.push_str(string); self.state = Middle(buffer); },
+                    Failed(Some(_)) => { self.state = EndFail(true) },
+                    Failed(None)    => { self.state = EndFail(false) },
+                    Matched(rest)   => { buffer.push_str(&string[..(string.len()-rest.len())]); downstream.accept(&*buffer); },
                 }
                 result
             }
             EndMatch => Matched(string),
-            EndFail(b) => Failed(b),
+            EndFail(true) => Failed(Some(string)),
+            EndFail(false) => Failed(None),
         }
     }
     fn done_to(&mut self, downstream: &mut Consumer<Str>) -> bool {
@@ -248,37 +283,52 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
 fn test_constant() {
     let mut parser = constant(String::from("abc"));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("fred"), Failed(true));
+    assert_eq!(parser.push("fred"), Failed(Some("fred")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("alice"), Failed(None));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("abcdef"), Matched("def"));
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("a"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("cd"), Matched("d"));
+    assert_eq!(parser.push("abc"), Matched(""));
     assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("a"), Undecided(false));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push(""), Undecided(true));
+    assert_eq!(parser.push("ab"), Undecided(false));
+    assert_eq!(parser.push("cd"), Matched("d"));
+    assert_eq!(parser.done(), false);
 }
 
 #[test]
 fn test_and_then() {
     let mut parser = constant(String::from("abc")).and_then(constant(String::from("def")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("fred"), Failed(true));
+    assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("alice"), Failed(None));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Committed);
+    assert_eq!(parser.push("ab"), Undecided(false));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcd"), Committed);
+    assert_eq!(parser.push("abc"), Undecided(false));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcfred"), Failed(false));
+    assert_eq!(parser.push("abcd"), Undecided(false));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcdefghi"), Matched("ghi"));
+    assert_eq!(parser.push("abcfred"), Failed(None));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcdef"), Matched(""));
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("a"), Undecided);
+    assert_eq!(parser.push("abcdefghi"), Matched("ghi"));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("cd"), Committed);
+    assert_eq!(parser.push("a"), Undecided(false));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push(""), Undecided(true));
+    assert_eq!(parser.push("ab"), Undecided(false));
+    assert_eq!(parser.push("cd"), Undecided(false));
     assert_eq!(parser.push("efg"), Matched("g"));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push(""), Undecided(true));
+    assert_eq!(parser.push("ab"), Undecided(false));
+    assert_eq!(parser.push("cd"), Undecided(false));
+    assert_eq!(parser.push("ef"), Matched(""));
     assert_eq!(parser.done(), true);
 }
