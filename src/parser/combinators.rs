@@ -296,6 +296,11 @@ pub fn string(constant: &str) -> StringParser {
     StringParser{ constant: String::from(constant), state: AtOffset(0) }
 }
 
+pub fn character(constant: char) -> StringParser {
+    let mut string = String::new(); string.push(constant);
+    StringParser{ constant: string, state: AtOffset(0) }
+}
+
 // If m is a Parser<Str,Unit> then m.buffer() is a Parser<Str,Str>.
 // It does as little buffering as it can, but it does allocate as buffer for the case
 // where the boundary marker of the input is misaligned with that of the parser.
