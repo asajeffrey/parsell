@@ -17,7 +17,7 @@ pub trait TypeWithLifetime<'a> {
 
 pub type At<'a,T> where T: TypeWithLifetime<'a> = T::Type;
 
-pub struct Always<T> (T);
+pub struct Always<T> (PhantomData<T>);
 
 impl<'a,T> TypeWithLifetime<'a> for Always<T> {
     type Type = T;
