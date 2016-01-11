@@ -261,8 +261,8 @@ impl Parser<Str,Unit> for ConstantParser {
     }
 }
 
-pub fn constant(string: String) -> ConstantParser {
-    ConstantParser{ constant: string, state: AtOffset(0) }
+pub fn constant(string: &str) -> ConstantParser {
+    ConstantParser{ constant: String::from(string), state: AtOffset(0) }
 }
 
 // If m is a Parser<Str,Unit> then m.buffer() is a Parser<Str,Str>.
@@ -327,7 +327,7 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
 
 #[test]
 fn test_constant() {
-    let mut parser = constant(String::from("abc"));
+    let mut parser = constant("abc");
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -346,7 +346,7 @@ fn test_constant() {
 
 #[test]
 fn test_and_then() {
-    let mut parser = constant(String::from("abc")).and_then(constant(String::from("def")));
+    let mut parser = constant("abc").and_then(constant("def"));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -378,7 +378,7 @@ fn test_and_then() {
 
 #[test]
 fn test_or_else() {
-    let mut parser = constant(String::from("abc")).or_else(constant(String::from("def")));
+    let mut parser = constant("abc").or_else(constant("def"));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -408,7 +408,7 @@ fn test_or_else() {
 
 #[test]
 fn test_star() {
-    let mut parser = constant(String::from("abc")).star();
+    let mut parser = constant("abc").star();
     assert_eq!(parser.done(), true);
     assert_eq!(parser.push("fred"), Matched(Some("fred")));
     assert_eq!(parser.done(), false);
