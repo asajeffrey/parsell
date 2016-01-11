@@ -75,10 +75,10 @@ pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWith
     // In the case where T is "list-like" (e.g. &str or &[T])
     // push_to(nil,d) returns Undecided(true)
     // push_to(a ++ b, d) is the same as push_to(a,d); push_to(b,d)
-    fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>>;
+    fn push_to<'a,D>(&mut self, value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T>;
     // Resets the parser state back to its initial state
     // Returns true if there was a match.
-    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool;
+    fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<T>;
     // Helper methods
     fn push<'a>(&mut self, value: At<'a,S>) -> MatchResult<At<'a,S>> {
         self.push_to(value, &mut DiscardConsumer::new())
@@ -109,14 +109,14 @@ pub struct CommittedParser<P> {
 }
 
 impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
-    fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+    fn push_to<'a,D>(&mut self, value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T> {
         match self.parser.push_to(value, downstream) {
             Undecided(_)  => Undecided(false),
             Matched(rest) => Matched(rest),
             Failed(_)     => Failed(None),
         }
     }
-    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
+    fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<T> {
         self.parser.done_to(downstream)
     }
 }
@@ -131,7 +131,7 @@ pub struct AndThenParser<L,R> {
 }
 
 impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
-    fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+    fn push_to<'a,D>(&mut self, value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T> {
         if self.in_lhs {
             match self.lhs.push_to(value, downstream) {
                 Undecided(b)  => Undecided(b),
@@ -142,7 +142,7 @@ impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser
             self.rhs.push_to(value, downstream)
         }
     }
-    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
+    fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<T> {
         if self.in_lhs {
             self.lhs.done_to(downstream) && self.rhs.done_to(downstream)
         } else {
@@ -162,7 +162,7 @@ pub struct OrElseParser<L,R> {
 }
 
 impl<S,T,L,R> Parser<S,T> for OrElseParser<L,R> where L: Parser<S,T>, R: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
-    fn push_to<'a>(&mut self, value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+    fn push_to<'a,D>(&mut self, value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T> {
         if self.in_lhs {
             match self.lhs.push_to(value, downstream) {
                 Failed(Some(rest)) => { self.in_lhs = false; self.lhs.done_to(downstream); self.rhs.push_to(rest, downstream) },
@@ -172,7 +172,7 @@ impl<S,T,L,R> Parser<S,T> for OrElseParser<L,R> where L: Parser<S,T>, R: Parser<
             self.rhs.push_to(value, downstream)
         }
     }
-    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
+    fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<T> {
         if self.in_lhs {
             self.lhs.done_to(downstream)
         } else {
@@ -192,7 +192,7 @@ pub struct StarParser<P> {
 }
 
 impl<S,T,P> Parser<S,T> for StarParser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
-    fn push_to<'a>(&mut self, mut value: At<'a,S>, downstream: &mut Consumer<T>) -> MatchResult<At<'a,S>> {
+    fn push_to<'a,D>(&mut self, mut value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T> {
         loop {
             match self.parser.push_to(value, downstream) {
                 Undecided(b)        => { self.matched = b; return Undecided(b & self.first_time) },
@@ -202,7 +202,7 @@ impl<S,T,P> Parser<S,T> for StarParser<P> where P: Parser<S,T>, S: for<'a> TypeW
             }
         }
     }
-    fn done_to(&mut self, downstream: &mut Consumer<T>) -> bool {
+    fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<T> {
         self.first_time = true;
         self.parser.done_to(downstream) | self.matched
     }
@@ -233,7 +233,7 @@ pub struct ConstantParser {
 }
 
 impl Parser<Str,Unit> for ConstantParser {
-    fn push_to<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Unit>) -> MatchResult<&'a str> {
+    fn push_to<'a,D>(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> where D: Consumer<Unit> {
         match self.state {
             AtOffset(0)     if string.is_empty()                           => { Undecided(true) },
             AtOffset(index) if string == &self.constant[index..]           => { downstream.accept(()); self.state = AtEndMatched(true); Matched("") },
@@ -247,7 +247,7 @@ impl Parser<Str,Unit> for ConstantParser {
             AtEndFailed(false)                                             => { Failed(None) },
         }
     }
-    fn done_to(&mut self, _: &mut Consumer<Unit>) -> bool {
+    fn done_to<D>(&mut self, _: &mut D) -> bool where D: Consumer<Unit> {
         let result = self.state == AtEndMatched(true);
         self.state = AtOffset(0);
         result
@@ -279,7 +279,7 @@ pub struct BufferedParser<P> {
 }
 
 impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
-    fn push_to<'a>(&mut self, string: &'a str, downstream: &mut Consumer<Str>) -> MatchResult<&'a str> {
+    fn push_to<'a,D>(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> where D: Consumer<Str> {
         match mem::replace(&mut self.state, EndMatch) {
             Beginning => {
                 let result = self.parser.push(string);
@@ -306,7 +306,7 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
             EndFail(false) => Failed(None),
         }
     }
-    fn done_to(&mut self, downstream: &mut Consumer<Str>) -> bool {
+    fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<Str> {
         let result = self.parser.done();
         if result { if let Middle(ref buffer) = self.state { downstream.accept(&*buffer) } }
         self.state = Beginning;
