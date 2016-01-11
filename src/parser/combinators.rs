@@ -71,15 +71,16 @@ impl<T> DiscardConsumer<T> {
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum MatchResult<T> {
-    Undecided(bool),
-    Matched(T),
+    Undecided,
+    Matched(Option<T>),
     Failed(Option<T>),
 }
 
 pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
-    // If push_to returns Undecided(true) or Failed(Some(s)), it is side-effect-free
+    // If push_to returns Failed(Some(s)), it is side-effect-free
+    // push_to should be called with non-empty input,
+    // when it returns Matched(Some(s)) or Failed(Some(s)) then s is non-empty.
     // In the case where T is "list-like" (e.g. &str or &[T])
-    // push_to(nil,d) returns Undecided(true)
     // push_to(a ++ b, d) is the same as push_to(a,d); push_to(b,d)
     fn push_to<'a,D>(&mut self, value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T>;
     // Resets the parser state back to its initial state
@@ -117,7 +118,7 @@ pub struct CommittedParser<P> {
 impl<S,T,P> Parser<S,T> for CommittedParser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>  {
     fn push_to<'a,D>(&mut self, value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T> {
         match self.parser.push_to(value, downstream) {
-            Undecided(_)  => Undecided(false),
+            Undecided     => Undecided,
             Matched(rest) => Matched(rest),
             Failed(_)     => Failed(None),
         }
@@ -140,9 +141,10 @@ impl<S,T,L,R> Parser<S,T> for AndThenParser<L,R> where L: Parser<S,T>, R: Parser
     fn push_to<'a,D>(&mut self, value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T> {
         if self.in_lhs {
             match self.lhs.push_to(value, downstream) {
-                Undecided(b)  => Undecided(b),
-                Matched(rest) => { self.in_lhs = false; self.lhs.done_to(downstream); self.rhs.push_to(rest, downstream) },
-                Failed(rest)  => Failed(rest),
+                Undecided           => Undecided,
+                Matched(Some(rest)) => { self.in_lhs = false; self.lhs.done_to(downstream); self.rhs.push_to(rest, downstream) },
+                Matched(None)       => { self.in_lhs = false; self.lhs.done_to(downstream); Undecided },
+                Failed(rest)        => Failed(rest),
             }
         } else {
             self.rhs.push_to(value, downstream)
@@ -201,9 +203,10 @@ impl<S,T,P> Parser<S,T> for StarParser<P> where P: Parser<S,T>, S: for<'a> TypeW
     fn push_to<'a,D>(&mut self, mut value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T> {
         loop {
             match self.parser.push_to(value, downstream) {
-                Undecided(b)        => { self.matched = b; return Undecided(b & self.first_time) },
-                Matched(rest)       => { self.parser.done_to(downstream); self.matched = true; self.first_time = false; value = rest; },
-                Failed(Some(rest))  => { self.matched = false; return Matched(rest) },
+                Undecided           => { self.matched = false; return Undecided },
+                Matched(Some(rest)) => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); value = rest; },
+                Matched(None)       => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); return Undecided; },
+                Failed(Some(rest))  => { self.matched = false; return Matched(Some(rest)) },
                 Failed(None)        => { self.matched = false; return Failed(None) },
             }
         }
@@ -241,14 +244,12 @@ pub struct ConstantParser {
 impl Parser<Str,Unit> for ConstantParser {
     fn push_to<'a,D>(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> where D: Consumer<Unit> {
         match self.state {
-            AtOffset(0)     if string.is_empty()                           => { Undecided(true) },
-            AtOffset(index) if string == &self.constant[index..]           => { downstream.accept(()); self.state = AtEndMatched(true); Matched("") },
-            AtOffset(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); self.state = AtEndMatched(false); Matched(&string[(self.constant.len() - index)..]) },
-            AtOffset(index) if self.constant[index..].starts_with(string)  => { self.state = AtOffset(index + string.len()); Undecided(false) },
+            AtOffset(index) if string == &self.constant[index..]           => { downstream.accept(()); self.state = AtEndMatched(true); Matched(None) },
+            AtOffset(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); self.state = AtEndMatched(false); Matched(Some(&string[(self.constant.len() - index)..])) },
+            AtOffset(index) if self.constant[index..].starts_with(string)  => { self.state = AtOffset(index + string.len()); Undecided },
             AtOffset(0)     if !string.starts_with(&self.constant[..1])    => { self.state = AtEndFailed(true); Failed(Some(string)) },
             AtOffset(_)                                                    => { self.state = AtEndFailed(false); Failed(None) },
-            AtEndMatched(true)                                             => { self.state = AtEndMatched(string.is_empty()); Matched(string) },
-            AtEndMatched(false)                                            => { Matched(string) },
+            AtEndMatched(_)                                                => { self.state = AtEndMatched(false); Matched(Some(string)) },
             AtEndFailed(true)                                              => { Failed(Some(string)) },
             AtEndFailed(false)                                             => { Failed(None) },
         }
@@ -290,24 +291,26 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
             Beginning => {
                 let result = self.parser.push(string);
                 match result {
-                    Undecided(_)    => self.state = Middle(String::from(string)),
-                    Failed(Some(_)) => self.state = EndFail(true),
-                    Failed(None)    => self.state = EndFail(false),
-                    Matched(rest)   => downstream.accept(&string[..(string.len()-rest.len())]),
+                    Undecided           => self.state = Middle(String::from(string)),
+                    Failed(Some(_))     => self.state = EndFail(true),
+                    Failed(None)        => self.state = EndFail(false),
+                    Matched(Some(rest)) => downstream.accept(&string[..(string.len()-rest.len())]),
+                    Matched(None)       => downstream.accept(string),
                 }
                 result
             },
             Middle(mut buffer) => {
                 let result = self.parser.push(string);
                 match result {
-                    Undecided(_)    => { buffer.push_str(string); self.state = Middle(buffer); },
-                    Failed(Some(_)) => { self.state = EndFail(true) },
-                    Failed(None)    => { self.state = EndFail(false) },
-                    Matched(rest)   => { buffer.push_str(&string[..(string.len()-rest.len())]); downstream.accept(&*buffer); },
+                    Undecided           => { buffer.push_str(string); self.state = Middle(buffer); },
+                    Failed(Some(_))     => { self.state = EndFail(true) },
+                    Failed(None)        => { self.state = EndFail(false) },
+                    Matched(Some(rest)) => { buffer.push_str(&string[..(string.len()-rest.len())]); downstream.accept(&*buffer); },
+                    Matched(None)       => { buffer.push_str(string); downstream.accept(&*buffer); },
                 }
                 result
             }
-            EndMatch => Matched(string),
+            EndMatch => Matched(Some(string)),
             EndFail(true) => Failed(Some(string)),
             EndFail(false) => Failed(None),
         }
@@ -330,15 +333,14 @@ fn test_constant() {
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("alice"), Failed(None));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcdef"), Matched("def"));
+    assert_eq!(parser.push("abcdef"), Matched(Some("def")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Matched(""));
+    assert_eq!(parser.push("abc"), Matched(None));
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("a"), Undecided(false));
+    assert_eq!(parser.push("a"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push(""), Undecided(true));
-    assert_eq!(parser.push("ab"), Undecided(false));
-    assert_eq!(parser.push("cd"), Matched("d"));
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("cd"), Matched(Some("d")));
     assert_eq!(parser.done(), false);
 }
 
@@ -350,29 +352,27 @@ fn test_and_then() {
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("alice"), Failed(None));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided(false));
+    assert_eq!(parser.push("ab"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Undecided(false));
+    assert_eq!(parser.push("abc"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcd"), Undecided(false));
+    assert_eq!(parser.push("abcd"), Undecided);
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("abcfred"), Failed(None));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcdef"), Matched(""));
+    assert_eq!(parser.push("abcdef"), Matched(None));
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("abcdefghi"), Matched("ghi"));
+    assert_eq!(parser.push("abcdefghi"), Matched(Some("ghi")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("a"), Undecided(false));
+    assert_eq!(parser.push("a"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push(""), Undecided(true));
-    assert_eq!(parser.push("ab"), Undecided(false));
-    assert_eq!(parser.push("cd"), Undecided(false));
-    assert_eq!(parser.push("efg"), Matched("g"));
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("cd"), Undecided);
+    assert_eq!(parser.push("efg"), Matched(Some("g")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push(""), Undecided(true));
-    assert_eq!(parser.push("ab"), Undecided(false));
-    assert_eq!(parser.push("cd"), Undecided(false));
-    assert_eq!(parser.push("ef"), Matched(""));
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("cd"), Undecided);
+    assert_eq!(parser.push("ef"), Matched(None));
     assert_eq!(parser.done(), true);
 }
 
@@ -384,27 +384,25 @@ fn test_or_else() {
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("alice"), Failed(None));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcdef"), Matched("def"));
+    assert_eq!(parser.push("abcdef"), Matched(Some("def")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Matched(""));
+    assert_eq!(parser.push("abc"), Matched(None));
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("a"), Undecided(false));
+    assert_eq!(parser.push("a"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push(""), Undecided(true));
-    assert_eq!(parser.push("ab"), Undecided(false));
-    assert_eq!(parser.push("cd"), Matched("d"));
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("cd"), Matched(Some("d")));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("dave"), Failed(None));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("defghi"), Matched("ghi"));
+    assert_eq!(parser.push("defghi"), Matched(Some("ghi")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("def"), Matched(""));
+    assert_eq!(parser.push("def"), Matched(None));
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("d"), Undecided(false));
+    assert_eq!(parser.push("d"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push(""), Undecided(true));
-    assert_eq!(parser.push("de"), Undecided(false));
-    assert_eq!(parser.push("fg"), Matched("g"));
+    assert_eq!(parser.push("de"), Undecided);
+    assert_eq!(parser.push("fg"), Matched(Some("g")));
     assert_eq!(parser.done(), false);
 }
 
@@ -412,32 +410,30 @@ fn test_or_else() {
 fn test_star() {
     let mut parser = constant(String::from("abc")).star();
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("fred"), Matched("fred"));
+    assert_eq!(parser.push("fred"), Matched(Some("fred")));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("alice"), Failed(None));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided(false));
+    assert_eq!(parser.push("ab"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Undecided(false));
+    assert_eq!(parser.push("abc"), Undecided);
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("abca"), Undecided(false));
+    assert_eq!(parser.push("abca"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcfred"), Matched("fred"));
+    assert_eq!(parser.push("abcfred"), Matched(Some("fred")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcabc"), Undecided(false));
+    assert_eq!(parser.push("abcabc"), Undecided);
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("abcabcghi"), Matched("ghi"));
+    assert_eq!(parser.push("abcabcghi"), Matched(Some("ghi")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("a"), Undecided(false));
+    assert_eq!(parser.push("a"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push(""), Undecided(true));
-    assert_eq!(parser.push("ab"), Undecided(false));
-    assert_eq!(parser.push("ca"), Undecided(false));
-    assert_eq!(parser.push("bcg"), Matched("g"));
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("ca"), Undecided);
+    assert_eq!(parser.push("bcg"), Matched(Some("g")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push(""), Undecided(true));
-    assert_eq!(parser.push("ab"), Undecided(false));
-    assert_eq!(parser.push("ca"), Undecided(false));
-    assert_eq!(parser.push("bc"), Undecided(false));
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("ca"), Undecided);
+    assert_eq!(parser.push("bc"), Undecided);
     assert_eq!(parser.done(), true);
 }
