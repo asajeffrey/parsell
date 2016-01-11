@@ -2,7 +2,7 @@ use std::mem;
 
 use self::BufferedParserState::{Beginning, Middle, EndMatch, EndFail};
 use self::MatchResult::{Undecided, Matched, Failed};
-use self::ConstantParserState::{AtOffset, AtEndMatched, AtEndFailed};
+use self::StringParserState::{AtOffset, AtEndMatched, AtEndFailed};
 
 use std::marker::PhantomData;
 
@@ -260,19 +260,19 @@ impl<'a> TypeWithLifetime<'a> for Str {
 // ----------- Constant parsers -------------
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
-pub enum ConstantParserState {
+pub enum StringParserState {
     AtOffset(usize),
     AtEndMatched(bool),
     AtEndFailed(bool),
 }
 
 #[derive(Clone, Debug)]
-pub struct ConstantParser {
+pub struct StringParser {
     constant: String,
-    state: ConstantParserState,
+    state: StringParserState,
 }
 
-impl Parser<Str,Unit> for ConstantParser {
+impl Parser<Str,Unit> for StringParser {
     fn push_to<'a,D>(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> where D: Consumer<Unit> {
         match self.state {
             AtOffset(index) if string == &self.constant[index..]           => { downstream.accept(()); self.state = AtEndMatched(true); Matched(None) },
@@ -292,8 +292,8 @@ impl Parser<Str,Unit> for ConstantParser {
     }
 }
 
-pub fn constant(string: &str) -> ConstantParser {
-    ConstantParser{ constant: String::from(string), state: AtOffset(0) }
+pub fn string(constant: &str) -> StringParser {
+    StringParser{ constant: String::from(constant), state: AtOffset(0) }
 }
 
 // If m is a Parser<Str,Unit> then m.buffer() is a Parser<Str,Str>.
@@ -357,8 +357,8 @@ impl<P> Parser<Str,Str> for BufferedParser<P> where P: Parser<Str,Unit> {
 // ----------- Tests -------------
 
 #[test]
-fn test_constant() {
-    let mut parser = constant("abc");
+fn test_string() {
+    let mut parser = string("abc");
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -377,7 +377,7 @@ fn test_constant() {
 
 #[test]
 fn test_and_then() {
-    let mut parser = constant("abc").and_then(constant("def"));
+    let mut parser = string("abc").and_then(string("def"));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -409,7 +409,7 @@ fn test_and_then() {
 
 #[test]
 fn test_or_else() {
-    let mut parser = constant("abc").or_else(constant("def"));
+    let mut parser = string("abc").or_else(string("def"));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -439,7 +439,7 @@ fn test_or_else() {
 
 #[test]
 fn test_star() {
-    let mut parser = constant("abc").star();
+    let mut parser = string("abc").star();
     assert_eq!(parser.done(), true);
     assert_eq!(parser.push("fred"), Matched(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -472,7 +472,7 @@ fn test_star() {
 
 #[test]
 fn test_plus() {
-    let mut parser = constant("abc").plus();
+    let mut parser = string("abc").plus();
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
