@@ -212,11 +212,12 @@ impl<S,T,P> Parser<S,T> for StarParser<P> where P: Parser<S,T>, S: for<'a> TypeW
         }
     }
     fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<T> {
+        let result = self.parser.done_to(downstream) | self.matched;
         self.first_time = true;
-        self.parser.done_to(downstream) | self.matched
+        self.matched = true;
+        result
     }
 }
-
 
 // ----------- Matching strings -------------
 
@@ -432,6 +433,7 @@ fn test_star() {
     assert_eq!(parser.push("ca"), Undecided);
     assert_eq!(parser.push("bcg"), Matched(Some("g")));
     assert_eq!(parser.done(), false);
+    assert_eq!(parser.done(), true);
     assert_eq!(parser.push("ab"), Undecided);
     assert_eq!(parser.push("ca"), Undecided);
     assert_eq!(parser.push("bc"), Undecided);
