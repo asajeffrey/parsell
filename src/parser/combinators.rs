@@ -102,6 +102,9 @@ pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWith
     fn star(self) -> StarParser<Self> where Self: Sized {
         StarParser{ parser: self, matched: true, first_time: true }
     }
+    fn plus(self) -> PlusParser<Self> where Self: Sized {
+        PlusParser{ parser: self, matched: false, first_time: true }
+    }
 }
 
 pub trait BufferableMatcher<S,T> where S: for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
@@ -215,6 +218,33 @@ impl<S,T,P> Parser<S,T> for StarParser<P> where P: Parser<S,T>, S: for<'a> TypeW
         let result = self.parser.done_to(downstream) | self.matched;
         self.first_time = true;
         self.matched = true;
+        result
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PlusParser<P> {
+    parser: P,
+    matched: bool,
+    first_time: bool,
+}
+
+impl<S,T,P> Parser<S,T> for PlusParser<P> where P: Parser<S,T>, S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
+    fn push_to<'a,D>(&mut self, mut value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T> {
+        loop {
+            match self.parser.push_to(value, downstream) {
+                Undecided           => { self.matched = false; return Undecided },
+                Matched(Some(rest)) => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); value = rest; },
+                Matched(None)       => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); return Undecided; },
+                Failed(Some(rest))  => { self.matched = false; return if self.first_time { Failed(Some(rest)) } else { Matched(Some(rest)) } },
+                Failed(None)        => { self.matched = false; return Failed(None) },
+            }
+        }
+    }
+    fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<T> {
+        let result = self.parser.done_to(downstream) | self.matched;
+        self.first_time = true;
+        self.matched = false;
         result
     }
 }
@@ -438,4 +468,37 @@ fn test_star() {
     assert_eq!(parser.push("ca"), Undecided);
     assert_eq!(parser.push("bc"), Undecided);
     assert_eq!(parser.done(), true);
+}
+
+#[test]
+fn test_plus() {
+    let mut parser = constant("abc").plus();
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("fred"), Failed(Some("fred")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("alice"), Failed(None));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abc"), Undecided);
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("abca"), Undecided);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcfred"), Matched(Some("fred")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcabc"), Undecided);
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("abcabcghi"), Matched(Some("ghi")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("a"), Undecided);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("ca"), Undecided);
+    assert_eq!(parser.push("bcg"), Matched(Some("g")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("ab"), Undecided);
+    assert_eq!(parser.push("ca"), Undecided);
+    assert_eq!(parser.push("bc"), Undecided);
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.done(), false);
 }
