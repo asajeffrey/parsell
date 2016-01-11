@@ -296,9 +296,32 @@ pub fn string(constant: &str) -> StringParser {
     StringParser{ constant: String::from(constant), state: AtOffset(0) }
 }
 
-pub fn character(constant: char) -> StringParser {
-    let mut string = String::new(); string.push(constant);
-    StringParser{ constant: string, state: AtOffset(0) }
+#[derive(Clone, Debug)]
+pub struct CharParser<P> {
+    pattern: P,
+    state: StringParserState,
+}
+
+impl<P> Parser<Str,Unit> for CharParser<P> where P: Fn(char) -> bool {
+    fn push_to<'a,D>(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> where D: Consumer<Unit> {
+        let ch = string.chars().next().unwrap();
+        let len = ch.len_utf8();
+        match self.state {
+            AtOffset(_) if string.len() == len && (self.pattern)(ch) => { downstream.accept(()); self.state = AtEndMatched(true); Matched(None) },
+            AtOffset(_) if (self.pattern)(ch)                        => { downstream.accept(()); self.state = AtEndMatched(false); Matched(Some(&string[len..])) },
+            AtOffset(_)                                              => { self.state = AtEndFailed(true); Failed(Some(string)) },
+            AtEndMatched(_)                                          => { self.state = AtEndMatched(false); Matched(Some(string)) },
+            AtEndFailed(_)                                           => { Failed(Some(string)) },
+        }
+    }
+    fn done_to<D>(&mut self, _: &mut D) -> bool where D: Consumer<Unit> {
+        let result = self.state == AtEndMatched(true);
+        self.state = AtOffset(0);
+        result
+    }
+}
+pub fn character<P>(pattern: P) -> CharParser<P> {
+    CharParser{ pattern: pattern, state: AtOffset(0) }
 }
 
 // If m is a Parser<Str,Unit> then m.buffer() is a Parser<Str,Str>.
@@ -366,6 +389,7 @@ fn test_string() {
     let mut parser = string("abc");
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
+    assert_eq!(parser.push("ab"), Failed(Some("ab")));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("alice"), Failed(None));
     assert_eq!(parser.done(), false);
@@ -377,6 +401,22 @@ fn test_string() {
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("ab"), Undecided);
     assert_eq!(parser.push("cd"), Matched(Some("d")));
+    assert_eq!(parser.done(), false);
+}
+
+#[test]
+fn test_character() {
+    let mut parser = character(char::is_alphabetic);
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("99"), Failed(Some("99")));
+    assert_eq!(parser.push("ab"), Failed(Some("ab")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("abcdef"), Matched(Some("bcdef")));
+    assert_eq!(parser.done(), false);
+    assert_eq!(parser.push("a"), Matched(None));
+    assert_eq!(parser.done(), true);
+    assert_eq!(parser.push("ab"), Matched(Some("b")));
+    assert_eq!(parser.push("cd"), Matched(Some("cd")));
     assert_eq!(parser.done(), false);
 }
 
