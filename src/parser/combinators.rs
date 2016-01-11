@@ -31,6 +31,12 @@ pub trait Consumer<T> where T: for<'a> TypeWithLifetime<'a> {
     fn accept<'a>(&mut self, arg: At<'a,T>);
 }
 
+impl<T,F> Consumer<T> for F where T: for<'a> TypeWithLifetime<'a>, F: for<'a> FnMut(At<'a,T>) {
+    fn accept<'a>(&mut self, arg: At<'a,T>) {
+        self(arg)
+    }
+}
+
 struct DiscardConsumer<T> (PhantomData<T>);
 
 impl<T> Consumer<T> for DiscardConsumer<T> where T: for<'a> TypeWithLifetime<'a> {
