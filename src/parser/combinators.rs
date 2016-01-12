@@ -25,6 +25,10 @@ impl<'a,T> TypeWithLifetime<'a> for Always<T> {
 
 pub type Unit = Always<()>;
 
+pub trait Function<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
+    fn apply<'a>(&self, arg: At<'a,S>) -> At<'a,T>;
+}
+
 // ----------- Types for consumers ------------
 
 pub trait Consumer<T> where T: for<'a> TypeWithLifetime<'a> {
@@ -105,10 +109,46 @@ pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWith
     fn plus(self) -> PlusParser<Self> where Self: Sized {
         PlusParser{ parser: self, matched: false, first_time: true }
     }
+    fn map<U,F>(self, function: F) -> MapParser<S,T,U,F,Self> where F: Function<T,U>, U: for<'a> TypeWithLifetime<'a>, Self: Sized {
+        MapParser{ function: function, parser: self, phantom: PhantomData }
+    }
 }
 
 pub trait BufferableMatcher<S,T> where S: for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
     fn buffer(self) -> T;
+}
+
+// ----------- Map ---------------
+
+#[derive(Debug)]
+pub struct MapConsumer<'b,T,U,F,C> where F: 'b, C: 'b {
+    function: &'b F,
+    consumer: &'b mut C,
+    phantom: PhantomData<(T,U)>,
+}
+
+impl<'b,T,U,F,C> Consumer<T> for MapConsumer<'b,T,U,F,C> where T: for<'a> TypeWithLifetime<'a>, U: for<'a> TypeWithLifetime<'a>, F: Function<T,U>, C: Consumer<U> {
+    fn accept<'a>(&mut self, arg: At<'a,T>) {
+        self.consumer.accept(self.function.apply(arg));
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct MapParser<S,T,U,F,P> {
+    function: F,
+    parser: P,
+    phantom: PhantomData<(S,T,U)>,
+}
+
+impl<S,T,U,F,P> Parser<S,U> for MapParser<S,T,U,F,P> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>, U: for<'a> TypeWithLifetime<'a>, F: Function<T,U>, P: Parser<S,T> {
+    fn push_to<'a,D>(&mut self, value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<U> {
+        let mut downstream: MapConsumer<T,U,F,D> = MapConsumer{ function: &mut self.function, consumer: downstream, phantom: PhantomData };
+        self.parser.push_to(value, &mut downstream)
+    }
+    fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<U> {
+        let mut downstream: MapConsumer<T,U,F,D> = MapConsumer{ function: &mut self.function, consumer: downstream, phantom: PhantomData };
+        self.parser.done_to::<MapConsumer<T,U,F,D>>(&mut downstream)
+    }
 }
 
 // ----------- Always commit ---------------
@@ -255,6 +295,12 @@ pub struct Str;
 
 impl<'a> TypeWithLifetime<'a> for Str {
     type Type = &'a str;
+}
+
+impl Consumer<Str> for String {
+    fn accept<'a>(&mut self, arg: &'a str) {
+        self.push_str(arg);
+    }
 }
 
 // ----------- Constant parsers -------------
@@ -546,4 +592,29 @@ fn test_plus() {
     assert_eq!(parser.push("bc"), Undecided);
     assert_eq!(parser.done(), true);
     assert_eq!(parser.done(), false);
+}
+
+#[test]
+fn test_map() {
+    // Having to do this by hand for now,
+    // due to problems with normalization of associated types.
+    struct Hello;
+    impl Function<Unit,Str> for Hello {
+        fn apply<'a>(&self, _:()) -> &'a str { "hello" }
+    }
+    let mut parser = string("abc").map(Hello);
+    let mut result = String::new();
+    assert_eq!(parser.done_to(&mut result), false);
+    assert_eq!(result, "");
+    assert_eq!(parser.push_to("a", &mut result), Undecided);
+    assert_eq!(result, "");
+    assert_eq!(parser.done_to(&mut result), false);
+    assert_eq!(result, "");
+    assert_eq!(parser.push_to("ab", &mut result), Undecided);
+    assert_eq!(result, "");
+    assert_eq!(parser.push_to("cd", &mut result), Matched(Some("d")));
+    assert_eq!(result, "hello");
+    assert_eq!(parser.done_to(&mut result), false);
+    assert_eq!(result, "hello");
+    
 }
