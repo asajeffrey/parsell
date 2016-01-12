@@ -12,14 +12,14 @@ use std::marker::PhantomData;
 // https://github.com/rust-lang/rfcs/blob/master/text/0195-associated-items.md#encoding-higher-kinded-types
 
 pub trait TypeWithLifetime<'a> {
-    type Type;
+    type Type: Copy;
 }
 
 pub type At<'a,T> where T: TypeWithLifetime<'a> = T::Type;
 
 pub struct Always<T> (PhantomData<T>);
 
-impl<'a,T> TypeWithLifetime<'a> for Always<T> {
+impl<'a,T> TypeWithLifetime<'a> for Always<T> where T: Copy {
     type Type = T;
 }
 
@@ -112,6 +112,9 @@ pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWith
     fn map<U,F>(self, function: F) -> MapParser<S,T,U,F,Self> where F: Function<T,U>, U: for<'a> TypeWithLifetime<'a>, Self: Sized {
         MapParser{ function: function, parser: self, phantom: PhantomData }
     }
+    fn filter<F>(self, function: F) -> FilterParser<S,T,F,Self> where F: Fn(At<T>) -> bool, Self: Sized {
+        FilterParser{ function: function, parser: self, phantom: PhantomData }
+    }
 }
 
 pub trait StrParser: Parser<Str,Unit> {
@@ -155,7 +158,42 @@ impl<S,T,U,F,P> Parser<S,U> for MapParser<S,T,U,F,P> where S: for<'a> TypeWithLi
     }
     fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<U> {
         let mut downstream: MapConsumer<T,U,F,D> = MapConsumer{ function: &mut self.function, consumer: downstream, phantom: PhantomData };
-        self.parser.done_to::<MapConsumer<T,U,F,D>>(&mut downstream)
+        self.parser.done_to(&mut downstream)
+    }
+}
+
+// ----------- Filter ---------------
+
+#[derive(Debug)]
+pub struct FilterConsumer<'b,T,F,C> where F: 'b, C: 'b {
+    function: &'b F,
+    consumer: &'b mut C,
+    phantom: PhantomData<T>,
+}
+
+impl<'b,T,F,C> Consumer<T> for FilterConsumer<'b,T,F,C> where T: for<'a> TypeWithLifetime<'a>, F: Fn(At<T>) -> bool, C: Consumer<T> {
+    fn accept<'a>(&mut self, arg: At<'a,T>) {
+        if (self.function)(arg) {
+            self.consumer.accept(arg)
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct FilterParser<S,T,F,P> {
+    function: F,
+    parser: P,
+    phantom: PhantomData<(S,T)>,
+}
+
+impl<S,T,F,P> Parser<S,T> for FilterParser<S,T,F,P> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a>, F: Fn(At<T>) -> bool, P: Parser<S,T> {
+    fn push_to<'a,D>(&mut self, value: At<'a,S>, downstream: &mut D) -> MatchResult<At<'a,S>> where D: Consumer<T> {
+        let mut downstream: FilterConsumer<T,F,D> = FilterConsumer{ function: &mut self.function, consumer: downstream, phantom: PhantomData };
+        self.parser.push_to(value, &mut downstream)
+    }
+    fn done_to<D>(&mut self, downstream: &mut D) -> bool where D: Consumer<T> {
+        let mut downstream: FilterConsumer<T,F,D> = FilterConsumer{ function: &mut self.function, consumer: downstream, phantom: PhantomData };
+        self.parser.done_to(&mut downstream)
     }
 }
 

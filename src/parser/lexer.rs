@@ -1,7 +1,7 @@
 use parser::combinators::{TypeWithLifetime, Str, Unit, Function, Parser, StrParser, Consumer, ParserConsumer, string, character};
 use self::TokenAt::{LParen, RParen, Whitespace, Identifier};
 
-#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum TokenAt<'a> {
     LParen,
     RParen,
