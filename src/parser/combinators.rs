@@ -122,6 +122,10 @@ pub trait StrParser: Parser<Str,Unit> {
 
 impl<P> StrParser for P where P: Parser<Str,Unit> {}
 
+pub trait ParserConsumer<S,T> where  S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWithLifetime<'a> {
+    fn accept<P>(&mut self, parser: P) where P: Parser<S,T>;
+}
+
 // ----------- Map ---------------
 
 #[derive(Debug)]
