@@ -114,9 +114,13 @@ pub trait Parser<S,T> where S: for<'a> TypeWithLifetime<'a>, T: for<'a> TypeWith
     }
 }
 
-pub trait BufferableMatcher<S,T> where S: for<'a> TypeWithLifetime<'a>, T: Parser<S,S> {
-    fn buffer(self) -> T;
+pub trait StrParser: Parser<Str,Unit> {
+    fn buffer(self) -> BufferedParser<Self> where Self: Sized {
+        BufferedParser{ parser: self, state: Beginning }
+    }
 }
+
+impl<P> StrParser for P where P: Parser<Str,Unit> {}
 
 // ----------- Map ---------------
 
@@ -598,6 +602,7 @@ fn test_plus() {
 fn test_map() {
     // Having to do this by hand for now,
     // due to problems with normalization of associated types.
+    // e.g. https://play.rust-lang.org/?gist=94d94f44371224c7798c
     struct Hello;
     impl Function<Unit,Str> for Hello {
         fn apply<'a>(&self, _:()) -> &'a str { "hello" }
@@ -616,5 +621,26 @@ fn test_map() {
     assert_eq!(result, "hello");
     assert_eq!(parser.done_to(&mut result), false);
     assert_eq!(result, "hello");
-    
+    assert_eq!(parser.star().push_to("abcabcd", &mut result), Matched(Some("d")));
+    assert_eq!(result, "hellohellohello");    
+}
+
+#[test]
+fn test_buffer() {
+    let mut parser = string("abc").buffer();
+    let mut result = String::new();
+    assert_eq!(parser.done_to(&mut result), false);
+    assert_eq!(result, "");
+    assert_eq!(parser.push_to("a", &mut result), Undecided);
+    assert_eq!(result, "");
+    assert_eq!(parser.done_to(&mut result), false);
+    assert_eq!(result, "");
+    assert_eq!(parser.push_to("ab", &mut result), Undecided);
+    assert_eq!(result, "");
+    assert_eq!(parser.push_to("cd", &mut result), Matched(Some("d")));
+    assert_eq!(result, "abc");
+    assert_eq!(parser.done_to(&mut result), false);
+    assert_eq!(result, "abc");
+    assert_eq!(parser.star().push_to("abcabcd", &mut result), Matched(Some("d")));
+    assert_eq!(result, "abcabcabc");    
 }
