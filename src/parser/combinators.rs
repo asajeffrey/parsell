@@ -97,10 +97,6 @@ pub trait StrParser<'a>: ParseTo<&'a str,DiscardConsumer> {
 
 impl<'a,P> StrParser<'a> for P where P: ParseTo<&'a str,DiscardConsumer> {}
 
-pub trait ParserConsumer<S,D> {
-    fn accept<P>(&mut self, parser: P) where P: ParseTo<S,D>;
-}
-
 // ----------- Map ---------------
 
 #[derive(Debug)]
@@ -321,6 +317,14 @@ impl<'a> Consumer<&'a str> for String {
     }
 }
 
+// ----------- Matching arrays -------------
+
+impl<'a,T> Consumer<&'a[T]> for Vec<T> where T: Clone {
+    fn accept(&mut self, arg: &'a[T]) {
+        self.extend(arg.iter().cloned());
+    }
+}
+
 // ----------- Constant parsers -------------
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
@@ -388,6 +392,33 @@ impl<'a,D,P> ParseTo<&'a str,D> for CharParser<P> where P: Fn(char) -> bool, D: 
 }
 pub fn character<P>(pattern: P) -> CharParser<P> {
     CharParser{ pattern: pattern, state: AtOffset(0) }
+}
+
+pub struct TokenParser<P> {
+    pattern: P,
+    state: StringParserState,
+}
+
+impl<'a,T,P> Parser<&'a[T]> for TokenParser<P> where P: Fn(T) -> bool {}
+impl<'a,D,T,P> ParseTo<&'a[T],D> for TokenParser<P> where P: Fn(T) -> bool, D: Consumer<()>, T: Copy {
+    fn push_to(&mut self, tokens: &'a[T], downstream: &mut D) -> MatchResult<&'a[T]> {
+        let token = *tokens.first().unwrap();
+        match self.state {
+            AtOffset(_) if tokens.len() == 1 && (self.pattern)(token) => { downstream.accept(()); self.state = AtEndMatched(true); Matched(None) },
+            AtOffset(_) if (self.pattern)(token)                      => { downstream.accept(()); self.state = AtEndMatched(false); Matched(Some(&tokens[1..])) },
+            AtOffset(_)                                               => { self.state = AtEndFailed(true); Failed(Some(tokens)) },
+            AtEndMatched(_)                                           => { self.state = AtEndMatched(false); Matched(Some(tokens)) },
+            AtEndFailed(_)                                            => { Failed(Some(tokens)) },
+        }
+    }
+    fn done_to(&mut self, _: &mut D) -> bool {
+        let result = self.state == AtEndMatched(true);
+        self.state = AtOffset(0);
+        result
+    }
+}
+pub fn token<P>(pattern: P) -> TokenParser<P> {
+    TokenParser{ pattern: pattern, state: AtOffset(0) }
 }
 
 // If m is a ParseTo<&'a str, DiscardConsumer> then
