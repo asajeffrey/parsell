@@ -690,10 +690,16 @@ fn test_buffer() {
 #[test]
 fn test_different_lifetimes() {
     fn go<'a,'b>(ab: &'a str, cd: &'b str) {
-        let mut parser = string("abc");
-        assert_eq!(parser.push(ab), Undecided);
-        assert_eq!(parser.push(cd), Matched(Some("d")));
-        assert_eq!(parser.done(), false);
+        struct Hello;
+        impl Function<Unit,Str> for Hello {
+            fn apply<'a>(&self, _:()) -> &'a str { "hello" }
+        }
+        let mut parser = string("abc").map(Hello);
+        let mut result = String::new();
+        assert_eq!(parser.push_to(ab, &mut result), Undecided);
+        assert_eq!(result, "");
+        assert_eq!(parser.push_to(cd, &mut result), Matched(Some("d")));
+        assert_eq!(result, "hello");
     }
     go("ab","cd");        
 }
