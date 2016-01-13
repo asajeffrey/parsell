@@ -691,15 +691,15 @@ fn test_buffer() {
 fn test_different_lifetimes() {
     fn go<'a,'b>(ab: &'a str, cd: &'b str) {
         struct Hello;
-        impl Function<Unit,Str> for Hello {
-            fn apply<'a>(&self, _:()) -> &'a str { "hello" }
+        impl Function<Str,Str> for Hello {
+            fn apply<'a>(&self, x: &'a str) -> &'a str { &x[1..] }
         }
-        let mut parser = string("abc").map(Hello);
+        let mut parser = string("abc").buffer().map(Hello);
         let mut result = String::new();
         assert_eq!(parser.push_to(ab, &mut result), Undecided);
         assert_eq!(result, "");
         assert_eq!(parser.push_to(cd, &mut result), Matched(Some("d")));
-        assert_eq!(result, "hello");
+        assert_eq!(result, "bc");
     }
     go("ab","cd");        
 }
