@@ -686,3 +686,14 @@ fn test_buffer() {
     assert_eq!(parser.star().push_to("abcabcd", &mut result), Matched(Some("d")));
     assert_eq!(result, "abcabcabc");    
 }
+
+#[test]
+fn test_different_lifetimes() {
+    fn go<'a,'b>(ab: &'a str, cd: &'b str) {
+        let mut parser = string("abc");
+        assert_eq!(parser.push(ab), Undecided);
+        assert_eq!(parser.push(cd), Matched(Some("d")));
+        assert_eq!(parser.done(), false);
+    }
+    go("ab","cd");        
+}
