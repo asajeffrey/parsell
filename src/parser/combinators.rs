@@ -453,8 +453,58 @@ impl<'a,D,T,P> ParseTo<&'a[T],D> for TokenParser<P> where P: Fn(T) -> bool, D: C
         result
     }
 }
+
 pub fn token<P>(pattern: P) -> TokenParser<P> {
     TokenParser{ pattern: pattern, state: AtOffset(0) }
+}
+
+#[derive(Clone, Debug)]
+pub struct TokensParser<U> {
+    constant: Vec<U>,
+    state: StringParserState,
+}
+
+impl<'a,T,U> Parser<&'a[T]> for TokensParser<U> where T: PartialEq<U> {}
+impl<'a,T,D,U> ParseTo<&'a[T],D> for TokensParser<U> where T: PartialEq<U>, D: Consumer<()> {
+    fn push_to(&mut self, tokens: &'a[T], downstream: &mut D) -> MatchResult<&'a[T]> {
+        match self.state {
+            AtOffset(index) if eq_slice(tokens, &self.constant[index..])  => { downstream.accept(()); self.state = AtEndMatched(true); Matched(None) },
+            AtOffset(index) if geq_slice(tokens, &self.constant[index..]) => { downstream.accept(()); self.state = AtEndMatched(false); Matched(Some(&tokens[(self.constant.len() - index)..])) },
+            AtOffset(index) if leq_slice(tokens, &self.constant[index..]) => { self.state = AtOffset(index + tokens.len()); Undecided },
+            AtOffset(0)     if geq_slice(tokens, &self.constant[..1])     => { self.state = AtEndFailed(true); Failed(Some(tokens)) },
+            AtOffset(_)                                                   => { self.state = AtEndFailed(false); Failed(None) },
+            AtEndMatched(_)                                               => { self.state = AtEndMatched(false); Matched(Some(tokens)) },
+            AtEndFailed(true)                                             => { Failed(Some(tokens)) },
+            AtEndFailed(false)                                            => { Failed(None) },
+        }
+    }
+    fn done_to(&mut self, _: &mut D) -> bool {
+        let result = self.state == AtEndMatched(true);
+        self.state = AtOffset(0);
+        result
+    }
+}
+
+pub fn eq_slice<'b,T,U>(xs: &'b[T], ys: &'b[U]) -> bool where T: PartialEq<U> {
+    if xs.len() != ys.len() { return false; }
+    for (x,y) in xs.iter().zip(ys.iter()) { if x != y { return false; } }
+    true
+}
+
+pub fn leq_slice<'b,T,U>(xs: &'b[T], ys: &'b[U]) -> bool where T: PartialEq<U> {
+    if xs.len() > ys.len() { return false; }
+    for (x,y) in xs.iter().zip(ys.iter()) { if x != y { return false; } }
+    true
+}
+
+pub fn geq_slice<'b,T,U>(xs: &'b[T], ys: &'b[U]) -> bool where T: PartialEq<U> {
+    if xs.len() < ys.len() { return false; }
+    for (x,y) in xs.iter().zip(ys.iter()) { if x != y { return false; } }
+    true
+}
+
+pub fn tokens<U>(constant: Vec<U>) -> TokensParser<U> {
+    TokensParser{ constant: constant, state: AtOffset(0) }
 }
 
 // If m is a ParseTo<&'a str, DiscardConsumer> then
