@@ -429,6 +429,7 @@ pub fn character<P>(pattern: P) -> CharParser<P> {
     CharParser{ pattern: pattern, state: AtOffset(0) }
 }
 
+#[derive(Clone, Debug)]
 pub struct TokenParser<P> {
     pattern: P,
     state: StringParserState,
