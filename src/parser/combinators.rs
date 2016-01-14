@@ -84,6 +84,9 @@ pub trait Parser<S> {
     fn map<T,U,F>(self, function: F) -> MapParser<F,Self> where F: Fn(T) -> U, Self: Sized {
         MapParser{ function: function, parser: self }
     }
+    fn emit<T>(self, value: T) -> EmitParser<T,Self> where T: Clone, Self: Sized {
+        EmitParser{ value: value, parser: self }
+    }
     fn filter<T,F>(self, function: F) -> FilterParser<F,Self> where F: Fn(T) -> bool, T: Copy, Self: Sized {
         FilterParser{ function: function, parser: self }
     }
@@ -128,6 +131,38 @@ impl<S,D,F,P> ParseTo<S,D> for MapParser<F,P> where P: for<'a> ParseTo<S,MapCons
     }
     fn done_to(&mut self, downstream: &mut D) -> bool {
         let mut downstream = MapConsumer{ function: &mut self.function, consumer: downstream };
+        self.parser.done_to(&mut downstream)
+    }
+}
+
+// ----------- Emit ---------------
+
+#[derive(Debug)]
+pub struct EmitConsumer<'a,T:'a,C:'a> {
+    value: &'a T,
+    consumer: &'a mut C
+}
+
+impl<'a,T,C> Consumer<()> for EmitConsumer<'a,T,C> where C: Consumer<T>, T: Clone {
+    fn accept(&mut self, _: ()) {
+        self.consumer.accept(self.value.clone());
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct EmitParser<T,P> {
+    pub value: T,
+    pub parser: P
+}
+
+impl<S,T,P> Parser<S> for EmitParser<T,P> where P: Parser<S> {}
+impl<S,D,T,P> ParseTo<S,D> for EmitParser<T,P> where T: Clone, P: for<'a> ParseTo<S,EmitConsumer<'a,T,D>> {
+    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
+        let mut downstream = EmitConsumer{ value: &self.value, consumer: downstream };
+        self.parser.push_to(value, &mut downstream)
+    }
+    fn done_to(&mut self, downstream: &mut D) -> bool {
+        let mut downstream = EmitConsumer{ value: &self.value, consumer: downstream };
         self.parser.done_to(&mut downstream)
     }
 }
