@@ -1,12 +1,24 @@
 use parser::combinators::{Parser, StrParser, ParseTo, Consumer, string, character};
 use self::Token::{LParen, RParen, Whitespace, Identifier};
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
+#[derive(Copy, Clone, Eq, Hash, Ord, PartialOrd, Debug)]
 pub enum Token<'a> {
     LParen,
     RParen,
     Whitespace,
     Identifier(&'a str),
+}
+
+impl<'a,'b> PartialEq<Token<'b>> for Token<'a> {
+    fn eq(&self, rhs: &Token<'b>) -> bool {
+        match (*self, *rhs) {
+            (LParen, LParen)                       => true,
+            (RParen, RParen)                       => true,
+            (Whitespace, Whitespace)               => true,
+            (Identifier(ref x), Identifier(ref y)) => x == y,
+            _                                      => false
+        }
+    }
 }
 
 pub trait LexerConsumer<D> where D: for<'a> Consumer<Token<'a>> {
@@ -26,7 +38,6 @@ pub fn lexer<C,D>(consumer: C) where C: LexerConsumer<D>, D: for<'a> Consumer<To
     consumer.accept(TOKEN.star())
 }
 
-
 #[test]
 fn test_lexer() {
     impl<'a> Consumer<Token<'a>> for Vec<Token<'static>> {
@@ -43,4 +54,18 @@ fn test_lexer() {
         }
     }
     lexer(TestConsumer);
+}
+
+#[test]
+fn test_partial_eq() {
+    use std::fmt::Debug;
+    fn foo<T,U>(lhs: T, rhs: U) where T: Debug+PartialEq<U>, U: Debug{
+        assert_eq!(lhs, rhs)
+    }
+    fn bar<'b,T>(lhs: T, rhs: Token<'b>) where T: Debug+for<'a> PartialEq<Token<'a>> {
+        foo(lhs, rhs)
+    }
+    let hi = String::from("hi");
+    bar(Identifier("hi"),Identifier(&*hi));
+    bar(Identifier(&*hi),Identifier("hi"));
 }
