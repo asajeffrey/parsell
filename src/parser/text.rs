@@ -1,213 +1,73 @@
-use nom::{digit,multispace,ErrorKind};
-use ast::{Export,Expr,Function,Import,Memory,Module,Segment,Typ,Var,SExpression};
-use std::str;
-use std::str::FromStr;
+use parser::combinators::{Parser, ParseTo, Consumer, token};
+use parser::lexer::{Token};
+use parser::lexer::Token::{Identifier};
+use ast::{Typ};
+use ast::Typ::{F32, F64, I32, I64};
 
-// Error codes
-
-const EXPORT_ERROR: u32 = 1;
-const I32_ADD_ERROR: u32 = 2;
-const RETURN_ERROR: u32 = 3;
-const EXPR_ERROR: u32 = 4;
-const FUNC_ERROR: u32 = 5;
-const IMPORT_ERROR: u32 = 6;
-const LOCAL_ERROR: u32 = 7;
-const MEMORY_ERROR: u32 = 8;
-const MODULE_ERROR: u32 = 9;
-const PARAM_ERROR: u32 = 10;
-const RESULT_ERROR: u32 = 11;
-const SEGMENT_ERROR: u32 = 12;
-const IDENTIFIER_ERROR: u32 = 13;
-
-// Separators
-
-named!(pub multi_line_comment,
-    preceded!(
-        tag!("(;"),
-        take_until_and_consume!(";)")
-    )
-);
-
-named!(pub one_line_comment,
-    preceded!(
-        tag!(";;"),
-        take_until_either_and_consume!("\r\n")
-    )
-);
-
-named!(pub sep,
-    chain!(
-        many0!(alt!(is_a!(" \t\r\n") | one_line_comment | multi_line_comment)),
-        || { &b""[..] }
-    )
-);   
-
-// Literals
-
-named!(pub string_literal<&str>,
-    // TODO: Escape sequences
-    delimited!(
-        tag!("\""),
-        map_res!(take_until!("\""), str::from_utf8),
-        terminated!(tag!("\""), sep)
-    )
-);
-
-named!(pub usize_literal<usize>,
-    // TODO: hex/octal
-    terminated!(
-        map_res!(map_res!(digit, str::from_utf8), usize::from_str),
-        sep
-    )
-);
-
-// Identifiers
-
-fn is_identifier_byte(c : u8) -> bool {
-    (c <= b'0' && b'9' <= c) ||
-    (c <= b'a' && b'z' <= c) ||
-    (c <= b'A' && b'Z' <= c) ||
-    (c == b'_') || (c == b'.')
+#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
+pub enum ParseError {
+    ExpectingTyp(String),
 }
 
-named!(pub identifier<&str>,
-    error!(ErrorKind::Custom(IDENTIFIER_ERROR),delimited!(
-        tag!("$"),
-        map_res!(take_while!(is_identifier_byte), str::from_utf8),
-        sep
-    ))
-);
+pub trait ParserConsumer<D> where D: Consumer<Result<Typ,ParseError>> {
+    fn accept<P>(self, parser: P) where P: for<'a> ParseTo<&'a[Token<'a>],D>;
+}
 
-// Types
+fn is_identifier<'a>(tok: Token<'a>) -> bool {
+    match tok {
+        Identifier(_) => true,
+        _             => false,
+    }
+}
 
-named!(pub typ<Typ>,
-    terminated!(alt!(
-        map!(tag!("f32"), |_| { Typ::F32 }) |
-        map!(tag!("f64"), |_| { Typ::F64 }) |
-        map!(tag!("i32"), |_| { Typ::I32 }) |
-        map!(tag!("i64"), |_| { Typ::I64 })
-    ), sep)
-);
+fn mk_typ<'a>(tok: Token<'a>) -> Result<Typ,ParseError> {
+    match tok {
+        Identifier("f32") => Ok(F32),
+        Identifier("f64") => Ok(F64),
+        Identifier("i32") => Ok(I32),
+        Identifier("i64") => Ok(I64),
+        _                 => Err(ParseError::ExpectingTyp(String::from(tok))),
+    }
+}
 
-// AST
+pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Result<Typ,ParseError>> {
+    let typ = token(is_identifier).map(mk_typ);
+    consumer.accept(typ);
+}
 
-named!(pub exports< Vec<Export> >,
-    many0!(preceded!(terminated!(tag!("(export"), sep), error!(ErrorKind::Custom(EXPORT_ERROR), chain!(
-name:   string_literal ~
-func:   identifier ~
-        terminated!(tag!(")"), sep),
-        || { Export{ name: name.to_owned(), func: func.to_owned() } }
-    ))))
-);
-
-named!(pub expr<Expr>,
-    preceded!(tag!("("), error!(ErrorKind::Custom(EXPR_ERROR), alt!(
-        expr_return |
-        expr_i32_add
-    )))
-);
-
-named!(pub exprs< Vec<Expr> >,
-    many0!(expr)
-);
-
-named!(pub expr_i32_add<Expr>,
-    preceded!(terminated!(tag!("i32.add"), sep), add_error!(ErrorKind::Custom(I32_ADD_ERROR), chain!(
-lhs:    expr ~
-rhs:    expr ~
-        terminated!(tag!(")"), sep) ,
-        || { Expr::Add(Typ::I32, Box::new(lhs), Box::new(rhs)) }
-    )))
-);
-
-named!(pub expr_return<Expr>,
-    preceded!(terminated!(tag!("return"), sep), add_error!(ErrorKind::Custom(RETURN_ERROR), chain!(
-result: usize_literal ~
-        terminated!(tag!(")"), sep),
-        || { Expr::Return(result) }
-    )))
-);
-
-named!(pub functions< Vec<Function> >,
-    many0!(preceded!(terminated!(tag!("(func"), sep), error!(ErrorKind::Custom(FUNC_ERROR), chain!(
-name:   identifier ~
-params: params ~
-result: result ~
-locals: locals ~
-body:   exprs ~
-        terminated!(tag!(")"), sep),
-        || { Function{ name: name.to_owned(), params: params, result: result, locals: locals, body: body } }
-    ))))
-);
-    
-named!(pub imports< Vec<Import> >,
-    many0!(preceded!(terminated!(tag!("(import"), sep), error!(ErrorKind::Custom(IMPORT_ERROR), chain!(
-func:   identifier ~
-module: string_literal ~
-name:   string_literal ~ 
-        terminated!(tag!(")"), sep),
-        || { Import{ func: func.to_owned(), module: module.to_owned(), name: name.to_owned() } }
-    ))))
-);
-
-named!(pub locals< Vec<Var> >,
-    many0!(preceded!(terminated!(tag!("(local"), sep), error!(ErrorKind::Custom(LOCAL_ERROR), chain!(
-name:   identifier ~
-typ:    typ ~
-        terminated!(tag!(")"), sep),
-        || { Var{ name: name.to_owned(), typ: typ } }
-    ))))
-);      
-
-named!(pub memory< Option<Memory> >,
-    opt!(preceded!(terminated!(tag!("(memory"), sep), error!(ErrorKind::Custom(MEMORY_ERROR), chain!(
-init:   usize_literal ~
-max:    opt!(usize_literal) ~
-segs:   many0!(segment) ~
-        terminated!(tag!(")"), sep), 
-        || { Memory{ init: init, max: max, segments: segs } }
-    ))))
-);
-
-named!(pub module<Module>,
-    preceded!(terminated!(tag!("(module"), sep), add_error!(ErrorKind::Custom(MODULE_ERROR), chain!(
-mem:    memory ~
-imps:   imports ~
-exps:   exports ~
-funcs:  functions ~
-        terminated!(tag!(")"), sep), 
-        || { Module{ memory: mem, imports: imps, exports: exps, functions: funcs } }
-    )))
-);      
-
-named!(pub params< Vec<Var> >,
-    many0!(preceded!(terminated!(tag!("(param"), sep), error!(ErrorKind::Custom(PARAM_ERROR), chain!(
-name:   identifier ~
-typ:    typ ~
-        terminated!(tag!(")"), sep), 
-        || { Var{ name: name.to_owned(), typ: typ } }
-    ))))
-);      
-
-named!(pub result< Option<Typ> >,
-    opt!(preceded!(terminated!(tag!("(result"), sep), add_error!(ErrorKind::Custom(RESULT_ERROR), chain!(
-typ:    typ ~
-        terminated!(tag!(")"), sep), 
-        || { typ }
-    ))))
-);      
-
-named!(pub segment<Segment>,
-    preceded!(terminated!(tag!("(segment"), sep), add_error!(ErrorKind::Custom(SEGMENT_ERROR), chain!(
-addr:   usize_literal ~
-data:   string_literal ~
-        terminated!(tag!(")"), sep), 
-        || { Segment{ addr: addr, data: data.to_owned() } }
-    )))
-);      
-
-// Top-level
-
-named!(pub top_level<Module>,
-   add_error!(ErrorKind::Custom(MODULE_ERROR), preceded!(sep, module))
-);    
+#[test]
+fn test_typ() {
+    use parser::combinators::MatchResult::{Matched,Failed};
+    use parser::lexer::Token::{LParen};
+    struct TestConsumer;
+    impl ParserConsumer<Vec<Result<Typ,ParseError>>> for TestConsumer {
+        fn accept<P>(self, mut parser: P) where P: for<'a> ParseTo<&'a[Token<'a>],Vec<Result<Typ,ParseError>>> {
+            let mut results = Vec::new();
+            assert_eq!(parser.push_to(&[Identifier("f32")], &mut results), Matched(None));
+            assert_eq!(parser.done_to(&mut results), true);
+            assert_eq!(results, [Ok(F32)]);
+            results.clear();
+            assert_eq!(parser.push_to(&[Identifier("f64")], &mut results), Matched(None));
+            assert_eq!(parser.done_to(&mut results), true);
+            assert_eq!(results, [Ok(F64)]);
+            results.clear();
+            assert_eq!(parser.push_to(&[Identifier("i32")], &mut results), Matched(None));
+            assert_eq!(parser.done_to(&mut results), true);
+            assert_eq!(results, [Ok(I32)]);
+            results.clear();
+            assert_eq!(parser.push_to(&[Identifier("i64")], &mut results), Matched(None));
+            assert_eq!(parser.done_to(&mut results), true);
+            assert_eq!(results, [Ok(I64)]);
+            results.clear();
+            assert_eq!(parser.push_to(&[LParen], &mut results), Failed(Some(&[LParen][..])));
+            assert_eq!(parser.done_to(&mut results), false);
+            assert_eq!(results, []);
+            results.clear();
+            assert_eq!(parser.push_to(&[Identifier("foo")], &mut results), Matched(None));
+            assert_eq!(parser.done_to(&mut results), true);
+            assert_eq!(results, [Err(ParseError::ExpectingTyp(String::from("foo")))]);
+            results.clear();
+        }
+    }
+    parser(TestConsumer);
+}
