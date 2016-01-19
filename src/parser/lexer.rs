@@ -51,20 +51,19 @@ pub fn lexer<C,D>(consumer: C) where C: LexerConsumer<D>, D: for<'a> Consumer<To
 
 #[test]
 fn test_lexer() {
-    impl<'a> Consumer<Token<'a>> for Vec<Token<'static>> {
-        fn accept(&mut self, token: Token<'a>) {
-            assert_eq!(self.remove(0), token);
+    struct TestConsumer(Vec<String>);
+    impl<'a> Consumer<Token<'a>> for TestConsumer {
+        fn accept(&mut self, tok: Token<'a>) {
+            self.0.push(String::from(tok));
         }
     }
-    struct TestConsumer;
-    impl<'a> LexerConsumer<Vec<Token<'static>>> for TestConsumer {
-        fn accept<P>(self, mut lex: P) where P: ParseTo<&'a str,Vec<Token<'static>>> {
-            let mut tokens = vec![LParen, Identifier("a123"), Whitespace, Whitespace, Identifier("bcd"), RParen];
-            lex.push_to("(a123  bcd)", &mut tokens);
-            assert_eq!(tokens, []);
+    impl LexerConsumer<TestConsumer> for TestConsumer {
+        fn accept<L>(mut self, mut lex: L) where L: for<'a> ParseTo<&'a str,TestConsumer> {
+            lex.push_to("(a123  bcd)", &mut self);
+            assert_eq!(self.0, vec!["(", "a123", "<space>", "<space>", "bcd", ")"]);
         }
     }
-    lexer(TestConsumer);
+    lexer(TestConsumer(Vec::new()));
 }
 
 #[test]
