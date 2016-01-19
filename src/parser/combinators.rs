@@ -111,7 +111,7 @@ where F: Fn<(T,)>, C: Consumer<<F as FnOnce<(T,)>>::Output> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct MapParser<F,P> {
     function: F,
     parser: P
@@ -143,7 +143,7 @@ impl<'a,T,C> Consumer<()> for EmitConsumer<'a,T,C> where C: Consumer<T>, T: Clon
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct EmitParser<T,P> {
     pub value: T,
     pub parser: P
@@ -177,7 +177,7 @@ impl<'a,T,F,C> Consumer<T> for FilterConsumer<'a,F,C> where F: Fn(T) -> bool, T:
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct FilterParser<F,P> {
     function: F,
     parser: P
@@ -197,7 +197,7 @@ impl<S,D,F,P> ParseTo<S,D> for FilterParser<F,P> where P: for<'a> ParseTo<S,Filt
 
 // ----------- Always commit ---------------
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct CommittedParser<P> {
     parser: P,
 }
@@ -218,7 +218,7 @@ impl<S,D,P> ParseTo<S,D> for CommittedParser<P> where P: ParseTo<S,D> {
 
 // ----------- Sequencing ---------------
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct AndThenParser<L,R> {
     lhs: L,
     rhs: CommittedParser<R>,
@@ -251,7 +251,7 @@ impl<S,D,L,R> ParseTo<S,D> for AndThenParser<L,R> where L: ParseTo<S,D>, R: Pars
 
 // ----------- Choice ---------------
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct OrElseParser<L,R> {
     lhs: L,
     rhs: R,
@@ -282,7 +282,7 @@ impl<S,D,L,R> ParseTo<S,D> for OrElseParser<L,R> where L: ParseTo<S,D>, R: Parse
 
 // ----------- Kleene star ---------------
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct StarParser<P> {
     parser: P,
     matched: bool,
@@ -310,7 +310,7 @@ impl<S,D,P> ParseTo<S,D> for StarParser<P> where P: ParseTo<S,D> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct PlusParser<P> {
     parser: P,
     matched: bool,
@@ -364,7 +364,7 @@ impl<T> Consumer<T> for Vec<T> {
 
 // ----------- Constant parsers -------------
 
-#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum StringParserState {
     AtOffset(usize),
     AtEndMatched(bool),
@@ -402,7 +402,7 @@ pub fn string(constant: &str) -> StringParser {
     StringParser{ constant: String::from(constant), state: AtOffset(0) }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct CharParser<P> {
     pattern: P,
     state: StringParserState,
@@ -431,7 +431,7 @@ pub fn character<P>(pattern: P) -> CharParser<P> {
     CharParser{ pattern: pattern, state: AtOffset(0) }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct TokenParser<P> {
     pattern: P,
     state: StringParserState,
