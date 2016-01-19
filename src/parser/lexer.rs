@@ -21,6 +21,17 @@ impl<'a,'b> PartialEq<Token<'b>> for Token<'a> {
     }
 }
 
+impl<'a> From<Token<'a>> for String {
+    fn from(tok: Token<'a>) -> String {
+        String::from(match tok {
+            LParen => "(",
+            RParen => ")",
+            Whitespace => "<space>",
+            Identifier(x) => x,
+        })
+    }
+}
+
 pub trait LexerConsumer<D> where D: for<'a> Consumer<Token<'a>> {
     fn accept<L>(self, lexer: L) where L: for<'a> ParseTo<&'a str,D>;
 }
