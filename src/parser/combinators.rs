@@ -63,6 +63,9 @@ pub trait Parser<S> {
     fn done(&mut self) -> bool where Self: ParseTo<S,DiscardConsumer> {
         self.done_to(&mut DiscardConsumer)
     }
+    fn zip<T,R>(self, other: R) -> ZipParser<Self,R,T> where Self: Sized+ParseTo<S,Vec<T>>, R: Parser<S> {
+        ZipParser{ lhs: self, rhs: CommittedParser{ parser: other }, buffer: Vec::new(), in_lhs: true }
+    }
     fn and_then<R>(self, other: R) -> AndThenParser<Self,R> where Self: Sized, R: Parser<S> {
         AndThenParser{ lhs: self, rhs: CommittedParser{ parser: other }, in_lhs: true }
     }
@@ -246,6 +249,58 @@ impl<S,D,L,R> ParseTo<S,D> for AndThenParser<L,R> where L: ParseTo<S,D>, R: Pars
             self.in_lhs = true;
             self.rhs.done_to(downstream)
         }
+    }
+}
+
+// ----------- Sequencing with zipping ---------------
+
+// If p produces output (v1,v2,...,vM) and q produces output (w1,w2,...,wN)
+// then p.zip(q) produces output ((v1,w1),(v2,w1),...,(vL,wL)) where L = min(M,N).
+
+#[derive(Clone, Debug)]
+pub struct ZipParser<L,R,T> {
+    lhs: L,
+    rhs: CommittedParser<R>,
+    buffer: Vec<T>,
+    in_lhs: bool,
+}
+
+pub struct ZipConsumer<'a,T:'a,D:'a> {
+    buffer: &'a mut Vec<T>,
+    downstream: &'a mut D,
+}
+
+impl<'a,T,U,D> Consumer<U> for ZipConsumer<'a,T,D> where D: Consumer<(T,U)> {
+    fn accept(&mut self, rhs: U) {
+        if let Some(lhs) = self.buffer.pop() {
+            self.downstream.accept((lhs,rhs))
+        }
+    }
+}
+
+impl<S,T,L,R> Parser<S> for ZipParser<L,R,T> where L: Parser<S>, R: Parser<S> {}
+impl<S,T,D,L,R> ParseTo<S,D> for ZipParser<L,R,T> where L: ParseTo<S,Vec<T>>, R: for<'a> ParseTo<S,ZipConsumer<'a,T,D>> {
+    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
+        if self.in_lhs {
+            match self.lhs.push_to(value, &mut self.buffer) {
+                Undecided           => Undecided,
+                Matched(Some(rest)) => { self.in_lhs = false; self.lhs.done_to(&mut self.buffer); self.buffer.reverse(); self.rhs.push_to(rest, &mut ZipConsumer{ buffer: &mut self.buffer, downstream: downstream }) },
+                Matched(None)       => { self.in_lhs = false; self.lhs.done_to(&mut self.buffer); self.buffer.reverse(); Undecided },
+                Failed(rest)        => Failed(rest),
+            }
+        } else {
+            self.rhs.push_to(value, &mut ZipConsumer{ buffer: &mut self.buffer, downstream: downstream })
+        }
+    }
+    fn done_to(&mut self, downstream: &mut D) -> bool {
+        let result = if self.in_lhs {
+            self.lhs.done_to(&mut self.buffer) && { self.buffer.reverse(); self.rhs.done_to(&mut ZipConsumer{ buffer: &mut self.buffer, downstream: downstream }) }
+        } else {
+            self.in_lhs = true;
+            self.rhs.done_to(&mut ZipConsumer{ buffer: &mut self.buffer, downstream: downstream })
+        };
+        self.buffer.clear();
+        result
     }
 }
 
@@ -637,6 +692,31 @@ fn test_and_then() {
     assert_eq!(parser.push("cd"), Undecided);
     assert_eq!(parser.push("ef"), Matched(None));
     assert_eq!(parser.done(), true);
+}
+
+#[test]
+fn test_zip() {
+    let mut parser = character(char::is_alphabetic).star().zip(character(char::is_numeric).star());
+    let mut results = Vec::new();
+    assert_eq!(parser.done_to(&mut results), true);
+    assert_eq!(results, []);
+    results.clear();
+    assert_eq!(parser.push_to("a1", &mut results), Undecided);
+    assert_eq!(parser.done_to(&mut results), true);
+    assert_eq!(results, [('a','1')]);
+    results.clear();
+    assert_eq!(parser.push_to("ab12", &mut results), Undecided);
+    assert_eq!(parser.done_to(&mut results), true);
+    assert_eq!(results, [('a','1'),('b','2')]);
+    results.clear();
+    assert_eq!(parser.push_to("abc12", &mut results), Undecided);
+    assert_eq!(parser.done_to(&mut results), true);
+    assert_eq!(results, [('a','1'),('b','2')]);
+    results.clear();
+    assert_eq!(parser.push_to("ab123", &mut results), Undecided);
+    assert_eq!(parser.done_to(&mut results), true);
+    assert_eq!(results, [('a','1'),('b','2')]);
+    results.clear();
 }
 
 #[test]
