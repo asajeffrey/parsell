@@ -87,6 +87,9 @@ pub trait Parser<S> {
     fn filter<T,F>(self, function: F) -> FilterParser<F,Self> where F: Fn(T) -> bool, T: Copy, Self: Sized {
         FilterParser{ function: function, parser: self }
     }
+    fn ignore(self) -> IgnoreParser<Self> where Self: Sized {
+        IgnoreParser{ parser: self }
+    }
 }
 
 pub trait StrParser<'a>: ParseTo<&'a str,DiscardConsumer> {
@@ -161,6 +164,23 @@ impl<S,D,T,P> ParseTo<S,D> for EmitParser<T,P> where T: Clone, P: for<'a> ParseT
     fn done_to(&mut self, downstream: &mut D) -> bool {
         let mut downstream = EmitConsumer{ value: &self.value, consumer: downstream };
         self.parser.done_to(&mut downstream)
+    }
+}
+
+// ----------- Ignore ---------------
+
+#[derive(Copy, Clone, Debug)]
+pub struct IgnoreParser<P> {
+    parser: P
+}
+
+impl<S,P> Parser<S> for IgnoreParser<P> where P: Parser<S> {}
+impl<S,D,P> ParseTo<S,D> for IgnoreParser<P> where P: ParseTo<S,DiscardConsumer> {
+    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
+        self.parser.push_to(value, &mut DiscardConsumer)
+    }
+    fn done_to(&mut self, downstream: &mut D) -> bool {
+        self.parser.done_to(&mut DiscardConsumer)
     }
 }
 
