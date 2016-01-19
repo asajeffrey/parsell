@@ -9,7 +9,7 @@ pub enum ParseError {
     ExpectingTyp(String),
 }
 
-pub trait ParserConsumer<D> where D: Consumer<Result<Typ,ParseError>> {
+pub trait ParserConsumer<T,D> where D: Consumer<Result<T,ParseError>> {
     fn accept<P>(self, parser: P) where P: for<'a> ParseTo<&'a[Token<'a>],D>;
 }
 
@@ -30,9 +30,8 @@ fn mk_typ<'a>(tok: Token<'a>) -> Result<Typ,ParseError> {
     }
 }
 
-pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Result<Typ,ParseError>> {
-    let typ = token(is_identifier).map(mk_typ);
-    consumer.accept(typ);
+pub fn typ_parser<C,D>(consumer: C) where C: ParserConsumer<Typ,D>, D: Consumer<Result<Typ,ParseError>> {
+    consumer.accept(token(is_identifier).map(mk_typ));
 }
 
 #[test]
@@ -40,7 +39,7 @@ fn test_typ() {
     use parser::combinators::MatchResult::{Matched,Failed};
     use parser::lexer::Token::{LParen};
     struct TestConsumer;
-    impl ParserConsumer<Vec<Result<Typ,ParseError>>> for TestConsumer {
+    impl ParserConsumer<Typ,Vec<Result<Typ,ParseError>>> for TestConsumer {
         fn accept<P>(self, mut parser: P) where P: for<'a> ParseTo<&'a[Token<'a>],Vec<Result<Typ,ParseError>>> {
             let mut results = Vec::new();
             assert_eq!(parser.push_to(&[Identifier("f32")], &mut results), Matched(None));
@@ -69,5 +68,5 @@ fn test_typ() {
             results.clear();
         }
     }
-    parser(TestConsumer);
+    typ_parser(TestConsumer);
 }
