@@ -346,12 +346,20 @@ impl<'a> Consumer<&'a str> for String {
     }
 }
 
+impl Consumer<char> for String {
+    fn accept(&mut self, x: char) { self.push(x); }
+}
+
 // ----------- Matching arrays -------------
 
 impl<'a,T> Consumer<&'a[T]> for Vec<T> where T: Clone {
     fn accept(&mut self, arg: &'a[T]) {
         self.extend(arg.iter().cloned());
     }
+}
+
+impl<T> Consumer<T> for Vec<T> {
+    fn accept(&mut self, x: T) { self.push(x); }
 }
 
 // ----------- Constant parsers -------------
