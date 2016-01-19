@@ -409,13 +409,13 @@ pub struct CharParser<P> {
 }
 
 impl<'a,P> Parser<&'a str> for CharParser<P> where P: Fn(char) -> bool {}
-impl<'a,D,P> ParseTo<&'a str,D> for CharParser<P> where P: Fn(char) -> bool, D: Consumer<()> {
+impl<'a,D,P> ParseTo<&'a str,D> for CharParser<P> where P: Fn(char) -> bool, D: Consumer<char> {
     fn push_to(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> {
         let ch = string.chars().next().unwrap();
         let len = ch.len_utf8();
         match self.state {
-            AtOffset(_) if string.len() == len && (self.pattern)(ch) => { downstream.accept(()); self.state = AtEndMatched(true); Matched(None) },
-            AtOffset(_) if (self.pattern)(ch)                        => { downstream.accept(()); self.state = AtEndMatched(false); Matched(Some(&string[len..])) },
+            AtOffset(_) if string.len() == len && (self.pattern)(ch) => { downstream.accept(ch); self.state = AtEndMatched(true); Matched(None) },
+            AtOffset(_) if (self.pattern)(ch)                        => { downstream.accept(ch); self.state = AtEndMatched(false); Matched(Some(&string[len..])) },
             AtOffset(_)                                              => { self.state = AtEndFailed(true); Failed(Some(string)) },
             AtEndMatched(_)                                          => { self.state = AtEndMatched(false); Matched(Some(string)) },
             AtEndFailed(_)                                           => { Failed(Some(string)) },
@@ -438,12 +438,12 @@ pub struct TokenParser<P> {
 }
 
 impl<'a,T,P> Parser<&'a[T]> for TokenParser<P> where P: Fn(T) -> bool {}
-impl<'a,D,T,P> ParseTo<&'a[T],D> for TokenParser<P> where P: Fn(T) -> bool, D: Consumer<()>, T: Copy {
+impl<'a,D,T,P> ParseTo<&'a[T],D> for TokenParser<P> where P: Fn(T) -> bool, D: Consumer<T>, T: Copy {
     fn push_to(&mut self, tokens: &'a[T], downstream: &mut D) -> MatchResult<&'a[T]> {
         let token = *tokens.first().unwrap();
         match self.state {
-            AtOffset(_) if tokens.len() == 1 && (self.pattern)(token) => { downstream.accept(()); self.state = AtEndMatched(true); Matched(None) },
-            AtOffset(_) if (self.pattern)(token)                      => { downstream.accept(()); self.state = AtEndMatched(false); Matched(Some(&tokens[1..])) },
+            AtOffset(_) if tokens.len() == 1 && (self.pattern)(token) => { downstream.accept(token); self.state = AtEndMatched(true); Matched(None) },
+            AtOffset(_) if (self.pattern)(token)                      => { downstream.accept(token); self.state = AtEndMatched(false); Matched(Some(&tokens[1..])) },
             AtOffset(_)                                               => { self.state = AtEndFailed(true); Failed(Some(tokens)) },
             AtEndMatched(_)                                           => { self.state = AtEndMatched(false); Matched(Some(tokens)) },
             AtEndFailed(_)                                            => { Failed(Some(tokens)) },
