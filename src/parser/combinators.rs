@@ -10,12 +10,6 @@ pub trait Consumer<T> {
     fn accept(&mut self, arg: T);
 }
 
-impl<T,F> Consumer<T> for F where F: FnMut(T) {
-    fn accept(&mut self, arg: T) {
-        self(arg)
-    }
-}
-
 pub struct DiscardConsumer;
 
 impl<T> Consumer<T> for DiscardConsumer {
