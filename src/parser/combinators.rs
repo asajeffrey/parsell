@@ -2,7 +2,7 @@ use std::mem;
 
 use self::BufferedParserState::{Beginning, Middle, EndMatch, EndFail};
 use self::MatchResult::{Undecided, Matched, Failed};
-use self::StringParserState::{AtOffset, AtEndMatched, AtEndFailed};
+use self::ConstParserState::{AtBeginning, AtEndMatched, AtEndFailed};
 
 // ----------- Types for consumers ------------
 
@@ -476,159 +476,141 @@ impl<T> Consumer<T> for Vec<T> {
     fn accept(&mut self, x: T) { self.push(x); }
 }
 
-// ----------- Constant parsers -------------
+// // ----------- Constant parsers -------------
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
-pub enum StringParserState {
-    AtOffset(usize),
+pub enum ConstParserState {
+    AtBeginning,
     AtEndMatched(bool),
     AtEndFailed(bool),
 }
 
-#[derive(Clone, Debug)]
-pub struct StringParser {
-    constant: String,
-    state: StringParserState,
-}
-
-impl<'a> Parser<&'a str> for StringParser {}
-impl<'a,D> ParseTo<&'a str,D> for StringParser where D: Consumer<()> {
-    fn push_to(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> {
-        match self.state {
-            AtOffset(index) if string == &self.constant[index..]           => { downstream.accept(()); self.state = AtEndMatched(true); Matched(None) },
-            AtOffset(index) if string.starts_with(&self.constant[index..]) => { downstream.accept(()); self.state = AtEndMatched(false); Matched(Some(&string[(self.constant.len() - index)..])) },
-            AtOffset(index) if self.constant[index..].starts_with(string)  => { self.state = AtOffset(index + string.len()); Undecided },
-            AtOffset(0)     if !string.starts_with(&self.constant[..1])    => { self.state = AtEndFailed(true); Failed(Some(string)) },
-            AtOffset(_)                                                    => { self.state = AtEndFailed(false); Failed(None) },
-            AtEndMatched(_)                                                => { self.state = AtEndMatched(false); Matched(Some(string)) },
-            AtEndFailed(true)                                              => { Failed(Some(string)) },
-            AtEndFailed(false)                                             => { Failed(None) },
-        }
-    }
-    fn done_to(&mut self, _: &mut D) -> bool {
-        let result = self.state == AtEndMatched(true);
-        self.state = AtOffset(0);
-        result
-    }
-}
-
-pub fn string(constant: &str) -> StringParser {
-    StringParser{ constant: String::from(constant), state: AtOffset(0) }
-}
-
 #[derive(Copy, Clone, Debug)]
-pub struct CharParser<P> {
+pub struct CharMatchParser<P> {
     pattern: P,
-    state: StringParserState,
+    state: ConstParserState,
 }
 
-impl<'a,P> Parser<&'a str> for CharParser<P> where P: Fn(char) -> bool {}
-impl<'a,D,P> ParseTo<&'a str,D> for CharParser<P> where P: Fn(char) -> bool, D: Consumer<char> {
+impl<'a,P> Parser<&'a str> for CharMatchParser<P> where P: Fn(char) -> bool {}
+impl<'a,D,P> ParseTo<&'a str,D> for CharMatchParser<P> where P: Fn(char) -> bool, D: Consumer<char> {
     fn push_to(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> {
         let ch = string.chars().next().unwrap();
         let len = ch.len_utf8();
         match self.state {
-            AtOffset(_) if string.len() == len && (self.pattern)(ch) => { downstream.accept(ch); self.state = AtEndMatched(true); Matched(None) },
-            AtOffset(_) if (self.pattern)(ch)                        => { downstream.accept(ch); self.state = AtEndMatched(false); Matched(Some(&string[len..])) },
-            AtOffset(_)                                              => { self.state = AtEndFailed(true); Failed(Some(string)) },
+            AtBeginning if string.len() == len && (self.pattern)(ch) => { downstream.accept(ch); self.state = AtEndMatched(true); Matched(None) },
+            AtBeginning if (self.pattern)(ch)                        => { downstream.accept(ch); self.state = AtEndMatched(false); Matched(Some(&string[len..])) },
+            AtBeginning                                              => { self.state = AtEndFailed(true); Failed(Some(string)) },
             AtEndMatched(_)                                          => { self.state = AtEndMatched(false); Matched(Some(string)) },
             AtEndFailed(_)                                           => { Failed(Some(string)) },
         }
     }
     fn done_to(&mut self, _: &mut D) -> bool {
         let result = self.state == AtEndMatched(true);
-        self.state = AtOffset(0);
+        self.state = AtBeginning;
         result
     }
 }
-pub fn character<P>(pattern: P) -> CharParser<P> {
-    CharParser{ pattern: pattern, state: AtOffset(0) }
+
+pub fn character_match<P>(pattern: P) -> CharMatchParser<P> {
+    CharMatchParser{ pattern: pattern, state: AtBeginning }
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct TokenParser<P> {
-    pattern: P,
-    state: StringParserState,
+pub struct CharParser {
+    ch: char,
+    state: ConstParserState,
 }
 
-impl<'a,T,P> Parser<&'a[T]> for TokenParser<P> where P: Fn(T) -> bool {}
-impl<'a,D,T,P> ParseTo<&'a[T],D> for TokenParser<P> where P: Fn(T) -> bool, D: Consumer<T>, T: Copy {
+impl<'a> Parser<&'a str> for CharParser {}
+impl<'a,D> ParseTo<&'a str,D> for CharParser where D: Consumer<char> {
+    fn push_to(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> {
+        let ch = string.chars().next().unwrap();
+        let len = ch.len_utf8();
+        match self.state {
+            AtBeginning if string.len() == len && self.ch == ch => { downstream.accept(ch); self.state = AtEndMatched(true); Matched(None) },
+            AtBeginning if self.ch == ch                        => { downstream.accept(ch); self.state = AtEndMatched(false); Matched(Some(&string[len..])) },
+            AtBeginning                                         => { self.state = AtEndFailed(true); Failed(Some(string)) },
+            AtEndMatched(_)                                     => { self.state = AtEndMatched(false); Matched(Some(string)) },
+            AtEndFailed(_)                                      => { Failed(Some(string)) },
+        }
+    }
+    fn done_to(&mut self, _: &mut D) -> bool {
+        let result = self.state == AtEndMatched(true);
+        self.state = AtBeginning;
+        result
+    }
+}
+
+pub fn character(ch: char) -> CharParser {
+    CharParser{ ch: ch, state: AtBeginning }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TokenMatchParser<P> {
+    pattern: P,
+    state: ConstParserState,
+}
+
+impl<'a,T,P> Parser<&'a[T]> for TokenMatchParser<P> where P: Fn(T) -> bool {}
+impl<'a,D,T,P> ParseTo<&'a[T],D> for TokenMatchParser<P> where P: Fn(T) -> bool, D: Consumer<T>, T: Copy {
     fn push_to(&mut self, tokens: &'a[T], downstream: &mut D) -> MatchResult<&'a[T]> {
         let token = *tokens.first().unwrap();
         match self.state {
-            AtOffset(_) if tokens.len() == 1 && (self.pattern)(token) => { downstream.accept(token); self.state = AtEndMatched(true); Matched(None) },
-            AtOffset(_) if (self.pattern)(token)                      => { downstream.accept(token); self.state = AtEndMatched(false); Matched(Some(&tokens[1..])) },
-            AtOffset(_)                                               => { self.state = AtEndFailed(true); Failed(Some(tokens)) },
+            AtBeginning if tokens.len() == 1 && (self.pattern)(token) => { downstream.accept(token); self.state = AtEndMatched(true); Matched(None) },
+            AtBeginning if (self.pattern)(token)                      => { downstream.accept(token); self.state = AtEndMatched(false); Matched(Some(&tokens[1..])) },
+            AtBeginning                                               => { self.state = AtEndFailed(true); Failed(Some(tokens)) },
             AtEndMatched(_)                                           => { self.state = AtEndMatched(false); Matched(Some(tokens)) },
             AtEndFailed(_)                                            => { Failed(Some(tokens)) },
         }
     }
     fn done_to(&mut self, _: &mut D) -> bool {
         let result = self.state == AtEndMatched(true);
-        self.state = AtOffset(0);
+        self.state = AtBeginning;
         result
     }
 }
 
-pub fn token<P>(pattern: P) -> TokenParser<P> {
-    TokenParser{ pattern: pattern, state: AtOffset(0) }
+pub fn token_match<P>(pattern: P) -> TokenMatchParser<P> {
+    TokenMatchParser{ pattern: pattern, state: AtBeginning }
 }
 
-#[derive(Clone, Debug)]
-pub struct TokensParser<U> {
-    constant: Vec<U>,
-    state: StringParserState,
+#[derive(Copy, Clone, Debug)]
+pub struct TokenParser<U> {
+    tok: U,
+    state: ConstParserState,
 }
 
-impl<'a,T,U> Parser<&'a[T]> for TokensParser<U> where T: PartialEq<U> {}
-impl<'a,T,D,U> ParseTo<&'a[T],D> for TokensParser<U> where T: PartialEq<U>, D: Consumer<()> {
+impl<'a,T,U> Parser<&'a[T]> for TokenParser<U> where T: PartialEq<U> {}
+impl<'a,D,T,U> ParseTo<&'a[T],D> for TokenParser<U> where D: Consumer<T>, T: Copy+PartialEq<U> {
     fn push_to(&mut self, tokens: &'a[T], downstream: &mut D) -> MatchResult<&'a[T]> {
+        let tok = *tokens.first().unwrap();
         match self.state {
-            AtOffset(index) if eq_slice(tokens, &self.constant[index..])  => { downstream.accept(()); self.state = AtEndMatched(true); Matched(None) },
-            AtOffset(index) if geq_slice(tokens, &self.constant[index..]) => { downstream.accept(()); self.state = AtEndMatched(false); Matched(Some(&tokens[(self.constant.len() - index)..])) },
-            AtOffset(index) if leq_slice(tokens, &self.constant[index..]) => { self.state = AtOffset(index + tokens.len()); Undecided },
-            AtOffset(0)     if geq_slice(tokens, &self.constant[..1])     => { self.state = AtEndFailed(true); Failed(Some(tokens)) },
-            AtOffset(_)                                                   => { self.state = AtEndFailed(false); Failed(None) },
-            AtEndMatched(_)                                               => { self.state = AtEndMatched(false); Matched(Some(tokens)) },
-            AtEndFailed(true)                                             => { Failed(Some(tokens)) },
-            AtEndFailed(false)                                            => { Failed(None) },
+            AtBeginning if tokens.len() == 1 && tok == self.tok => { downstream.accept(tok); self.state = AtEndMatched(true); Matched(None) },
+            AtBeginning if tok == self.tok                      => { downstream.accept(tok); self.state = AtEndMatched(false); Matched(Some(&tokens[1..])) },
+            AtBeginning                                         => { self.state = AtEndFailed(true); Failed(Some(tokens)) },
+            AtEndMatched(_)                                     => { self.state = AtEndMatched(false); Matched(Some(tokens)) },
+            AtEndFailed(_)                                      => { Failed(Some(tokens)) },
         }
     }
     fn done_to(&mut self, _: &mut D) -> bool {
         let result = self.state == AtEndMatched(true);
-        self.state = AtOffset(0);
+        self.state = AtBeginning;
         result
     }
 }
 
-pub fn eq_slice<'b,T,U>(xs: &'b[T], ys: &'b[U]) -> bool where T: PartialEq<U> {
-    if xs.len() != ys.len() { return false; }
-    for (x,y) in xs.iter().zip(ys.iter()) { if x != y { return false; } }
-    true
-}
-
-pub fn leq_slice<'b,T,U>(xs: &'b[T], ys: &'b[U]) -> bool where T: PartialEq<U> {
-    if xs.len() > ys.len() { return false; }
-    for (x,y) in xs.iter().zip(ys.iter()) { if x != y { return false; } }
-    true
-}
-
-pub fn geq_slice<'b,T,U>(xs: &'b[T], ys: &'b[U]) -> bool where T: PartialEq<U> {
-    if xs.len() < ys.len() { return false; }
-    for (x,y) in xs.iter().zip(ys.iter()) { if x != y { return false; } }
-    true
-}
-
-pub fn tokens<U>(constant: Vec<U>) -> TokensParser<U> {
-    TokensParser{ constant: constant, state: AtOffset(0) }
+pub fn token<U>(tok: U) -> TokenParser<U> {
+    TokenParser{ tok: tok, state: AtBeginning }
 }
 
 // If m is a ParseTo<&'a str, DiscardConsumer> then
-// m.buffer() is a ParseTo<&'a str, C: Consumer<&str>>.
+// m.buffer() is a ParseTo<&'a str, D, E> where D: Consumer<&str>.
 // It does as little buffering as it can, but it does allocate as buffer for the case
 // where the boundary marker of the input is misaligned with that of the parser.
 // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
 // we have to buffer up '"abc'.
+
+// TODO: at the moment, this is discarding errors
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 enum BufferedParserState {
