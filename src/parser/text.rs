@@ -1,7 +1,7 @@
 use parser::combinators::{Parser, ParseTo, Consumer, token, tokens};
 use parser::lexer::{Token};
-use parser::lexer::Token::{Identifier};
-use ast::{Typ, Var};
+use parser::lexer::Token::{Identifier, LParen, RParen};
+use ast::{Module, Typ, Var};
 use ast::Typ::{F32, F64, I32, I64};
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
@@ -21,12 +21,10 @@ fn is_identifier<'a>(tok: Token<'a>) -> bool {
     }
 }
 
-fn is_param<'a>(tok: Token<'a>) -> bool {
-    match tok {
-        Identifier("param") => true,
-        _                   => false,
-    }
-}
+fn is_lparen<'a>(tok: Token<'a>) -> bool { tok == LParen }
+fn is_rparen<'a>(tok: Token<'a>) -> bool { tok == RParen }
+fn is_module<'a>(tok: Token<'a>) -> bool { tok == Identifier("module") }
+fn is_param<'a>(tok: Token<'a>) -> bool { tok == Identifier("param") }
 
 fn mk_typ<'a>(tok: Token<'a>) -> Result<Typ,ParseError> {
     match tok {
@@ -45,41 +43,43 @@ fn mk_id<'a>(tok: Token<'a>) -> Result<String,ParseError> {
     }
 }
 
-fn mk_var<'a>(children: (Result<String,ParseError>, Result<Typ,ParseError>))-> Result<Var,ParseError> {
-    Ok(Var { name: try!(children.0), typ: try!(children.1) })
+fn mk_var(children: (Result<String,ParseError>, Result<Typ,ParseError>))-> Result<Var,ParseError> {
+    Ok(Var{ name: try!(children.0), typ: try!(children.1) })
 }
 
-pub fn var_parser<C,D>(consumer: C) where C: ParserConsumer<Var,D>, D: Consumer<Result<Var,ParseError>> {
+fn mk_module(children: ()) -> Result<Module,ParseError> {
+    Ok(Module{ memory: None, imports: vec![], exports: vec![], functions: vec![] })
+}
+
+pub fn parser<C,D>(consumer: C) where C: ParserConsumer<Module,D>, D: Consumer<Result<Module,ParseError>> {
     let typ = token(is_identifier).map(mk_typ);
     let id = token(is_identifier).map(mk_id);
     let param = token(is_param).ignore().and_then(id).zip(typ).map(mk_var);
-    consumer.accept(param);
+    let module = token(is_module).ignore().map(mk_module);
+    let top_level = token(is_lparen).ignore().and_then(module).and_then(token(is_rparen).ignore());
+    consumer.accept(top_level);
 }
 
 #[test]
-fn test_var() {
+fn test_parser() {
     use parser::combinators::MatchResult::{Matched,Failed};
     use parser::lexer::Token::{LParen};
     struct TestConsumer;
-    impl ParserConsumer<Var,Vec<Result<Var,ParseError>>> for TestConsumer {
-        fn accept<P>(self, mut parser: P) where P: for<'a> ParseTo<&'a[Token<'a>],Vec<Result<Var,ParseError>>> {
+    impl ParserConsumer<Module,Vec<Result<Module,ParseError>>> for TestConsumer {
+        fn accept<P>(self, mut parser: P) where P: for<'a> ParseTo<&'a[Token<'a>],Vec<Result<Module,ParseError>>> {
             let mut results = Vec::new();
+            let tokens = [
+                LParen, Identifier("module"),                
+                RParen,
+            ];
             assert_eq!(parser.done_to(&mut results), false);
             assert_eq!(results, []);
             results.clear();
-            assert_eq!(parser.push_to(&[Identifier("param"),Identifier("$x"),Identifier("f32")], &mut results), Matched(None));
+            assert_eq!(parser.push_to(&tokens, &mut results), Matched(None));
             assert_eq!(parser.done_to(&mut results), true);
-            assert_eq!(results, [Ok(Var{ name: String::from("$x"), typ: F32 })]);
-            results.clear();
-            assert_eq!(parser.push_to(&[LParen], &mut results), Failed(Some(&[LParen][..])));
-            assert_eq!(parser.done_to(&mut results), false);
             assert_eq!(results, []);
-            results.clear();
-            assert_eq!(parser.push_to(&[Identifier("param"),Identifier("$x"),Identifier("foo")], &mut results), Matched(None));
-            assert_eq!(parser.done_to(&mut results), true);
-            assert_eq!(results, [Err(ParseError::ExpectingTyp(String::from("foo")))]);
             results.clear();
         }
     }
-    var_parser(TestConsumer);
+    parser(TestConsumer);
 }
