@@ -1,34 +1,24 @@
 use parser::combinators::{Parser, StrParser, ParseTo, Consumer, string, character};
-use self::Token::{LParen, RParen, Whitespace, Identifier};
+use self::Token::{Begin, End, Identifier, Number, Whitespace};
 
-#[derive(Copy, Clone, Eq, Hash, Ord, PartialOrd, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum Token<'a> {
-    LParen,
-    RParen,
-    Whitespace,
+    Begin(&'a str),
+    End,
     Identifier(&'a str),
-}
-
-impl<'a,'b> PartialEq<Token<'b>> for Token<'a> {
-    fn eq(&self, rhs: &Token<'b>) -> bool {
-        match (*self, *rhs) {
-            (LParen, LParen)                       => true,
-            (RParen, RParen)                       => true,
-            (Whitespace, Whitespace)               => true,
-            (Identifier(ref x), Identifier(ref y)) => x == y,
-            _                                      => false
-        }
-    }
+    Number(usize),
+    Whitespace(&'a str),
 }
 
 impl<'a> From<Token<'a>> for String {
     fn from(tok: Token<'a>) -> String {
-        String::from(match tok {
-            LParen => "(",
-            RParen => ")",
-            Whitespace => "<space>",
-            Identifier(x) => x,
-        })
+        match tok {
+            Begin(kw)     => String::from("(") + kw,
+            End           => String::from(")"),
+            Identifier(x) => String::from(x),
+            Number(n)     => n.to_string(),
+            Whitespace(s) => String::from(s),
+        }
     }
 }
 
@@ -36,17 +26,26 @@ pub trait LexerConsumer<D> where D: for<'a> Consumer<Token<'a>> {
     fn accept<L>(self, lexer: L) where L: for<'a> ParseTo<&'a str,D>;
 }
 
+fn is_lparen(ch: char) -> bool { ch == '(' }
+fn is_rparen(ch: char) -> bool { ch == ')' }
+fn is_dollar(ch: char) -> bool { ch == '$' }
+fn is_keyword_char(ch: char) -> bool { ch.is_alphanumeric() || (ch == '.') }
+fn is_identifier_char(ch: char) -> bool { ch.is_alphanumeric() || (ch == '.') || (ch == '$') }
+
+fn mk_begin<'a>(s: &'a str) -> Token<'a> { Begin(s) }
+fn mk_end<'a>(ch: char) -> Token<'a> { End }
 fn mk_identifier<'a>(s: &'a str) -> Token<'a> { Identifier(s) }
+fn mk_number<'a>(s: &'a str) -> Token<'a> { Number(usize::from_str_radix(s,10).unwrap()) }
+fn mk_whitespace<'a>(s: &'a str) -> Token<'a> { Whitespace(s) }
 
 #[allow(non_snake_case)]
 pub fn lexer<C,D>(consumer: C) where C: LexerConsumer<D>, D: for<'a> Consumer<Token<'a>> {
-    let LPAREN = string("(").map(|_| LParen);
-    let RPAREN = string(")").map(|_| RParen);
-    let WHITESPACE = character(char::is_whitespace).map(|_| Whitespace);
-    let IDENTIFIER = character(char::is_alphabetic).and_then(character(char::is_alphanumeric).star())
-                                                   .buffer().map(mk_identifier);
-    let TOKEN = LPAREN.or_else(RPAREN).or_else(WHITESPACE).or_else(IDENTIFIER);
-    consumer.accept(TOKEN.star())
+    let BEGIN = character(is_lparen).ignore().and_then(character(is_keyword_char).plus().buffer().map(mk_begin));
+    let END = character(is_rparen).map(mk_end);
+    let WHITESPACE = character(char::is_whitespace).plus().buffer().map(mk_whitespace);
+    let IDENTIFIER = character(is_identifier_char).plus().buffer().map(mk_identifier);
+    let NUMBER = character(char::is_numeric).plus().buffer().map(mk_number);
+    consumer.accept(BEGIN.or_else(END).or_else(IDENTIFIER).or_else(NUMBER).or_else(WHITESPACE).star())
 }
 
 #[test]
@@ -59,23 +58,9 @@ fn test_lexer() {
     }
     impl LexerConsumer<TestConsumer> for TestConsumer {
         fn accept<L>(mut self, mut lex: L) where L: for<'a> ParseTo<&'a str,TestConsumer> {
-            lex.push_to("(a123  bcd)", &mut self);
-            assert_eq!(self.0, vec!["(", "a123", "<space>", "<space>", "bcd", ")"]);
+            lex.push_to("(a123 $bcd f32 \t 37)", &mut self);
+            assert_eq!(self.0, vec!["(a123", " ", "$bcd", " ", "f32", " \t ", "37", ")"]);
         }
     }
     lexer(TestConsumer(Vec::new()));
-}
-
-#[test]
-fn test_partial_eq() {
-    use std::fmt::Debug;
-    fn foo<T,U>(lhs: T, rhs: U) where T: Debug+PartialEq<U>, U: Debug{
-        assert_eq!(lhs, rhs)
-    }
-    fn bar<'b,T>(lhs: T, rhs: Token<'b>) where T: Debug+for<'a> PartialEq<Token<'a>> {
-        foo(lhs, rhs)
-    }
-    let hi = String::from("hi");
-    bar(Identifier("hi"),Identifier(&*hi));
-    bar(Identifier(&*hi),Identifier("hi"));
 }
