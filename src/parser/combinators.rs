@@ -7,13 +7,21 @@ use self::StringParserState::{AtOffset, AtEndMatched, AtEndFailed};
 // ----------- Types for consumers ------------
 
 pub trait Consumer<T> {
-    fn accept(&mut self, arg: T);
+    fn accept(&mut self, value: T);
+}
+
+pub trait ErrConsumer<E> {
+    fn error(&mut self, err: E);
 }
 
 pub struct DiscardConsumer;
 
 impl<T> Consumer<T> for DiscardConsumer {
     fn accept(&mut self, _: T) {}
+}
+
+impl<E> ErrConsumer<E> for DiscardConsumer {
+    fn error(&mut self, _: E) {}
 }
 
 // ----------- Types for parsers ------------
@@ -90,30 +98,32 @@ pub trait Parser<S> {
     fn ignore(self) -> IgnoreParser<Self> where Self: Sized {
         IgnoreParser{ parser: self }
     }
-}
-
-pub trait StrParser<'a>: ParseTo<&'a str,DiscardConsumer> {
     fn buffer(self) -> BufferedParser<Self> where Self: Sized {
         BufferedParser{ parser: self, state: Beginning }
     }
 }
 
-impl<'a,P> StrParser<'a> for P where P: ParseTo<&'a str,DiscardConsumer> {}
-
 // ----------- Map ---------------
 
 #[derive(Debug)]
-pub struct MapConsumer<'a,F:'a,C:'a> {
+pub struct MapConsumer<'a,F:'a,D:'a> {
     function: &'a F,
-    consumer: &'a mut C
+    downstream: &'a mut D
 }
 
 // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
 // See https://github.com/rust-lang/rust/issues/30867 for more details.
-impl<'a,T,F,C> Consumer<T> for MapConsumer<'a,F,C>
-where F: Fn<(T,)>, C: Consumer<<F as FnOnce<(T,)>>::Output> {
+impl<'a,T,F,D> Consumer<T> for MapConsumer<'a,F,D>
+where F: Fn<(T,)>, D: Consumer<<F as FnOnce<(T,)>>::Output> {
     fn accept(&mut self, arg: T) {
-        self.consumer.accept((self.function)(arg));
+        self.downstream.accept((self.function)(arg));
+    }
+}
+
+impl<'a,E,F,D> ErrConsumer<E> for MapConsumer<'a,F,D>
+where D: ErrConsumer<E> {
+    fn error(&mut self, err: E) {
+        self.downstream.error(err);
     }
 }
 
@@ -187,16 +197,22 @@ impl<S,D,P> ParseTo<S,D> for IgnoreParser<P> where P: ParseTo<S,DiscardConsumer>
 // ----------- Filter ---------------
 
 #[derive(Debug)]
-pub struct FilterConsumer<'a,F,C> where F: 'a, C: 'a {
+pub struct FilterConsumer<'a,F,D> where F: 'a, D: 'a {
     function: &'a F,
-    consumer: &'a mut C
+    downstream: &'a mut D
 }
 
-impl<'a,T,F,C> Consumer<T> for FilterConsumer<'a,F,C> where F: Fn(T) -> bool, T: Copy, C: Consumer<T> {
+impl<'a,T,F,D> Consumer<T> for FilterConsumer<'a,F,D> where F: Fn(T) -> bool, T: Copy, D: Consumer<T> {
     fn accept(&mut self, arg: T) {
         if (self.function)(arg) {
-            self.consumer.accept(arg)
+            self.downstream.accept(arg)
         }
+    }
+}
+
+impl<'a,E,F,D> ErrConsumer<E> for FilterConsumer<'a,F,D> where D: ErrConsumer<E> {
+    fn error(&mut self, err: E) {
+        self.downstream.error(err)
     }
 }
 
@@ -209,11 +225,11 @@ pub struct FilterParser<F,P> {
 impl<S,F,P> Parser<S> for FilterParser<F,P> where P: Parser<S> {}
 impl<S,D,F,P> ParseTo<S,D> for FilterParser<F,P> where P: for<'a> ParseTo<S,FilterConsumer<'a,F,D>> {
     fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        let mut downstream = FilterConsumer{ function: &mut self.function, consumer: downstream };
+        let mut downstream = FilterConsumer{ function: &mut self.function, downstream: downstream };
         self.parser.push_to(value, &mut downstream)
     }
     fn done_to(&mut self, downstream: &mut D) -> bool {
-        let mut downstream = FilterConsumer{ function: &mut self.function, consumer: downstream };
+        let mut downstream = FilterConsumer{ function: &mut self.function, downstream: downstream };
         self.parser.done_to(&mut downstream)
     }
 }
@@ -285,12 +301,23 @@ pub struct ZipParser<L,R,T> {
     in_lhs: bool,
 }
 
-pub struct ZipConsumer<'a,T:'a,D:'a> {
+pub struct ZipLhsConsumer<'a,T:'a,D:'a> {
     buffer: &'a mut Vec<T>,
     downstream: &'a mut D,
 }
 
-impl<'a,T,U,D> Consumer<U> for ZipConsumer<'a,T,D> where D: Consumer<(T,U)> {
+pub struct ZipRhsConsumer<'a,T:'a,D:'a> {
+    buffer: &'a mut Vec<T>,
+    downstream: &'a mut D,
+}
+
+impl<'a,T,D> Consumer<T> for ZipLhsConsumer<'a,T,D> {
+    fn accept(&mut self, lhs: T) {
+        self.buffer.push(lhs);
+    }
+}
+
+impl<'a,T,U,D> Consumer<U> for ZipRhsConsumer<'a,T,D> where D: Consumer<(T,U)> {
     fn accept(&mut self, rhs: U) {
         if let Some(lhs) = self.buffer.pop() {
             self.downstream.accept((lhs,rhs))
@@ -298,26 +325,38 @@ impl<'a,T,U,D> Consumer<U> for ZipConsumer<'a,T,D> where D: Consumer<(T,U)> {
     }
 }
 
+impl<'a,T,D,E> ErrConsumer<E> for ZipLhsConsumer<'a,T,D> where D: ErrConsumer<E> {
+    fn error(&mut self, err: E) {
+        self.downstream.error(err);
+    }
+}
+
+impl<'a,T,D,E> ErrConsumer<E> for ZipRhsConsumer<'a,T,D> where D: ErrConsumer<E> {
+    fn error(&mut self, err: E) {
+        self.downstream.error(err);
+    }
+}
+
 impl<S,T,L,R> Parser<S> for ZipParser<L,R,T> where L: Parser<S>, R: Parser<S> {}
-impl<S,T,D,L,R> ParseTo<S,D> for ZipParser<L,R,T> where L: ParseTo<S,Vec<T>>, R: for<'a> ParseTo<S,ZipConsumer<'a,T,D>> {
+impl<S,T,D,L,R> ParseTo<S,D> for ZipParser<L,R,T> where L: for<'a> ParseTo<S,ZipLhsConsumer<'a,T,D>>, R: for<'a> ParseTo<S,ZipRhsConsumer<'a,T,D>> {
     fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
         if self.in_lhs {
-            match self.lhs.push_to(value, &mut self.buffer) {
+            match self.lhs.push_to(value, &mut ZipLhsConsumer{ buffer: &mut self.buffer, downstream: downstream }) {
                 Undecided           => Undecided,
-                Matched(Some(rest)) => { self.in_lhs = false; self.lhs.done_to(&mut self.buffer); self.buffer.reverse(); self.rhs.push_to(rest, &mut ZipConsumer{ buffer: &mut self.buffer, downstream: downstream }) },
-                Matched(None)       => { self.in_lhs = false; self.lhs.done_to(&mut self.buffer); self.buffer.reverse(); Undecided },
+                Matched(Some(rest)) => { self.in_lhs = false; self.lhs.done_to(&mut ZipLhsConsumer{ buffer: &mut self.buffer, downstream: downstream }); self.buffer.reverse(); self.rhs.push_to(rest, &mut ZipRhsConsumer{ buffer: &mut self.buffer, downstream: downstream }) },
+                Matched(None)       => { self.in_lhs = false; self.lhs.done_to(&mut ZipLhsConsumer{ buffer: &mut self.buffer, downstream: downstream }); self.buffer.reverse(); Undecided },
                 Failed(rest)        => Failed(rest),
             }
         } else {
-            self.rhs.push_to(value, &mut ZipConsumer{ buffer: &mut self.buffer, downstream: downstream })
+            self.rhs.push_to(value, &mut ZipRhsConsumer{ buffer: &mut self.buffer, downstream: downstream })
         }
     }
     fn done_to(&mut self, downstream: &mut D) -> bool {
         let result = if self.in_lhs {
-            self.lhs.done_to(&mut self.buffer) && { self.buffer.reverse(); self.rhs.done_to(&mut ZipConsumer{ buffer: &mut self.buffer, downstream: downstream }) }
+            self.lhs.done_to(&mut ZipLhsConsumer{ buffer: &mut self.buffer, downstream: downstream }) && { self.buffer.reverse(); self.rhs.done_to(&mut ZipRhsConsumer{ buffer: &mut self.buffer, downstream: downstream }) }
         } else {
             self.in_lhs = true;
-            self.rhs.done_to(&mut ZipConsumer{ buffer: &mut self.buffer, downstream: downstream })
+            self.rhs.done_to(&mut ZipRhsConsumer{ buffer: &mut self.buffer, downstream: downstream })
         };
         self.buffer.clear();
         result
@@ -610,7 +649,7 @@ impl<'a,P,D> ParseTo<&'a str,D> for BufferedParser<P> where P: ParseTo<&'a str,D
     fn push_to(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> {
         match mem::replace(&mut self.state, EndMatch) {
             Beginning => {
-                let result = self.parser.push(string);
+                let result = self.parser.push_to(string, &mut DiscardConsumer);
                 match result {
                     Undecided           => self.state = Middle(String::from(string)),
                     Failed(Some(_))     => self.state = EndFail(true),
@@ -621,7 +660,7 @@ impl<'a,P,D> ParseTo<&'a str,D> for BufferedParser<P> where P: ParseTo<&'a str,D
                 result
             },
             Middle(mut buffer) => {
-                let result = self.parser.push(string);
+                let result = self.parser.push_to(string, &mut DiscardConsumer);
                 match result {
                     Undecided           => { buffer.push_str(string); self.state = Middle(buffer); },
                     Failed(Some(_))     => { self.state = EndFail(true) },
@@ -637,7 +676,7 @@ impl<'a,P,D> ParseTo<&'a str,D> for BufferedParser<P> where P: ParseTo<&'a str,D
         }
     }
     fn done_to(&mut self, downstream: &mut D) -> bool {
-        let result = self.parser.done();
+        let result = self.parser.done_to(&mut DiscardConsumer);
         if result { if let Middle(ref buffer) = self.state { downstream.accept(&*buffer) } }
         self.state = Beginning;
         result
@@ -647,28 +686,8 @@ impl<'a,P,D> ParseTo<&'a str,D> for BufferedParser<P> where P: ParseTo<&'a str,D
 // ----------- Tests -------------
 
 #[test]
-fn test_string() {
-    let mut parser = string("abc");
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("fred"), Failed(Some("fred")));
-    assert_eq!(parser.push("ab"), Failed(Some("ab")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("alice"), Failed(None));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcdef"), Matched(Some("def")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Matched(None));
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("a"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("cd"), Matched(Some("d")));
-    assert_eq!(parser.done(), false);
-}
-
-#[test]
 fn test_character() {
-    let mut parser = character(char::is_alphabetic);
+    let mut parser = character_match(char::is_alphabetic);
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("99"), Failed(Some("99")));
     assert_eq!(parser.push("ab"), Failed(Some("ab")));
@@ -684,7 +703,7 @@ fn test_character() {
 
 #[test]
 fn test_and_then() {
-    let mut parser = string("abc").and_then(string("def"));
+    let mut parser = character('a').and_then(character('b')).and_then(character('c'));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -692,31 +711,15 @@ fn test_and_then() {
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("ab"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcd"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcfred"), Failed(None));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcdef"), Matched(None));
+    assert_eq!(parser.push("abc"), Matched(None));
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("abcdefghi"), Matched(Some("ghi")));
+    assert_eq!(parser.push("abcd"), Matched(Some("d")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("a"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("cd"), Undecided);
-    assert_eq!(parser.push("efg"), Matched(Some("g")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("cd"), Undecided);
-    assert_eq!(parser.push("ef"), Matched(None));
-    assert_eq!(parser.done(), true);
 }
 
 #[test]
 fn test_zip() {
-    let mut parser = character(char::is_alphabetic).star().zip(character(char::is_numeric).star());
+    let mut parser = character_match(char::is_alphabetic).star().zip(character_match(char::is_numeric).star());
     let mut results = Vec::new();
     assert_eq!(parser.done_to(&mut results), true);
     assert_eq!(results, []);
@@ -741,37 +744,37 @@ fn test_zip() {
 
 #[test]
 fn test_or_else() {
-    let mut parser = string("abc").or_else(string("def"));
+    let mut parser = character('a').and_then(character('b')).or_else(character('c').and_then(character('d')));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("alice"), Failed(None));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcdef"), Matched(Some("def")));
+    assert_eq!(parser.push("abcdef"), Matched(Some("cdef")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Matched(None));
+    assert_eq!(parser.push("ab"), Matched(None));
     assert_eq!(parser.done(), true);
     assert_eq!(parser.push("a"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("cd"), Matched(Some("d")));
+    assert_eq!(parser.push("a"), Undecided);
+    assert_eq!(parser.push("bc"), Matched(Some("c")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("dave"), Failed(None));
+    assert_eq!(parser.push("charlie"), Failed(None));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("defghi"), Matched(Some("ghi")));
+    assert_eq!(parser.push("cde"), Matched(Some("e")));
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("def"), Matched(None));
+    assert_eq!(parser.push("cd"), Matched(None));
     assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("d"), Undecided);
+    assert_eq!(parser.push("c"), Undecided);
     assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("de"), Undecided);
-    assert_eq!(parser.push("fg"), Matched(Some("g")));
+    assert_eq!(parser.push("c"), Undecided);
+    assert_eq!(parser.push("de"), Matched(Some("e")));
     assert_eq!(parser.done(), false);
 }
 
 #[test]
 fn test_star() {
-    let mut parser = string("abc").star();
+    let mut parser = character('a').and_then(character('b')).and_then(character('c')).star();
     assert_eq!(parser.done(), true);
     assert_eq!(parser.push("fred"), Matched(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -804,7 +807,7 @@ fn test_star() {
 
 #[test]
 fn test_plus() {
-    let mut parser = string("abc").plus();
+    let mut parser = character('a').and_then(character('b')).and_then(character('c')).plus();
     assert_eq!(parser.done(), false);
     assert_eq!(parser.push("fred"), Failed(Some("fred")));
     assert_eq!(parser.done(), false);
@@ -837,27 +840,23 @@ fn test_plus() {
 
 #[test]
 fn test_map() {
-    let mut parser = string("abc").map(|_| "hello");
+    let mut parser = character('a').and_then(character('b')).and_then(character('c')).map(|_| "X");
     let mut result = String::new();
     assert_eq!(parser.done_to(&mut result), false);
     assert_eq!(result, "");
     assert_eq!(parser.push_to("a", &mut result), Undecided);
-    assert_eq!(result, "");
-    assert_eq!(parser.done_to(&mut result), false);
-    assert_eq!(result, "");
-    assert_eq!(parser.push_to("ab", &mut result), Undecided);
-    assert_eq!(result, "");
-    assert_eq!(parser.push_to("cd", &mut result), Matched(Some("d")));
-    assert_eq!(result, "hello");
-    assert_eq!(parser.done_to(&mut result), false);
-    assert_eq!(result, "hello");
-    assert_eq!(parser.star().push_to("abcabcd", &mut result), Matched(Some("d")));
-    assert_eq!(result, "hellohellohello");    
+    assert_eq!(result, "X");
+    assert_eq!(parser.push_to("b", &mut result), Undecided);
+    assert_eq!(result, "XX");
+    assert_eq!(parser.push_to("c", &mut result), Matched(None));
+    assert_eq!(result, "XXX");
+    assert_eq!(parser.done_to(&mut result), true);
+    assert_eq!(result, "XXX");
 }
 
 #[test]
 fn test_buffer() {
-    let mut parser = string("abc").buffer();
+    let mut parser = character('a').and_then(character('b')).and_then(character('c')).buffer();
     let mut result = String::new();
     assert_eq!(parser.done_to(&mut result), false);
     assert_eq!(result, "");
@@ -879,7 +878,7 @@ fn test_buffer() {
 fn test_different_lifetimes() {
     fn go<'a,'b>(ab: &'a str, cd: &'b str) {
         fn tail(x:&str) -> &str { &x[1..] }
-        let mut parser = string("abc").buffer().map(tail);
+        let mut parser = character('a').and_then(character('b')).and_then(character('c')).buffer().map(tail);
         let mut result = String::new();
         assert_eq!(parser.push_to(ab, &mut result), Undecided);
         assert_eq!(result, "");
