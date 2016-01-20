@@ -71,7 +71,7 @@ pub trait Parser<S> {
     fn done(&mut self) -> bool where Self: ParseTo<S,DiscardConsumer> {
         self.done_to(&mut DiscardConsumer)
     }
-    fn zip<T,R>(self, other: R) -> ZipParser<Self,R,T> where Self: Sized+ParseTo<S,Vec<T>>, R: Parser<S> {
+    fn zip<T,R>(self, other: R) -> ZipParser<Self,R,T> where Self: Sized, R: Parser<S> {
         ZipParser{ lhs: self, rhs: CommittedParser{ parser: other }, buffer: Vec::new(), in_lhs: true }
     }
     fn and_then<R>(self, other: R) -> AndThenParser<Self,R> where Self: Sized, R: Parser<S> {
@@ -89,8 +89,8 @@ pub trait Parser<S> {
     fn map<T,U,F>(self, function: F) -> MapParser<F,Self> where F: Fn(T) -> U, Self: Sized {
         MapParser{ function: function, parser: self }
     }
-    fn emit<T>(self, value: T) -> EmitParser<T,Self> where T: Clone, Self: Sized {
-        EmitParser{ value: value, parser: self }
+    fn results(self) -> ResultParser<Self> where Self: Sized {
+        ResultParser{ parser: self }
     }
     fn filter<T,F>(self, function: F) -> FilterParser<F,Self> where F: Fn(T) -> bool, T: Copy, Self: Sized {
         FilterParser{ function: function, parser: self }
@@ -136,43 +136,52 @@ pub struct MapParser<F,P> {
 impl<S,F,P> Parser<S> for MapParser<F,P> where P: Parser<S> {}
 impl<S,D,F,P> ParseTo<S,D> for MapParser<F,P> where P: for<'a> ParseTo<S,MapConsumer<'a,F,D>> {
     fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        let mut downstream = MapConsumer{ function: &mut self.function, consumer: downstream };
+        let mut downstream = MapConsumer{ function: &mut self.function, downstream: downstream };
         self.parser.push_to(value, &mut downstream)
     }
     fn done_to(&mut self, downstream: &mut D) -> bool {
-        let mut downstream = MapConsumer{ function: &mut self.function, consumer: downstream };
+        let mut downstream = MapConsumer{ function: &mut self.function, downstream: downstream };
         self.parser.done_to(&mut downstream)
     }
 }
 
-// ----------- Emit ---------------
+// ----------- Send errors to an error consumer ---------------
 
 #[derive(Debug)]
-pub struct EmitConsumer<'a,T:'a,C:'a> {
-    value: &'a T,
-    consumer: &'a mut C
+pub struct ResultConsumer<'a,D> where D: 'a {
+    downstream: &'a mut D
 }
 
-impl<'a,T,C> Consumer<()> for EmitConsumer<'a,T,C> where C: Consumer<T>, T: Clone {
-    fn accept(&mut self, _: ()) {
-        self.consumer.accept(self.value.clone());
+impl<'a,D,T,E> Consumer<Result<T,E>> for ResultConsumer<'a,D>
+where D: Consumer<T>+ErrConsumer<E> {
+    fn accept(&mut self, value: Result<T,E>) {
+        match value {
+            Ok(value) => self.downstream.accept(value),
+            Err(err) => self.downstream.error(err),
+        }
+    }
+}
+
+impl<'a,D,E> ErrConsumer<E> for ResultConsumer<'a,D>
+where D: ErrConsumer<E> {
+    fn error(&mut self, err: E) {
+        self.downstream.error(err)
     }
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct EmitParser<T,P> {
-    pub value: T,
-    pub parser: P
+pub struct ResultParser<P> {
+    parser: P
 }
 
-impl<S,T,P> Parser<S> for EmitParser<T,P> where P: Parser<S> {}
-impl<S,D,T,P> ParseTo<S,D> for EmitParser<T,P> where T: Clone, P: for<'a> ParseTo<S,EmitConsumer<'a,T,D>> {
+impl<S,P> Parser<S> for ResultParser<P> where P: Parser<S> {}
+impl<S,D,P> ParseTo<S,D> for ResultParser<P> where P: for<'a> ParseTo<S,ResultConsumer<'a,D>> {
     fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        let mut downstream = EmitConsumer{ value: &self.value, consumer: downstream };
+        let mut downstream = ResultConsumer{ downstream: downstream };
         self.parser.push_to(value, &mut downstream)
     }
     fn done_to(&mut self, downstream: &mut D) -> bool {
-        let mut downstream = EmitConsumer{ value: &self.value, consumer: downstream };
+        let mut downstream = ResultConsumer{ downstream: downstream };
         self.parser.done_to(&mut downstream)
     }
 }
@@ -186,10 +195,10 @@ pub struct IgnoreParser<P> {
 
 impl<S,P> Parser<S> for IgnoreParser<P> where P: Parser<S> {}
 impl<S,D,P> ParseTo<S,D> for IgnoreParser<P> where P: ParseTo<S,DiscardConsumer> {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
+    fn push_to(&mut self, value: S, _: &mut D) -> MatchResult<S> {
         self.parser.push_to(value, &mut DiscardConsumer)
     }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
+    fn done_to(&mut self, _: &mut D) -> bool {
         self.parser.done_to(&mut DiscardConsumer)
     }
 }
@@ -411,8 +420,8 @@ impl<S,D,P> ParseTo<S,D> for StarParser<P> where P: ParseTo<S,D> {
                 Undecided           => { self.matched = false; return Undecided },
                 Matched(Some(rest)) => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); value = rest; },
                 Matched(None)       => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); return Undecided; },
-                Failed(Some(rest))  => { self.matched = false; return Matched(Some(rest)) },
-                Failed(None)        => { self.matched = false; return Failed(None) },
+                Failed(Some(rest))  => { self.matched = false; return Matched(Some(rest)); },
+                Failed(None)        => { self.matched = false; return Failed(None); },
             }
         }
     }
