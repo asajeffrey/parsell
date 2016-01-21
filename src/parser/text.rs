@@ -2,7 +2,7 @@ use parser::combinators::{Parser, ParseTo, Consumer, ErrConsumer, token, token_m
 use parser::lexer::{Token};
 use parser::lexer::Token::{Begin, End, Identifier, Number};
 
-use ast::{Memory, Module, Typ, Var};
+use ast::{Memory, Module, Segment, Typ, Var};
 use ast::Typ::{F32, F64, I32, I64};
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
@@ -33,6 +33,7 @@ fn is_number<'a>(tok: Token<'a>) -> bool {
 fn is_begin_memory<'a>(tok: Token<'a>) -> bool { tok == Begin("memory") }
 fn is_begin_module<'a>(tok: Token<'a>) -> bool { tok == Begin("module") }
 fn is_begin_param<'a>(tok: Token<'a>) -> bool { tok == Begin("param") }
+fn is_begin_segment<'a>(tok: Token<'a>) -> bool { tok == Begin("segment") }
 fn is_end<'a>(tok: Token<'a>) -> bool { tok == End }
 
 fn mk_usize<'a>(tok: Token<'a>) -> Result<usize,ParseError> {
@@ -63,11 +64,15 @@ fn mk_var(children: (String,Typ)) -> Var {
     Var{ name: children.0, typ: children.1 }
 }
 
-fn mk_memory<'a>(children: (usize, Option<usize>)) -> Memory {
-    Memory{ init: children.0, max: children.1, segments: vec![] }
+fn mk_segment(children: usize) -> Segment {
+    Segment{ addr: children, data: String::from("") }
 }
 
-fn mk_module<'a>(children: Option<Memory>) -> Module {
+fn mk_memory(children: ((usize, Option<usize>), Vec<Segment>)) -> Memory {
+    Memory{ init: (children.0).0, max: (children.0).1, segments: children.1 }
+}
+
+fn mk_module(children: Option<Memory>) -> Module {
     Module{ memory: children, imports: vec![], exports: vec![], functions: vec![] }
 }
 
@@ -78,9 +83,14 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
         .map(mk_id).results();
     let number = token_match(is_number)
         .map(mk_usize).results();
+    let segment = token_match(is_begin_segment).ignore()
+        .and_then(number)
+        .and_then(token_match(is_end).ignore())
+        .map(mk_segment);
     let memory = token_match(is_begin_memory).ignore()
         .and_then(number)
         .zip(number.map(Some).or_emit(None))
+        .zip(segment.star().collect(Vec::new()))
         .and_then(token_match(is_end).ignore())
         .map(mk_memory);
     let module = token_match(is_begin_module).ignore()
@@ -111,6 +121,12 @@ fn test_parser() {
                 Begin("module"),
                     Begin("memory"),
                         Number(1024),
+                        Begin("segment"),
+                            Number(0),
+                        End,
+                        Begin("segment"),
+                            Number(1),
+                        End,
                     End,
                 End,
             ];
@@ -118,7 +134,10 @@ fn test_parser() {
                 memory: Some(Memory{
                     init: 1024,
                     max: None,
-                    segments: vec![],
+                    segments: vec![
+                        Segment { addr: 0, data: String::from("") },
+                        Segment { addr: 1, data: String::from("") },
+                    ],
                 }),
                 imports: vec![],
                 exports: vec![],
