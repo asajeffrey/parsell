@@ -2,7 +2,7 @@ use parser::combinators::{Parser, ParseTo, Consumer, ErrConsumer, token, token_m
 use parser::lexer::{Token};
 use parser::lexer::Token::{Begin, End, Identifier, Number, Text};
 
-use ast::{Memory, Module, Segment, Typ, Var};
+use ast::{FunctionTyp, Import, Memory, Module, Segment, Typ, Var};
 use ast::Typ::{F32, F64, I32, I64};
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
@@ -38,9 +38,11 @@ fn is_text<'a>(tok: Token<'a>) -> bool {
     }
 }
 
+fn is_begin_import<'a>(tok: Token<'a>) -> bool { tok == Begin("import") }
 fn is_begin_memory<'a>(tok: Token<'a>) -> bool { tok == Begin("memory") }
 fn is_begin_module<'a>(tok: Token<'a>) -> bool { tok == Begin("module") }
 fn is_begin_param<'a>(tok: Token<'a>) -> bool { tok == Begin("param") }
+fn is_begin_result<'a>(tok: Token<'a>) -> bool { tok == Begin("result") }
 fn is_begin_segment<'a>(tok: Token<'a>) -> bool { tok == Begin("segment") }
 fn is_end<'a>(tok: Token<'a>) -> bool { tok == End }
 
@@ -79,6 +81,10 @@ fn mk_var(children: (String,Typ)) -> Var {
     Var{ name: children.0, typ: children.1 }
 }
 
+fn mk_function_typ(children: (Vec<Var>,Option<Typ>)) -> FunctionTyp {
+    FunctionTyp{ params: children.0, result: children.1 }
+}
+
 fn mk_segment(children: (usize, String)) -> Segment {
     Segment{ addr: children.0, data: children.1 }
 }
@@ -87,8 +93,12 @@ fn mk_memory(children: ((usize, Option<usize>), Vec<Segment>)) -> Memory {
     Memory{ init: (children.0).0, max: (children.0).1, segments: children.1 }
 }
 
-fn mk_module(children: Option<Memory>) -> Module {
-    Module{ memory: children, imports: vec![], exports: vec![], functions: vec![] }
+fn mk_import(children: (((String,String),String),FunctionTyp)) -> Import {
+    Import{ func: ((children.0).0).0, module: ((children.0).0).1, name: (children.0).1, typ: children.1 }
+}
+
+fn mk_module(children: (Option<Memory>,Vec<Import>)) -> Module {
+    Module{ memory: children.0, imports: children.1, exports: vec![], functions: vec![] }
 }
 
 pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+ErrConsumer<ParseError> {
@@ -96,6 +106,17 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
         .map(mk_typ).results();
     let id = token_match(is_identifier)
         .map(mk_id).results();
+    let param = token_match(is_begin_param).ignore()
+        .and_then(id)
+        .zip(typ)
+        .and_then(token_match(is_end).ignore())
+        .map(mk_var);
+    let result_typ = token_match(is_begin_result).ignore()
+        .and_then(typ)
+        .and_then(token_match(is_end).ignore());
+    let function_typ = param.star().collect(Vec::new())
+        .zip(result_typ.map(Some).or_emit(None))
+        .map(mk_function_typ);
     let number = token_match(is_number)
         .map(mk_usize).results();
     let text = token_match(is_text)
@@ -111,8 +132,16 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
         .zip(segment.star().collect(Vec::new()))
         .and_then(token_match(is_end).ignore())
         .map(mk_memory);
+    let import = token_match(is_begin_import).ignore()
+        .and_then(id)
+        .zip(text)
+        .zip(text)
+        .zip(function_typ)
+        .and_then(token_match(is_end).ignore())
+        .map(mk_import);
     let module = token_match(is_begin_module).ignore()
         .and_then(memory.map(Some).or_emit(None))
+        .zip(import.star().collect(Vec::new()))
         .and_then(token_match(is_end).ignore())
         .map(mk_module);
     let top_level = module;
@@ -148,6 +177,27 @@ fn test_parser() {
                             Text("def"),
                         End,
                     End,
+                    Begin("import"),
+                        Identifier("$foo"),
+                        Text("ghi"),
+                        Text("jkl"),
+                    End,
+                    Begin("import"),
+                        Identifier("$bar"),
+                        Text("ghi"),
+                        Text("mno"),
+                        Begin("param"),
+                            Identifier("$x"),
+                            Identifier("f32"),
+                        End,
+                        Begin("param"),
+                            Identifier("$y"),
+                            Identifier("f64"),
+                        End,
+                        Begin("result"),
+                            Identifier("i32"),
+                        End,
+                    End,
                 End,
             ];
             let ast = Module{
@@ -159,7 +209,26 @@ fn test_parser() {
                         Segment { addr: 1, data: String::from("def") },
                     ],
                 }),
-                imports: vec![],
+                imports: vec![
+                    Import {
+                        func: String::from("$foo"),
+                        module: String::from("ghi"),
+                        name: String::from("jkl"),
+                        typ: FunctionTyp{ params: vec![], result: None },
+                    },
+                    Import {
+                        func: String::from("$bar"),
+                        module: String::from("ghi"),
+                        name: String::from("mno"),
+                        typ: FunctionTyp{
+                            params: vec![
+                                Var{ name: String::from("$x"), typ: F32 },
+                                Var{ name: String::from("$y"), typ: F64 },
+                            ],
+                            result: Some(I32),
+                        },
+                    },
+                ],
                 exports: vec![],
                 functions: vec![]
             };
