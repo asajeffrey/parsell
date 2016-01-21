@@ -101,6 +101,9 @@ pub trait Parser<S> {
     fn ignore(self) -> IgnoreParser<Self> where Self: Sized {
         IgnoreParser{ parser: self }
     }
+    fn collect<T>(self, empty: T) -> CollectParser<Self,T> where T: Clone, Self: Sized {
+        CollectParser{ parser: self, buffer: empty.clone(), empty: empty, buffering: true }
+    }
     fn buffer(self) -> BufferedParser<Self> where Self: Sized {
         BufferedParser{ parser: self, state: Beginning }
     }
@@ -654,6 +657,40 @@ impl<S,D,P,T> ParseTo<S,D> for OrEmitParser<P,T> where P: ParseTo<S,D>, D: Consu
     }
 }
 
+// Collect the output of a parser into a buffer
+
+#[derive(Clone, Debug)]
+pub struct CollectParser<P,T> {
+    parser: P,
+    buffer: T,
+    empty: T,
+    buffering: bool,
+}
+
+impl<S,P,T> Parser<S> for CollectParser<P,T> where P: Parser<S> {}
+impl<S,D,P,T> ParseTo<S,D> for CollectParser<P,T> where P: ParseTo<S,T>, D: Consumer<T>, T: Clone {
+    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
+        let result = self.parser.push_to(value, &mut self.buffer);
+        if self.buffering {
+            if let Matched(_) = result {
+                let buffer = mem::replace(&mut self.buffer, self.empty.clone());
+                self.buffering = false;
+                downstream.accept(buffer);
+            }
+        }
+        result
+    }    
+    fn done_to(&mut self, downstream: &mut D) -> bool {
+        let result = self.parser.done_to(&mut self.buffer);
+        if self.buffering {
+            let buffer = mem::replace(&mut self.buffer, self.empty.clone());
+            if result { downstream.accept(buffer); }
+        }
+        self.buffering = true;    
+        result
+    }
+}
+
 // If m is a ParseTo<&'a str, DiscardConsumer> then
 // m.buffer() is a ParseTo<&'a str, D, E> where D: Consumer<&str>.
 // It does as little buffering as it can, but it does allocate as buffer for the case
@@ -910,6 +947,32 @@ fn test_or_emit() {
     result.clear();
     assert_eq!(parser.done_to(&mut result), true);
     assert_eq!(result, "z");
+}
+
+#[test]
+fn test_collect() {
+    let mut parser = character_match(char::is_alphabetic).plus().and_then(character(';').ignore()).collect(String::new()).plus();
+    let mut results: Vec<String> = Vec::new();
+    assert_eq!(parser.done_to(&mut results), false);
+    assert_eq!(results.len(), 0);
+    results.clear();
+    assert_eq!(parser.push_to("abc;", &mut results), Undecided);
+    assert_eq!(parser.done_to(&mut results), true);
+    assert_eq!(results, ["abc"]);
+    results.clear();
+    assert_eq!(parser.push_to("abc;de", &mut results), Undecided);
+    assert_eq!(parser.push_to("f;", &mut results), Undecided);
+    assert_eq!(parser.done_to(&mut results), true);
+    assert_eq!(results, ["abc","def"]);
+    results.clear();
+    assert_eq!(parser.push_to("abc;def;ghi", &mut results), Undecided);
+    assert_eq!(parser.done_to(&mut results), false);
+    assert_eq!(results, ["abc","def"]);
+    results.clear();
+    assert_eq!(parser.push_to("abc;def;.", &mut results), Matched(Some(".")));
+    assert_eq!(parser.done_to(&mut results), false);
+    assert_eq!(results, ["abc","def"]);
+    results.clear();
 }
 
 #[test]
