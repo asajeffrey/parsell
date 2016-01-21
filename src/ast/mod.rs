@@ -1,3 +1,5 @@
+use parser::combinators::Consumer;
+
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub struct Export {
     pub name: String,
@@ -29,6 +31,7 @@ pub struct Import {
     pub func: String,
     pub module: String,
     pub name: String,
+    pub typ: FunctionTyp,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
