@@ -2,7 +2,7 @@ use parser::combinators::{Parser, ParseTo, Consumer, ErrConsumer, token, token_m
 use parser::lexer::{Token};
 use parser::lexer::Token::{Begin, End, Identifier, Number, Text};
 
-use ast::{FunctionTyp, Import, Memory, Module, Segment, Typ, Var};
+use ast::{Export, FunctionTyp, Import, Memory, Module, Segment, Typ, Var};
 use ast::Typ::{F32, F64, I32, I64};
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
@@ -15,6 +15,36 @@ pub enum ParseError {
 
 pub trait ParserConsumer<D> where D: Consumer<Module>+ErrConsumer<ParseError> {
     fn accept<P>(self, parser: P) where P: for<'a> ParseTo<&'a[Token<'a>],D>;
+}
+
+#[derive(Clone, Debug)]
+struct ModuleContents {
+    imports: Vec<Import>,
+    exports: Vec<Export>,
+}
+
+impl ModuleContents {
+    fn new() -> ModuleContents {
+        ModuleContents { imports: Vec::new(), exports: Vec::new() }
+    }
+}
+
+impl Consumer<Export> for ModuleContents {
+    fn accept(&mut self, export: Export) {
+        self.exports.push(export);
+    }
+}
+
+impl Consumer<Import> for ModuleContents {
+    fn accept(&mut self, import: Import) {
+        self.imports.push(import);
+    }
+}
+
+impl Module {
+    pub fn new() -> Module {
+        Module{ memory: None, exports: Vec::new(), imports: Vec::new(), functions: Vec::new() }
+    }
 }
 
 fn is_identifier<'a>(tok: Token<'a>) -> bool {
@@ -38,6 +68,7 @@ fn is_text<'a>(tok: Token<'a>) -> bool {
     }
 }
 
+fn is_begin_export<'a>(tok: Token<'a>) -> bool { tok == Begin("export") }
 fn is_begin_import<'a>(tok: Token<'a>) -> bool { tok == Begin("import") }
 fn is_begin_memory<'a>(tok: Token<'a>) -> bool { tok == Begin("memory") }
 fn is_begin_module<'a>(tok: Token<'a>) -> bool { tok == Begin("module") }
@@ -97,8 +128,12 @@ fn mk_import(children: (((String,String),String),FunctionTyp)) -> Import {
     Import{ func: ((children.0).0).0, module: ((children.0).0).1, name: (children.0).1, typ: children.1 }
 }
 
-fn mk_module(children: (Option<Memory>,Vec<Import>)) -> Module {
-    Module{ memory: children.0, imports: children.1, exports: vec![], functions: vec![] }
+fn mk_export(children: (String,String)) -> Export {
+    Export{ name: children.0, func: children.1 }
+}
+
+fn mk_module(children: (Option<Memory>,ModuleContents)) -> Module {
+    Module{ memory: children.0, imports: children.1.imports, exports: children.1.exports, functions: vec![] }
 }
 
 pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+ErrConsumer<ParseError> {
@@ -139,9 +174,14 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
         .zip(function_typ)
         .and_then(token_match(is_end).ignore())
         .map(mk_import);
+    let export = token_match(is_begin_export).ignore()
+        .and_then(text)
+        .zip(id)
+        .and_then(token_match(is_end).ignore())
+        .map(mk_export);
     let module = token_match(is_begin_module).ignore()
         .and_then(memory.map(Some).or_emit(None))
-        .zip(import.star().collect(Vec::new()))
+        .zip(import.or_else(export).star().collect(ModuleContents::new()))
         .and_then(token_match(is_end).ignore())
         .map(mk_module);
     let top_level = module;
@@ -181,6 +221,10 @@ fn test_parser() {
                         Identifier("$foo"),
                         Text("ghi"),
                         Text("jkl"),
+                    End,
+                    Begin("export"),
+                        Text("fish"),
+                        Identifier("$fish"),
                     End,
                     Begin("import"),
                         Identifier("$bar"),
@@ -229,7 +273,9 @@ fn test_parser() {
                         },
                     },
                 ],
-                exports: vec![],
+                exports: vec![
+                    Export { name: String::from("fish"), func: String::from("$fish") },
+                ],
                 functions: vec![]
             };
             assert_eq!(parser.done_to(&mut self), false);
