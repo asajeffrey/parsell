@@ -1,6 +1,6 @@
 use parser::combinators::{Parser, ParseTo, Consumer, ErrConsumer, token, token_match};
 use parser::lexer::{Token};
-use parser::lexer::Token::{Begin, End, Identifier, Number};
+use parser::lexer::Token::{Begin, End, Identifier, Number, Text};
 
 use ast::{Memory, Module, Segment, Typ, Var};
 use ast::Typ::{F32, F64, I32, I64};
@@ -9,6 +9,7 @@ use ast::Typ::{F32, F64, I32, I64};
 pub enum ParseError {
     ExpectingTyp(String),
     ExpectingId(String),
+    ExpectingString(String),
     ExpectingNumber(String),
 }
 
@@ -30,6 +31,13 @@ fn is_number<'a>(tok: Token<'a>) -> bool {
     }
 }
 
+fn is_text<'a>(tok: Token<'a>) -> bool {
+    match tok {
+        Text(_) => true,
+        _         => false,
+    }
+}
+
 fn is_begin_memory<'a>(tok: Token<'a>) -> bool { tok == Begin("memory") }
 fn is_begin_module<'a>(tok: Token<'a>) -> bool { tok == Begin("module") }
 fn is_begin_param<'a>(tok: Token<'a>) -> bool { tok == Begin("param") }
@@ -40,6 +48,13 @@ fn mk_usize<'a>(tok: Token<'a>) -> Result<usize,ParseError> {
     match tok {
         Number(n) => Ok(n),
         _         => Err(ParseError::ExpectingNumber(String::from(tok))),
+    }
+}
+
+fn mk_string<'a>(tok: Token<'a>) -> Result<String,ParseError> {
+    match tok {
+        Text(s) => Ok(String::from(s)), // TODO: escape sequences
+        _       => Err(ParseError::ExpectingString(String::from(tok))),
     }
 }
 
@@ -64,8 +79,8 @@ fn mk_var(children: (String,Typ)) -> Var {
     Var{ name: children.0, typ: children.1 }
 }
 
-fn mk_segment(children: usize) -> Segment {
-    Segment{ addr: children, data: String::from("") }
+fn mk_segment(children: (usize, String)) -> Segment {
+    Segment{ addr: children.0, data: children.1 }
 }
 
 fn mk_memory(children: ((usize, Option<usize>), Vec<Segment>)) -> Memory {
@@ -83,8 +98,11 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
         .map(mk_id).results();
     let number = token_match(is_number)
         .map(mk_usize).results();
+    let text = token_match(is_text)
+        .map(mk_string).results();
     let segment = token_match(is_begin_segment).ignore()
         .and_then(number)
+        .zip(text)
         .and_then(token_match(is_end).ignore())
         .map(mk_segment);
     let memory = token_match(is_begin_memory).ignore()
@@ -123,9 +141,11 @@ fn test_parser() {
                         Number(1024),
                         Begin("segment"),
                             Number(0),
+                            Text("abc"),
                         End,
                         Begin("segment"),
                             Number(1),
+                            Text("def"),
                         End,
                     End,
                 End,
@@ -135,8 +155,8 @@ fn test_parser() {
                     init: 1024,
                     max: None,
                     segments: vec![
-                        Segment { addr: 0, data: String::from("") },
-                        Segment { addr: 1, data: String::from("") },
+                        Segment { addr: 0, data: String::from("abc") },
+                        Segment { addr: 1, data: String::from("def") },
                     ],
                 }),
                 imports: vec![],
