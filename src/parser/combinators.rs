@@ -316,12 +316,14 @@ pub struct ZipParser<L,R,T> {
     in_lhs: bool,
 }
 
-pub struct ZipLhsConsumer<'a,T:'a,D:'a> {
+#[derive(Debug)]
+pub struct ZipLhsConsumer<'a,T,D> where T: 'a, D: 'a {
     buffer: &'a mut Vec<T>,
     downstream: &'a mut D,
 }
 
-pub struct ZipRhsConsumer<'a,T:'a,D:'a> {
+#[derive(Debug)]
+pub struct ZipRhsConsumer<'a,T,D> where T: 'a, D: 'a {
     buffer: &'a mut Vec<T>,
     downstream: &'a mut D,
 }
@@ -659,6 +661,20 @@ impl<S,D,P,T> ParseTo<S,D> for OrEmitParser<P,T> where P: ParseTo<S,D>, D: Consu
 
 // Collect the output of a parser into a buffer
 
+#[derive(Debug)]
+pub struct CollectConsumer<'a,T,D> where T: 'a, D: 'a {
+    buffer: &'a mut T,
+    downstream: &'a mut D,
+}
+
+impl<'a,T,D,X> Consumer<X> for CollectConsumer<'a,T,D> where T: Consumer<X> {
+    fn accept(&mut self, value: X) { self.buffer.accept(value); }
+}
+
+impl<'a,T,D,X> ErrConsumer<X> for CollectConsumer<'a,T,D> where D: ErrConsumer<X> {
+    fn error(&mut self, err: X) { self.downstream.error(err); }
+}
+
 #[derive(Clone, Debug)]
 pub struct CollectParser<P,T> {
     parser: P,
@@ -668,9 +684,9 @@ pub struct CollectParser<P,T> {
 }
 
 impl<S,P,T> Parser<S> for CollectParser<P,T> where P: Parser<S> {}
-impl<S,D,P,T> ParseTo<S,D> for CollectParser<P,T> where P: ParseTo<S,T>, D: Consumer<T>, T: Clone {
+impl<S,D,P,T> ParseTo<S,D> for CollectParser<P,T> where P: for<'a> ParseTo<S,CollectConsumer<'a,T,D>>, D: Consumer<T>, T: Clone {
     fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        let result = self.parser.push_to(value, &mut self.buffer);
+        let result = self.parser.push_to(value, &mut CollectConsumer{ buffer: &mut self.buffer, downstream: downstream });
         if self.buffering {
             if let Matched(_) = result {
                 let buffer = mem::replace(&mut self.buffer, self.empty.clone());
@@ -681,7 +697,7 @@ impl<S,D,P,T> ParseTo<S,D> for CollectParser<P,T> where P: ParseTo<S,T>, D: Cons
         result
     }    
     fn done_to(&mut self, downstream: &mut D) -> bool {
-        let result = self.parser.done_to(&mut self.buffer);
+        let result = self.parser.done_to(&mut CollectConsumer{ buffer: &mut self.buffer, downstream: downstream });
         if self.buffering {
             let buffer = mem::replace(&mut self.buffer, self.empty.clone());
             if result { downstream.accept(buffer); }
