@@ -80,6 +80,9 @@ pub trait Parser<S> {
     fn or_else<R>(self, other: R) -> OrElseParser<Self,R> where Self: Sized, R: Parser<S> {
         OrElseParser{ lhs: self, rhs: other, in_lhs: true }
     }
+    fn or_emit<T>(self, default: T) -> OrEmitParser<Self,T> where Self: Sized {
+        OrEmitParser{ parser: self, default: default, at_beginning: true }
+    }
     fn star(self) -> StarParser<Self> where Self: Sized {
         StarParser{ parser: self, matched: true, first_time: true }
     }
@@ -463,6 +466,12 @@ impl<S,D,P> ParseTo<S,D> for PlusParser<P> where P: ParseTo<S,D> {
 
 // ----------- Matching strings -------------
 
+impl Consumer<String> for String {
+    fn accept(&mut self, arg: String) {
+        self.push_str(&*arg);
+    }
+}
+
 impl<'a> Consumer<&'a str> for String {
     fn accept(&mut self, arg: &'a str) {
         self.push_str(arg);
@@ -610,6 +619,39 @@ impl<'a,D,T,U> ParseTo<&'a[T],D> for TokenParser<U> where D: Consumer<T>, T: Cop
 
 pub fn token<U>(tok: U) -> TokenParser<U> {
     TokenParser{ tok: tok, state: AtBeginning }
+}
+
+// Optional parser, with a default value
+
+#[derive(Clone, Debug)]
+pub struct OrEmitParser<P,T> {
+    parser: P,
+    default: T,
+    at_beginning: bool,
+}
+
+impl<S,P,T> Parser<S> for OrEmitParser<P,T> where P: Parser<S> {}
+impl<S,D,P,T> ParseTo<S,D> for OrEmitParser<P,T> where P: ParseTo<S,D>, D: Consumer<T>, T: Clone {
+    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
+        if self.at_beginning {
+            self.at_beginning = false;
+            match self.parser.push_to(value, downstream) {
+                Failed(Some(rest))  => { downstream.accept(self.default.clone()); Matched(Some(rest)) },
+                result              => result,
+            }
+        } else {
+            self.parser.push_to(value, downstream)
+        }
+    }    
+    fn done_to(&mut self, downstream: &mut D) -> bool {
+        if self.at_beginning {
+            if !self.parser.done_to(downstream) { downstream.accept(self.default.clone()); }
+            true
+        } else {
+            self.at_beginning = true;
+            self.parser.done_to(downstream)
+        }
+    }
 }
 
 // If m is a ParseTo<&'a str, DiscardConsumer> then
@@ -831,18 +873,43 @@ fn test_plus() {
 
 #[test]
 fn test_map() {
-    let mut parser = character('a').and_then(character('b')).and_then(character('c')).map(|_| "X");
+    let mut parser = character('a').and_then(character('b')).and_then(character('c')).map(|ch: char| ch.to_uppercase().collect::<String>());
     let mut result = String::new();
     assert_eq!(parser.done_to(&mut result), false);
     assert_eq!(result, "");
     assert_eq!(parser.push_to("a", &mut result), Undecided);
-    assert_eq!(result, "X");
+    assert_eq!(result, "A");
     assert_eq!(parser.push_to("b", &mut result), Undecided);
-    assert_eq!(result, "XX");
+    assert_eq!(result, "AB");
     assert_eq!(parser.push_to("c", &mut result), Matched(None));
-    assert_eq!(result, "XXX");
+    assert_eq!(result, "ABC");
     assert_eq!(parser.done_to(&mut result), true);
-    assert_eq!(result, "XXX");
+    assert_eq!(result, "ABC");
+}
+
+#[test]
+fn test_or_emit() {
+    let mut parser = character('a').and_then(character('b')).and_then(character('c')).or_emit('z');
+    let mut result = String::new();
+    assert_eq!(parser.push_to("a", &mut result), Undecided);
+    assert_eq!(result, "a");
+    assert_eq!(parser.push_to("b", &mut result), Undecided);
+    assert_eq!(result, "ab");
+    assert_eq!(parser.push_to("c", &mut result), Matched(None));
+    assert_eq!(result, "abc");
+    assert_eq!(parser.done_to(&mut result), true);
+    assert_eq!(result, "abc");
+    result.clear();
+    assert_eq!(parser.push_to("d", &mut result), Matched(Some("d")));
+    assert_eq!(parser.done_to(&mut result), false);
+    assert_eq!(result, "z");
+    result.clear();
+    assert_eq!(parser.push_to("ad", &mut result), Failed(None));
+    assert_eq!(parser.done_to(&mut result), false);
+    assert_eq!(result, "a");
+    result.clear();
+    assert_eq!(parser.done_to(&mut result), true);
+    assert_eq!(result, "z");
 }
 
 #[test]
