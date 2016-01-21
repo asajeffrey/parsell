@@ -13,10 +13,15 @@ pub enum Expr {
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub struct Function {
     pub name: String,
-    pub params: Vec<Var>,
-    pub result: Option<Typ>,
+    pub typ: FunctionTyp,
     pub locals: Vec<Var>,
     pub body: Vec<Expr>,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
+pub struct FunctionTyp {
+    pub params: Vec<Var>,
+    pub result: Option<Typ>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
