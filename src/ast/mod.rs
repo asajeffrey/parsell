@@ -1,5 +1,3 @@
-use parser::combinators::Consumer;
-
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub struct Export {
     pub name: String,
@@ -15,15 +13,10 @@ pub enum Expr {
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub struct Function {
     pub name: String,
-    pub typ: FunctionTyp,
-    pub locals: Vec<Var>,
-    pub body: Vec<Expr>,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
-pub struct FunctionTyp {
     pub params: Vec<Var>,
     pub result: Option<Typ>,
+    pub locals: Vec<Var>,
+    pub body: Vec<Expr>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
@@ -31,7 +24,8 @@ pub struct Import {
     pub func: String,
     pub module: String,
     pub name: String,
-    pub typ: FunctionTyp,
+    pub params: Vec<Var>,
+    pub result: Option<Typ>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]

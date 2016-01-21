@@ -1,8 +1,8 @@
-use parser::combinators::{Parser, ParseTo, Consumer, ErrConsumer, token, token_match};
+use parser::combinators::{Parser, ParseTo, Consumer, ErrConsumer, token_match};
 use parser::lexer::{Token};
 use parser::lexer::Token::{Begin, End, Identifier, Number, Text};
 
-use ast::{Export, FunctionTyp, Import, Memory, Module, Segment, Typ, Var};
+use ast::{Export, Function, Import, Memory, Module, Segment, Typ, Var};
 use ast::Typ::{F32, F64, I32, I64};
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
@@ -21,17 +21,24 @@ pub trait ParserConsumer<D> where D: Consumer<Module>+ErrConsumer<ParseError> {
 struct ModuleContents {
     imports: Vec<Import>,
     exports: Vec<Export>,
+    functions: Vec<Function>,
 }
 
 impl ModuleContents {
     fn new() -> ModuleContents {
-        ModuleContents { imports: Vec::new(), exports: Vec::new() }
+        ModuleContents { imports: Vec::new(), exports: Vec::new(), functions: Vec::new() }
     }
 }
 
 impl Consumer<Export> for ModuleContents {
     fn accept(&mut self, export: Export) {
         self.exports.push(export);
+    }
+}
+
+impl Consumer<Function> for ModuleContents {
+    fn accept(&mut self, export: Function) {
+        self.functions.push(export);
     }
 }
 
@@ -69,8 +76,10 @@ fn is_text<'a>(tok: Token<'a>) -> bool {
 }
 
 fn is_begin_export<'a>(tok: Token<'a>) -> bool { tok == Begin("export") }
+fn is_begin_func<'a>(tok: Token<'a>) -> bool { tok == Begin("func") }
 fn is_begin_import<'a>(tok: Token<'a>) -> bool { tok == Begin("import") }
 fn is_begin_memory<'a>(tok: Token<'a>) -> bool { tok == Begin("memory") }
+fn is_begin_local<'a>(tok: Token<'a>) -> bool { tok == Begin("local") }
 fn is_begin_module<'a>(tok: Token<'a>) -> bool { tok == Begin("module") }
 fn is_begin_param<'a>(tok: Token<'a>) -> bool { tok == Begin("param") }
 fn is_begin_result<'a>(tok: Token<'a>) -> bool { tok == Begin("result") }
@@ -112,8 +121,8 @@ fn mk_var(children: (String,Typ)) -> Var {
     Var{ name: children.0, typ: children.1 }
 }
 
-fn mk_function_typ(children: (Vec<Var>,Option<Typ>)) -> FunctionTyp {
-    FunctionTyp{ params: children.0, result: children.1 }
+fn mk_function(children: (((String,Vec<Var>),Option<Typ>),Vec<Var>)) -> Function {
+    Function{ name: ((children.0).0).0, params: ((children.0).0).1, result: (children.0).1, locals: children.1, body: Vec::new() }
 }
 
 fn mk_segment(children: (usize, String)) -> Segment {
@@ -124,8 +133,8 @@ fn mk_memory(children: ((usize, Option<usize>), Vec<Segment>)) -> Memory {
     Memory{ init: (children.0).0, max: (children.0).1, segments: children.1 }
 }
 
-fn mk_import(children: (((String,String),String),FunctionTyp)) -> Import {
-    Import{ func: ((children.0).0).0, module: ((children.0).0).1, name: (children.0).1, typ: children.1 }
+fn mk_import(children: ((((String,String),String),Vec<Var>),Option<Typ>)) -> Import {
+    Import{ func: (((children.0).0).0).0, module: (((children.0).0).0).1, name: ((children.0).0).1, params: (children.0).1, result: children.1 }
 }
 
 fn mk_export(children: (String,String)) -> Export {
@@ -133,7 +142,7 @@ fn mk_export(children: (String,String)) -> Export {
 }
 
 fn mk_module(children: (Option<Memory>,ModuleContents)) -> Module {
-    Module{ memory: children.0, imports: children.1.imports, exports: children.1.exports, functions: vec![] }
+    Module{ memory: children.0, imports: children.1.imports, exports: children.1.exports, functions: children.1.functions }
 }
 
 pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+ErrConsumer<ParseError> {
@@ -141,7 +150,24 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
         .map(mk_typ).results();
     let id = token_match(is_identifier)
         .map(mk_id).results();
+    let number = token_match(is_number)
+        .map(mk_usize).results();
+    let text = token_match(is_text)
+        .map(mk_string).results();
+    let local = token_match(is_begin_local).ignore()
+        .and_then(id)
+        .zip(typ)
+        .and_then(token_match(is_end).ignore())
+        .map(mk_var);
     let param = token_match(is_begin_param).ignore()
+        .and_then(id)
+        .zip(typ)
+        .and_then(token_match(is_end).ignore())
+        .map(mk_var);
+    // A work-around for https://github.com/rust-lang/rust/issues/28229
+    // we can't clone param because is_begin_param doesn't implement Clone
+    // we can't copy param because it uses zip, which contains a Vec, which isn't copyable.
+    let param2 = token_match(is_begin_param).ignore()
         .and_then(id)
         .zip(typ)
         .and_then(token_match(is_end).ignore())
@@ -149,13 +175,13 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
     let result_typ = token_match(is_begin_result).ignore()
         .and_then(typ)
         .and_then(token_match(is_end).ignore());
-    let function_typ = param.star().collect(Vec::new())
+    let function = token_match(is_begin_func).ignore()
+        .and_then(id)
+        .zip(param.star().collect(Vec::new()))
         .zip(result_typ.map(Some).or_emit(None))
-        .map(mk_function_typ);
-    let number = token_match(is_number)
-        .map(mk_usize).results();
-    let text = token_match(is_text)
-        .map(mk_string).results();
+        .zip(local.star().collect(Vec::new()))
+        .and_then(token_match(is_end).ignore())
+        .map(mk_function);
     let segment = token_match(is_begin_segment).ignore()
         .and_then(number)
         .zip(text)
@@ -171,7 +197,8 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
         .and_then(id)
         .zip(text)
         .zip(text)
-        .zip(function_typ)
+        .zip(param2.star().collect(Vec::new()))
+        .zip(result_typ.map(Some).or_emit(None))
         .and_then(token_match(is_end).ignore())
         .map(mk_import);
     let export = token_match(is_begin_export).ignore()
@@ -181,7 +208,7 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
         .map(mk_export);
     let module = token_match(is_begin_module).ignore()
         .and_then(memory.map(Some).or_emit(None))
-        .zip(import.or_else(export).star().collect(ModuleContents::new()))
+        .zip(import.or_else(export).or_else(function).star().collect(ModuleContents::new()))
         .and_then(token_match(is_end).ignore())
         .map(mk_module);
     let top_level = module;
@@ -190,7 +217,7 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
 
 #[test]
 fn test_parser() {
-    use parser::combinators::MatchResult::{Matched,Failed};
+    use parser::combinators::MatchResult::Matched;
     struct TestConsumer(Vec<Module>,Vec<ParseError>);
     impl Consumer<Module> for TestConsumer {
         fn accept(&mut self, module: Module) {
@@ -221,6 +248,17 @@ fn test_parser() {
                         Identifier("$foo"),
                         Text("ghi"),
                         Text("jkl"),
+                    End,
+                    Begin("func"),
+                        Identifier("$fish"),
+                        Begin("param"),
+                            Identifier("$z"),
+                            Identifier("i64"),
+                        End,
+                        Begin("local"),
+                            Identifier("$r"),
+                            Identifier("i64"),
+                        End,
                     End,
                     Begin("export"),
                         Text("fish"),
@@ -258,25 +296,36 @@ fn test_parser() {
                         func: String::from("$foo"),
                         module: String::from("ghi"),
                         name: String::from("jkl"),
-                        typ: FunctionTyp{ params: vec![], result: None },
+                        params: vec![],
+                        result: None,
                     },
                     Import {
                         func: String::from("$bar"),
                         module: String::from("ghi"),
                         name: String::from("mno"),
-                        typ: FunctionTyp{
-                            params: vec![
-                                Var{ name: String::from("$x"), typ: F32 },
-                                Var{ name: String::from("$y"), typ: F64 },
-                            ],
-                            result: Some(I32),
-                        },
+                        params: vec![
+                            Var{ name: String::from("$x"), typ: F32 },
+                            Var{ name: String::from("$y"), typ: F64 },
+                        ],
+                        result: Some(I32),
                     },
                 ],
                 exports: vec![
                     Export { name: String::from("fish"), func: String::from("$fish") },
                 ],
-                functions: vec![]
+                functions: vec![
+                    Function {
+                        name: String::from("$fish"),
+                        params: vec![
+                            Var{ name: String::from("$z"), typ: I64 },
+                        ],
+                        result: None,
+                        locals: vec![
+                            Var{ name: String::from("$r"), typ: I64 },
+                        ],
+                        body: vec![]
+                    },
+                ]
             };
             assert_eq!(parser.done_to(&mut self), false);
             assert_eq!(self.0, []);
