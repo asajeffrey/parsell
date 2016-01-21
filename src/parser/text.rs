@@ -63,12 +63,12 @@ fn mk_var(children: (String,Typ)) -> Var {
     Var{ name: children.0, typ: children.1 }
 }
 
-fn mk_memory<'a>(children: usize) -> Memory {
-    Memory{ init: children, max: None, segments: vec![] }
+fn mk_memory<'a>(children: (usize, Option<usize>)) -> Memory {
+    Memory{ init: children.0, max: children.1, segments: vec![] }
 }
 
-fn mk_module<'a>(children: Memory) -> Module {
-    Module{ memory: Some(children), imports: vec![], exports: vec![], functions: vec![] }
+fn mk_module<'a>(children: Option<Memory>) -> Module {
+    Module{ memory: children, imports: vec![], exports: vec![], functions: vec![] }
 }
 
 pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+ErrConsumer<ParseError> {
@@ -80,10 +80,11 @@ pub fn parser<C,D>(consumer: C) where C: ParserConsumer<D>, D: Consumer<Module>+
         .map(mk_usize).results();
     let memory = token_match(is_begin_memory).ignore()
         .and_then(number)
+        .zip(number.map(Some).or_emit(None))
         .and_then(token_match(is_end).ignore())
         .map(mk_memory);
     let module = token_match(is_begin_module).ignore()
-        .and_then(memory)
+        .and_then(memory.map(Some).or_emit(None))
         .and_then(token_match(is_end).ignore())
         .map(mk_module);
     let top_level = module;
