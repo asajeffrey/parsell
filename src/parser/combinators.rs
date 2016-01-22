@@ -1,8 +1,10 @@
 use std::mem;
+use core::ops::{Deref,DerefMut};
 
 use self::BufferedParserState::{Beginning, Middle, EndMatch, EndFail};
 use self::MatchResult::{Undecided, Matched, Failed};
 use self::ConstParserState::{AtBeginning, AtEndMatched, AtEndFailed};
+use self::LazyParser::{Unbuilt,Built};
 
 // ----------- Types for consumers ------------
 
@@ -769,6 +771,44 @@ impl<'a,P,D> ParseTo<&'a str,D> for BufferedParser<P> where P: ParseTo<&'a str,D
     }
 }
 
+// ----------- Laziness -------------
+
+pub trait Factory {
+    type Built;
+    fn build(&self) -> Self::Built;
+}
+
+pub enum LazyParser<F> where F: Factory {
+    Unbuilt(F),
+    Built(F::Built),
+}
+
+impl<S,F> Parser<S> for LazyParser<F> where F: Factory {}
+impl<S,D,F> ParseTo<S,D> for LazyParser<F> where F: Factory, F::Built: DerefMut, <F::Built as Deref>::Target: ParseTo<S,D> {
+    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
+        let mut boxed = match *self {
+            Unbuilt(ref thunk) => thunk.build(),
+            Built(ref mut parser) => { return parser.push_to(value,downstream); },
+        };
+        let result = boxed.push_to(value,downstream);
+        *self = Built(boxed);
+        result
+    }
+    fn done_to(&mut self, downstream: &mut D) -> bool {
+        let mut boxed = match *self {
+            Unbuilt(ref thunk) => thunk.build(),
+            Built(ref mut parser) => { return parser.done_to(downstream); },
+        };
+        let result = boxed.done_to(downstream);
+        *self = Built(boxed);
+        result
+    }
+}
+
+pub fn lazy<F>(f: F) -> LazyParser<F> where F: Factory {
+    Unbuilt(f)
+}
+
 // ----------- Tests -------------
 
 #[test]
@@ -1009,6 +1049,31 @@ fn test_buffer() {
     assert_eq!(result, "abc");
     assert_eq!(parser.star().push_to("abcabcd", &mut result), Matched(Some("d")));
     assert_eq!(result, "abcabcabc");    
+}
+
+#[test]
+fn test_lazy() {
+    struct TestFactory;
+    impl Factory for TestFactory {
+        type Built = Box<for<'a> ParseTo<&'a str, String>>;
+        fn build(&self) -> Self::Built {
+            Box::new(
+                character('(')
+                    .and_then(lazy(TestFactory))
+                    .and_then(character(')'))
+                    .or_else(character('.'))
+            )
+        }
+    }
+    let mut parser = lazy(TestFactory);
+    let mut result = String::new();
+    assert_eq!(parser.push_to("((.))",&mut result), Matched(None));
+    assert_eq!(parser.done_to(&mut result), true);
+    assert_eq!(result, "((.))");
+    result.clear();
+    assert_eq!(parser.done_to(&mut result), false);
+    assert_eq!(result, "");
+    result.clear();
 }
 
 #[test]
