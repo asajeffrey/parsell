@@ -774,32 +774,43 @@ impl<'a,P,D> ParseTo<&'a str,D> for BufferedParser<P> where P: ParseTo<&'a str,D
 // ----------- Laziness -------------
 
 pub trait Factory {
-    type Built;
-    fn build(&self) -> Self::Built;
+    type Boxed;
+    type Emitted;
+    fn build(&self) -> Self::Boxed;
 }
 
 pub enum LazyParser<F> where F: Factory {
     Unbuilt(F),
-    Built(F::Built),
+    Built(F::Boxed),
+}
+
+pub struct LazyConsumer<'a,T> where T: 'a {
+    downstream: &'a mut Consumer<T>,
+}
+    
+impl<'a,T> Consumer<T> for LazyConsumer<'a,T> {
+    fn accept(&mut self, value: T) { self.downstream.accept(value) }
 }
 
 impl<S,F> Parser<S> for LazyParser<F> where F: Factory {}
-impl<S,D,F> ParseTo<S,D> for LazyParser<F> where F: Factory, F::Built: DerefMut, <F::Built as Deref>::Target: ParseTo<S,D> {
+impl<S,D,F> ParseTo<S,D> for LazyParser<F> where D: Consumer<F::Emitted>, F: Factory, F::Boxed: DerefMut, <F::Boxed as Deref>::Target: for<'a> ParseTo<S,LazyConsumer<'a,F::Emitted>> {
     fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
+        let mut downstream = LazyConsumer { downstream: downstream };
         let mut boxed = match *self {
             Unbuilt(ref thunk) => thunk.build(),
-            Built(ref mut parser) => { return parser.push_to(value,downstream); },
+            Built(ref mut parser) => { return parser.push_to(value, &mut downstream); },
         };
-        let result = boxed.push_to(value,downstream);
+        let result = boxed.push_to(value, &mut downstream);
         *self = Built(boxed);
         result
     }
     fn done_to(&mut self, downstream: &mut D) -> bool {
+        let mut downstream = LazyConsumer { downstream: downstream };
         let mut boxed = match *self {
             Unbuilt(ref thunk) => thunk.build(),
-            Built(ref mut parser) => { return parser.done_to(downstream); },
+            Built(ref mut parser) => { return parser.done_to(&mut downstream); },
         };
-        let result = boxed.done_to(downstream);
+        let result = boxed.done_to(&mut downstream);
         *self = Built(boxed);
         result
     }
@@ -1053,26 +1064,33 @@ fn test_buffer() {
 
 #[test]
 fn test_lazy() {
-    struct TestFactory;
+    #[derive(Clone, Eq, PartialEq, Debug)]
+    struct TestTree { children: Vec<TestTree> }
+    fn mk_test_tree(children: TestTree) -> TestTree { TestTree{ children: vec![ children ] } }
+    type TestBox = Box<for<'a,'b> ParseTo<&'a str, LazyConsumer<'b, TestTree>>>;
+    struct TestFactory; 
     impl Factory for TestFactory {
-        type Built = Box<for<'a> ParseTo<&'a str, String>>;
-        fn build(&self) -> Self::Built {
+        type Boxed = TestBox;
+        type Emitted = TestTree;
+        fn build(&self) -> TestBox {
+            let result = lazy(TestFactory).and_then(character(')').ignore());
             Box::new(
-                character('(')
+                character('(').ignore()
                     .and_then(lazy(TestFactory))
-                    .and_then(character(')'))
-                    .or_else(character('.'))
+                    .and_then(character(')').ignore())
+                    .map(mk_test_tree)
+                    .or_emit(TestTree{ children: Vec::new() })
             )
         }
     }
     let mut parser = lazy(TestFactory);
-    let mut result = String::new();
-    assert_eq!(parser.push_to("((.))",&mut result), Matched(None));
+    let mut result = Vec::new();
+    assert_eq!(parser.push_to("(())",&mut result), Matched(None));
     assert_eq!(parser.done_to(&mut result), true);
-    assert_eq!(result, "((.))");
+    assert_eq!(result, vec![ TestTree{ children: vec![ TestTree{ children: vec![ TestTree{ children: vec![] } ] } ] } ]);
     result.clear();
-    assert_eq!(parser.done_to(&mut result), false);
-    assert_eq!(result, "");
+    assert_eq!(parser.done_to(&mut result), true);
+    assert_eq!(result, vec![ TestTree{ children: vec![] } ]);
     result.clear();
 }
 
