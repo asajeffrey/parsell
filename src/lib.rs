@@ -1,1113 +1,533 @@
 #![feature(unboxed_closures)]
-#![feature(fn_traits)]
 
 extern crate core;
 
-use std::mem;
-use core::ops::{Deref,DerefMut};
-
-use self::BufferedParserState::{Beginning, Middle, EndMatch, EndFail};
-use self::MatchResult::{Undecided, Matched, Failed};
-use self::ConstParserState::{AtBeginning, AtEndMatched, AtEndFailed};
-use self::LazyParser::{Unbuilt,Built};
+use self::GuardedParseResult::{Empty,Abort,Commit};
+use self::ParseResult::{Done,Continue};
+use self::OrElseParser::{Lhs,Rhs};
+use self::OrEmitParser::{Unresolved,Resolved};
+use self::AndThenParser::{InLhs,InRhs};
+use self::Str::{Borrowed,Owned};
 
 // ----------- Types for consumers ------------
 
 pub trait Consumer<T> {
-    fn accept(&mut self, value: T);
-}
-
-pub trait ErrConsumer<E> {
-    fn error(&mut self, err: E);
+    fn push(&mut self, value: T);
 }
 
 pub struct DiscardConsumer;
 
 impl<T> Consumer<T> for DiscardConsumer {
-    fn accept(&mut self, _: T) {}
+    fn push(&mut self, _: T) {}
 }
 
-impl<E> ErrConsumer<E> for DiscardConsumer {
-    fn error(&mut self, _: E) {}
+impl Consumer<String> for String {
+    fn push(&mut self, arg: String) {
+        self.push_str(&*arg);
+    }
+}
+
+impl<'a> Consumer<&'a str> for String {
+    fn push(&mut self, arg: &'a str) {
+        self.push_str(arg);
+    }
+}
+
+impl Consumer<char> for String {
+    fn push(&mut self, x: char) { self.push(x); }
+}
+
+impl<'a,T> Consumer<&'a[T]> for Vec<T> where T: Clone {
+    fn push(&mut self, arg: &'a[T]) {
+        self.extend(arg.iter().cloned());
+    }
+}
+
+impl<T> Consumer<T> for Vec<T> {
+    fn push(&mut self, x: T) { self.push(x); }
+}
+
+// ----------- Types data which can discard a suffix (e.g. strings, slices...) ------------
+
+pub trait DropSuffix {
+    fn drop_suffix(self, suffix: Self) -> Self;
+}
+
+impl<'a> DropSuffix for &'a str {
+    fn drop_suffix(self, suffix: &'a str) -> &'a str {
+        &self[0..(self.len() - suffix.len())]
+    }
+}
+
+impl<'a,T> DropSuffix for &'a[T] {
+    fn drop_suffix(self, suffix: &'a[T]) -> &'a[T] {
+        &self[0..(self.len() - suffix.len())]
+    }
 }
 
 // ----------- Types for parsers ------------
 
-// State machine transitions are:
-//
-// init -Undecided(true)->  init
-// init -Undecided(false)-> committed
-// init -Matched(s)->       matched
-// init -Failed(s)->        failed
-//
-// committed -Undecided(false)-> committed
-// committed -Matched(s)->       matched
-// committed -Failed(false)->    failed(false)
-//
-// matched -Matched(s)-> matched
-//
-// failed -Failed(s)-> failed
-//
-// The Failed(s) action carries a Option<T> indicating if backtracking is allowed,
-// and if so, the value to backtrack with.
-
-#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
-pub enum MatchResult<T> {
-    Undecided,
-    Matched(Option<T>),
-    Failed(Option<T>),
+pub trait Parser {
+    fn map<F>(self, f: F) -> MapParser<Self,F> where Self:Sized, { MapParser(self,f) }
 }
 
-pub trait ParseTo<S,D>: Parser<S> {
-    // If push_to returns Failed(Some(s)), it is side-effect-free
-    // push_to should be called with non-empty input,
-    // when it returns Matched(Some(s)) or Failed(Some(s)) then s is non-empty.
-    // In the case where T is "list-like" (e.g. &str or &[T])
-    // push_to(a ++ b, d) is the same as push_to(a,d); push_to(b,d)
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S>;
-    // Resets the parser state back to its initial state
-    // Returns true if there was a match.
-    fn done_to(&mut self, downstream: &mut D) -> bool;
+pub trait ParserOf<S>: Parser {
+    type Output;
+    fn parse(self, value: S) -> ParseResult<Self,S> where Self: Sized;
+    fn done(self) -> Self::Output where Self: Sized;
 }
 
-// Helper methods
-pub trait Parser<S> {
-    fn push(&mut self, value: S) -> MatchResult<S> where Self: ParseTo<S,DiscardConsumer> {
-        self.push_to(value, &mut DiscardConsumer)
-    }
-    fn done(&mut self) -> bool where Self: ParseTo<S,DiscardConsumer> {
-        self.done_to(&mut DiscardConsumer)
-    }
-    fn zip<T,R>(self, other: R) -> ZipParser<Self,R,T> where Self: Sized, R: Parser<S> {
-        ZipParser{ lhs: self, rhs: CommittedParser{ parser: other }, buffer: Vec::new(), in_lhs: true }
-    }
-    fn and_then<R>(self, other: R) -> AndThenParser<Self,R> where Self: Sized, R: Parser<S> {
-        AndThenParser{ lhs: self, rhs: CommittedParser{ parser: other }, in_lhs: true }
-    }
-    fn or_else<R>(self, other: R) -> OrElseParser<Self,R> where Self: Sized, R: Parser<S> {
-        OrElseParser{ lhs: self, rhs: other, in_lhs: true }
-    }
-    fn or_emit<T>(self, default: T) -> OrEmitParser<Self,T> where Self: Sized {
-        OrEmitParser{ parser: self, default: default, at_beginning: true }
-    }
-    fn star(self) -> StarParser<Self> where Self: Sized {
-        StarParser{ parser: self, matched: true, first_time: true }
-    }
-    fn plus(self) -> PlusParser<Self> where Self: Sized {
-        PlusParser{ parser: self, matched: false, first_time: true }
-    }
-    fn map<T,U,F>(self, function: F) -> MapParser<F,Self> where F: Fn(T) -> U, Self: Sized {
-        MapParser{ function: function, parser: self }
-    }
-    fn results(self) -> ResultParser<Self> where Self: Sized {
-        ResultParser{ parser: self }
-    }
-    fn filter<T,F>(self, function: F) -> FilterParser<F,Self> where F: Fn(T) -> bool, T: Copy, Self: Sized {
-        FilterParser{ function: function, parser: self }
-    }
-    fn ignore(self) -> IgnoreParser<Self> where Self: Sized {
-        IgnoreParser{ parser: self }
-    }
-    fn collect<T>(self, empty: T) -> CollectParser<Self,T> where T: Clone, Self: Sized {
-        CollectParser{ parser: self, buffer: empty.clone(), empty: empty, buffering: true }
-    }
-    fn buffer(self) -> BufferedParser<Self> where Self: Sized {
-        BufferedParser{ parser: self, state: Beginning }
-    }
+pub enum ParseResult<P,S> where P: ParserOf<S> {
+    Done(S,P::Output),
+    Continue(P),
+}
+
+pub trait GuardedParser {
+    fn or_else<P>(self, other: P) -> OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParser { OrElseGuardedParser(self,other) }
+    fn or_emit<F,R>(self, default: F) -> OrEmitParser<Self,F,R> where Self:Sized { Unresolved(self,default) }
+    fn and_then<P>(self, other: P) -> AndThenGuardedParser<Self,P> where Self:Sized, P: Parser { AndThenGuardedParser(self,other) }
+    fn map<F>(self, f: F) -> MapParser<Self,F> where Self:Sized, { MapParser(self,f) }
+    fn buffer(self) -> BufferedGuardedParser<Self> where Self:Sized, { BufferedGuardedParser(self) }
+}
+
+pub trait GuardedParserOf<S>: GuardedParser {
+    type Rest: ParserOf<S>;
+    fn parse(self, value: S) -> GuardedParseResult<Self,S> where Self: Sized;
+}
+
+pub enum GuardedParseResult<P,S> where P: GuardedParserOf<S> {
+    Empty(P),
+    Abort(S),
+    Commit(ParseResult<P::Rest,S>),
 }
 
 // ----------- Map ---------------
 
-#[derive(Debug)]
-pub struct MapConsumer<'a,F:'a,D:'a> {
-    function: &'a F,
-    downstream: &'a mut D
-}
+#[derive(Copy, Clone, Debug)]
+pub struct MapParser<P,F>(P,F);
+
 
 // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
 // See https://github.com/rust-lang/rust/issues/30867 for more details.
-impl<'a,T,F,D> Consumer<T> for MapConsumer<'a,F,D>
-where F: Fn<(T,)>, D: Consumer<<F as FnOnce<(T,)>>::Output> {
-    fn accept(&mut self, arg: T) {
-        self.downstream.accept((self.function)(arg));
-    }
-}
-
-impl<'a,E,F,D> ErrConsumer<E> for MapConsumer<'a,F,D>
-where D: ErrConsumer<E> {
-    fn error(&mut self, err: E) {
-        self.downstream.error(err);
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct MapParser<F,P> {
-    function: F,
-    parser: P
-}
-
-impl<S,F,P> Parser<S> for MapParser<F,P> where P: Parser<S> {}
-impl<S,D,F,P> ParseTo<S,D> for MapParser<F,P> where P: for<'a> ParseTo<S,MapConsumer<'a,F,D>> {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        let mut downstream = MapConsumer{ function: &mut self.function, downstream: downstream };
-        self.parser.push_to(value, &mut downstream)
-    }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        let mut downstream = MapConsumer{ function: &mut self.function, downstream: downstream };
-        self.parser.done_to(&mut downstream)
-    }
-}
-
-// ----------- Send errors to an error consumer ---------------
-
-#[derive(Debug)]
-pub struct ResultConsumer<'a,D> where D: 'a {
-    downstream: &'a mut D
-}
-
-impl<'a,D,T,E> Consumer<Result<T,E>> for ResultConsumer<'a,D>
-where D: Consumer<T>+ErrConsumer<E> {
-    fn accept(&mut self, value: Result<T,E>) {
-        match value {
-            Ok(value) => self.downstream.accept(value),
-            Err(err) => self.downstream.error(err),
+impl<P,F> Parser for MapParser<P,F> where P: Parser {}
+impl<P,F,S,T> ParserOf<S> for MapParser<P,F> where P: ParserOf<S,Output=T>, F: Fn<(T,)> {
+    type Output = F::Output;
+    fn parse(self, value: S) -> ParseResult<Self,S> {
+        match self.0.parse(value) {
+            Done(rest,result) => Done(rest,(self.1)(result)),
+            Continue(parsing) => Continue(MapParser(parsing,self.1)),
         }
     }
-}
-
-impl<'a,D,E> ErrConsumer<E> for ResultConsumer<'a,D>
-where D: ErrConsumer<E> {
-    fn error(&mut self, err: E) {
-        self.downstream.error(err)
+    fn done(self) -> Self::Output {
+        (self.1)(self.0.done())
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct ResultParser<P> {
-    parser: P
-}
-
-impl<S,P> Parser<S> for ResultParser<P> where P: Parser<S> {}
-impl<S,D,P> ParseTo<S,D> for ResultParser<P> where P: for<'a> ParseTo<S,ResultConsumer<'a,D>> {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        let mut downstream = ResultConsumer{ downstream: downstream };
-        self.parser.push_to(value, &mut downstream)
-    }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        let mut downstream = ResultConsumer{ downstream: downstream };
-        self.parser.done_to(&mut downstream)
-    }
-}
-
-// ----------- Ignore ---------------
-
-#[derive(Copy, Clone, Debug)]
-pub struct IgnoreParser<P> {
-    parser: P
-}
-
-impl<S,P> Parser<S> for IgnoreParser<P> where P: Parser<S> {}
-impl<S,D,P> ParseTo<S,D> for IgnoreParser<P> where P: ParseTo<S,DiscardConsumer> {
-    fn push_to(&mut self, value: S, _: &mut D) -> MatchResult<S> {
-        self.parser.push_to(value, &mut DiscardConsumer)
-    }
-    fn done_to(&mut self, _: &mut D) -> bool {
-        self.parser.done_to(&mut DiscardConsumer)
-    }
-}
-
-// ----------- Filter ---------------
-
-#[derive(Debug)]
-pub struct FilterConsumer<'a,F,D> where F: 'a, D: 'a {
-    function: &'a F,
-    downstream: &'a mut D
-}
-
-impl<'a,T,F,D> Consumer<T> for FilterConsumer<'a,F,D> where F: Fn(T) -> bool, T: Copy, D: Consumer<T> {
-    fn accept(&mut self, arg: T) {
-        if (self.function)(arg) {
-            self.downstream.accept(arg)
+impl<P,F> GuardedParser for MapParser<P,F> where P: GuardedParser {}
+impl<P,F,S,Q,T> GuardedParserOf<S> for MapParser<P,F> where P: GuardedParserOf<S,Rest=Q>, Q: ParserOf<S,Output=T>, F: Fn<(T,)> {
+    type Rest = MapParser<P::Rest,F>;
+    fn parse(self, value: S) -> GuardedParseResult<Self,S> {
+        match self.0.parse(value) {
+            Empty(parser) => Empty(MapParser(parser,self.1)),
+            Commit(Done(rest,result)) => Commit(Done(rest,(self.1)(result))),
+            Commit(Continue(parsing)) => Commit(Continue(MapParser(parsing,self.1))),
+            Abort(value) => Abort(value),
         }
-    }
-}
-
-impl<'a,E,F,D> ErrConsumer<E> for FilterConsumer<'a,F,D> where D: ErrConsumer<E> {
-    fn error(&mut self, err: E) {
-        self.downstream.error(err)
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct FilterParser<F,P> {
-    function: F,
-    parser: P
-}
-
-impl<S,F,P> Parser<S> for FilterParser<F,P> where P: Parser<S> {}
-impl<S,D,F,P> ParseTo<S,D> for FilterParser<F,P> where P: for<'a> ParseTo<S,FilterConsumer<'a,F,D>> {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        let mut downstream = FilterConsumer{ function: &mut self.function, downstream: downstream };
-        self.parser.push_to(value, &mut downstream)
-    }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        let mut downstream = FilterConsumer{ function: &mut self.function, downstream: downstream };
-        self.parser.done_to(&mut downstream)
-    }
-}
-
-// ----------- Always commit ---------------
-
-#[derive(Copy, Clone, Debug)]
-pub struct CommittedParser<P> {
-    parser: P,
-}
-
-impl<S,P> Parser<S> for CommittedParser<P> where P: Parser<S> {}
-impl<S,D,P> ParseTo<S,D> for CommittedParser<P> where P: ParseTo<S,D> {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        match self.parser.push_to(value, downstream) {
-            Undecided     => Undecided,
-            Matched(rest) => Matched(rest),
-            Failed(_)     => Failed(None),
-        }
-    }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        self.parser.done_to(downstream)
     }
 }
 
 // ----------- Sequencing ---------------
 
 #[derive(Copy, Clone, Debug)]
-pub struct AndThenParser<L,R> {
-    lhs: L,
-    rhs: CommittedParser<R>,
-    in_lhs: bool,
-}
+pub struct AndThenGuardedParser<P,Q>(P,Q);
 
-impl<S,L,R> Parser<S> for AndThenParser<L,R> where L: Parser<S>, R: Parser<S> {}
-impl<S,D,L,R> ParseTo<S,D> for AndThenParser<L,R> where L: ParseTo<S,D>, R: ParseTo<S,D> {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        if self.in_lhs {
-            match self.lhs.push_to(value, downstream) {
-                Undecided           => Undecided,
-                Matched(Some(rest)) => { self.in_lhs = false; self.lhs.done_to(downstream); self.rhs.push_to(rest, downstream) },
-                Matched(None)       => { self.in_lhs = false; self.lhs.done_to(downstream); Undecided },
-                Failed(rest)        => Failed(rest),
-            }
-        } else {
-            self.rhs.push_to(value, downstream)
-        }
-    }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        if self.in_lhs {
-            self.lhs.done_to(downstream) && self.rhs.done_to(downstream)
-        } else {
-            self.in_lhs = true;
-            self.rhs.done_to(downstream)
+impl<P,Q> GuardedParser for AndThenGuardedParser<P,Q> where P: GuardedParser, Q: Parser {}
+impl<P,Q,R,S> GuardedParserOf<S> for AndThenGuardedParser<P,Q> where P: GuardedParserOf<S,Rest=R>, Q: ParserOf<S>, R: ParserOf<S> {
+    type Rest = AndThenParser<R,Q,R::Output>;
+    fn parse(self, value: S) -> GuardedParseResult<Self,S> {
+        match self {
+            AndThenGuardedParser(lhs,rhs) => {
+                match lhs.parse(value) {
+                    Empty(lhs) => Empty(AndThenGuardedParser(lhs,rhs)),
+                    Commit(Done(rest,result1)) => match rhs.parse(rest) {
+                        Done(rest,result2) => Commit(Done(rest,(result1,result2))),
+                        Continue(parsing) => Commit(Continue(InRhs(result1,parsing))),
+                    },
+                    Commit(Continue(parsing)) => Commit(Continue(InLhs(parsing,rhs))),
+                    Abort(value) => Abort(value),
+                }
+            },
         }
     }
 }
 
-// ----------- Sequencing with zipping ---------------
-
-// If p produces output (v1,v2,...,vM) and q produces output (w1,w2,...,wN)
-// then p.zip(q) produces output ((v1,w1),(v2,w1),...,(vL,wL)) where L = min(M,N).
-
-#[derive(Clone, Debug)]
-pub struct ZipParser<L,R,T> {
-    lhs: L,
-    rhs: CommittedParser<R>,
-    buffer: Vec<T>,
-    in_lhs: bool,
+#[derive(Copy, Clone, Debug)]
+pub enum AndThenParser<P,Q,T> {
+    InLhs(P,Q),
+    InRhs(T,Q),
 }
 
-#[derive(Debug)]
-pub struct ZipLhsConsumer<'a,T,D> where T: 'a, D: 'a {
-    buffer: &'a mut Vec<T>,
-    downstream: &'a mut D,
-}
-
-#[derive(Debug)]
-pub struct ZipRhsConsumer<'a,T,D> where T: 'a, D: 'a {
-    buffer: &'a mut Vec<T>,
-    downstream: &'a mut D,
-}
-
-impl<'a,T,D> Consumer<T> for ZipLhsConsumer<'a,T,D> {
-    fn accept(&mut self, lhs: T) {
-        self.buffer.push(lhs);
-    }
-}
-
-impl<'a,T,U,D> Consumer<U> for ZipRhsConsumer<'a,T,D> where D: Consumer<(T,U)> {
-    fn accept(&mut self, rhs: U) {
-        if let Some(lhs) = self.buffer.pop() {
-            self.downstream.accept((lhs,rhs))
+impl<P,Q,T> Parser for AndThenParser<P,Q,T> where P: Parser, Q: Parser {}
+impl<P,Q,T,U,S> ParserOf<S> for AndThenParser<P,Q,T> where P: ParserOf<S,Output=T>, Q: ParserOf<S,Output=U> {
+    type Output = (T,U);
+    fn parse(self, value: S) -> ParseResult<Self,S> {
+        match self {
+            InLhs(lhs,rhs) => {
+                match lhs.parse(value) {
+                    Done(rest,result1) => match rhs.parse(rest) {
+                        Done(rest,result2) => Done(rest,(result1,result2)),
+                        Continue(parsing) => Continue(InRhs(result1,parsing)),
+                    },
+                    Continue(parsing) => Continue(InLhs(parsing,rhs)),
+                }
+            },
+            InRhs(result1,rhs) => {
+                match rhs.parse(value) {
+                    Done(rest,result2) => Done(rest,(result1,result2)),
+                    Continue(parsing) => Continue(InRhs(result1,parsing)),
+                }
+            },
         }
     }
-}
-
-impl<'a,T,D,E> ErrConsumer<E> for ZipLhsConsumer<'a,T,D> where D: ErrConsumer<E> {
-    fn error(&mut self, err: E) {
-        self.downstream.error(err);
-    }
-}
-
-impl<'a,T,D,E> ErrConsumer<E> for ZipRhsConsumer<'a,T,D> where D: ErrConsumer<E> {
-    fn error(&mut self, err: E) {
-        self.downstream.error(err);
-    }
-}
-
-impl<S,T,L,R> Parser<S> for ZipParser<L,R,T> where L: Parser<S>, R: Parser<S> {}
-impl<S,T,D,L,R> ParseTo<S,D> for ZipParser<L,R,T> where L: for<'a> ParseTo<S,ZipLhsConsumer<'a,T,D>>, R: for<'a> ParseTo<S,ZipRhsConsumer<'a,T,D>> {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        if self.in_lhs {
-            match self.lhs.push_to(value, &mut ZipLhsConsumer{ buffer: &mut self.buffer, downstream: downstream }) {
-                Undecided           => Undecided,
-                Matched(Some(rest)) => { self.in_lhs = false; self.lhs.done_to(&mut ZipLhsConsumer{ buffer: &mut self.buffer, downstream: downstream }); self.buffer.reverse(); self.rhs.push_to(rest, &mut ZipRhsConsumer{ buffer: &mut self.buffer, downstream: downstream }) },
-                Matched(None)       => { self.in_lhs = false; self.lhs.done_to(&mut ZipLhsConsumer{ buffer: &mut self.buffer, downstream: downstream }); self.buffer.reverse(); Undecided },
-                Failed(rest)        => Failed(rest),
-            }
-        } else {
-            self.rhs.push_to(value, &mut ZipRhsConsumer{ buffer: &mut self.buffer, downstream: downstream })
+    fn done(self) -> Self::Output {
+        match self {
+            InLhs(lhs,rhs) => (lhs.done(), rhs.done()),
+            InRhs(result1,rhs) => (result1, rhs.done()),
         }
-    }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        let result = if self.in_lhs {
-            self.lhs.done_to(&mut ZipLhsConsumer{ buffer: &mut self.buffer, downstream: downstream }) && { self.buffer.reverse(); self.rhs.done_to(&mut ZipRhsConsumer{ buffer: &mut self.buffer, downstream: downstream }) }
-        } else {
-            self.in_lhs = true;
-            self.rhs.done_to(&mut ZipRhsConsumer{ buffer: &mut self.buffer, downstream: downstream })
-        };
-        self.buffer.clear();
-        result
     }
 }
 
 // ----------- Choice ---------------
 
 #[derive(Copy, Clone, Debug)]
-pub struct OrElseParser<L,R> {
-    lhs: L,
-    rhs: R,
-    in_lhs: bool,
-}
+pub struct OrElseGuardedParser<P,Q>(P,Q);
 
-impl<S,L,R> Parser<S> for OrElseParser<L,R> where L: Parser<S>, R: Parser<S> {}
-impl<S,D,L,R> ParseTo<S,D> for OrElseParser<L,R> where L: ParseTo<S,D>, R: ParseTo<S,D> {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        if self.in_lhs {
-            match self.lhs.push_to(value, downstream) {
-                Failed(Some(rest)) => { self.in_lhs = false; self.lhs.done_to(downstream); self.rhs.push_to(rest, downstream) },
-                result             => result,
+impl<P,Q> GuardedParser for OrElseGuardedParser<P,Q> where P: GuardedParser, Q: GuardedParser {}
+impl<P,Q,S,T> GuardedParserOf<S> for OrElseGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: GuardedParserOf<S>, P::Rest: ParserOf<S,Output=T>, Q::Rest: ParserOf<S,Output=T> {
+    type Rest = OrElseParser<P::Rest,Q::Rest>;
+    fn parse(self, value: S) -> GuardedParseResult<Self,S> {
+        match self.0.parse(value) {
+            Empty(lhs) => Empty(OrElseGuardedParser(lhs,self.1)),
+            Commit(Done(rest,result)) => Commit(Done(rest,result)),
+            Commit(Continue(parsing)) => Commit(Continue(Lhs(parsing))),
+            Abort(value) => match self.1.parse(value) {
+                Empty(_) => panic!("lhs and rhs disagree about emptiness"),
+                Commit(Done(rest,result)) => Commit(Done(rest,result)),
+                Commit(Continue(parsing)) => Commit(Continue(Rhs(parsing))),
+                Abort(value) => Abort(value),
             }
-        } else {
-            self.rhs.push_to(value, downstream)
         }
     }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        if self.in_lhs {
-            self.lhs.done_to(downstream)
-        } else {
-            self.in_lhs = true;
-            self.rhs.done_to(downstream)
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum OrElseParser<P,Q> {
+    Lhs(P),
+    Rhs(Q),
+}
+
+impl<P,Q> Parser for OrElseParser<P,Q> where P: Parser, Q: Parser {}
+impl<P,Q,S,T> ParserOf<S> for OrElseParser<P,Q> where P: ParserOf<S,Output=T>, Q: ParserOf<S,Output=T> {
+    type Output = T;
+    fn parse(self, value: S) -> ParseResult<Self,S> {
+        match self {
+            Lhs(lhs) => {
+                match lhs.parse(value) {
+                    Done(rest,result) => Done(rest,result),
+                    Continue(parsing) => Continue(Lhs(parsing)),
+                }
+            },
+            Rhs(rhs) => {
+                match rhs.parse(value) {
+                    Done(rest,result) => Done(rest,result),
+                    Continue(parsing) => Continue(Rhs(parsing)),
+                }
+            },
+        }
+    }
+    fn done(self) -> Self::Output {
+        match self {
+            Lhs(lhs) => lhs.done(),
+            Rhs(rhs) => rhs.done(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum OrEmitParser<P,F,R> {
+    Unresolved(P,F),
+    Resolved(R),
+}
+
+impl<P,F,R> Parser for OrEmitParser<P,F,R> where P: GuardedParser, R: Parser {}
+impl<P,F,R,S,T> ParserOf<S> for OrEmitParser<P,F,R> where P: GuardedParserOf<S,Rest=R>, R: ParserOf<S,Output=T>, F:Fn<(),Output=T> {
+    type Output = T;
+    fn parse(self, value: S) -> ParseResult<Self,S> {
+        match self {
+            Unresolved(parser,default) => {
+                match parser.parse(value) {
+                    Empty(parser) => Continue(Unresolved(parser,default)),
+                    Commit(Done(rest,result)) => Done(rest,result),
+                    Commit(Continue(parsing)) => Continue(Resolved(parsing)),
+                    Abort(value) => Done(value,default()),
+                }
+            },
+            Resolved(parser) => {
+                match parser.parse(value) {
+                    Done(rest,result) => Done(rest,result),
+                    Continue(parsing) => Continue(Resolved(parsing)),
+                }
+            }
+        }
+    }
+    fn done(self) -> T {
+        match self {
+            Unresolved(_,default) => default(),
+            Resolved(parser) => parser.done(),
         }
     }
 }
 
 // ----------- Kleene star ---------------
 
+// TODO!
+
+// ----------- Constant parsers -------------
+
 #[derive(Copy, Clone, Debug)]
-pub struct StarParser<P> {
-    parser: P,
-    matched: bool,
-    first_time: bool,
+pub struct EmitParser<T>(T);
+
+impl<T> Parser for EmitParser<T> {}
+impl<T,S> ParserOf<S> for EmitParser<T> {
+    type Output = T;
+    fn parse(self, value: S) -> ParseResult<Self,S> {
+        Done(value,self.0)
+    }
+    fn done(self) -> T {
+        self.0
+    }
 }
 
-impl<S,P> Parser<S> for StarParser<P> where P: Parser<S> {}
-impl<S,D,P> ParseTo<S,D> for StarParser<P> where P: ParseTo<S,D> {
-    fn push_to(&mut self, mut value: S, downstream: &mut D) -> MatchResult<S> {
-        loop {
-            match self.parser.push_to(value, downstream) {
-                Undecided           => { self.matched = false; return Undecided },
-                Matched(Some(rest)) => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); value = rest; },
-                Matched(None)       => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); return Undecided; },
-                Failed(Some(rest))  => { self.matched = false; return Matched(Some(rest)); },
-                Failed(None)        => { self.matched = false; return Failed(None); },
-            }
-        }
-    }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        let result = self.parser.done_to(downstream) | self.matched;
-        self.first_time = true;
-        self.matched = true;
-        result
-    }
+pub fn emit<T>(value: T) -> EmitParser<T> {
+    EmitParser(value)
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct PlusParser<P> {
-    parser: P,
-    matched: bool,
-    first_time: bool,
-}
+pub struct CharGuard<F>(F);
 
-impl<S,P> Parser<S> for PlusParser<P> where P: Parser<S> {}
-impl<S,D,P> ParseTo<S,D> for PlusParser<P> where P: ParseTo<S,D> {
-    fn push_to(&mut self, mut value: S, downstream: &mut D) -> MatchResult<S> {
-        loop {
-            match self.parser.push_to(value, downstream) {
-                Undecided           => { self.matched = false; return Undecided },
-                Matched(Some(rest)) => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); value = rest; },
-                Matched(None)       => { self.matched = true; self.first_time = false; self.parser.done_to(downstream); return Undecided; },
-                Failed(Some(rest))  => { self.matched = false; return if self.first_time { Failed(Some(rest)) } else { Matched(Some(rest)) } },
-                Failed(None)        => { self.matched = false; return Failed(None) },
-            }
-        }
-    }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        let result = self.parser.done_to(downstream) | self.matched;
-        self.first_time = true;
-        self.matched = false;
-        result
-    }
-}
-
-// ----------- Matching strings -------------
-
-impl Consumer<String> for String {
-    fn accept(&mut self, arg: String) {
-        self.push_str(&*arg);
-    }
-}
-
-impl<'a> Consumer<&'a str> for String {
-    fn accept(&mut self, arg: &'a str) {
-        self.push_str(arg);
-    }
-}
-
-impl Consumer<char> for String {
-    fn accept(&mut self, x: char) { self.push(x); }
-}
-
-// ----------- Matching arrays -------------
-
-impl<'a,T> Consumer<&'a[T]> for Vec<T> where T: Clone {
-    fn accept(&mut self, arg: &'a[T]) {
-        self.extend(arg.iter().cloned());
-    }
-}
-
-impl<T> Consumer<T> for Vec<T> {
-    fn accept(&mut self, x: T) { self.push(x); }
-}
-
-// // ----------- Constant parsers -------------
-
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
-pub enum ConstParserState {
-    AtBeginning,
-    AtEndMatched(bool),
-    AtEndFailed(bool),
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct CharMatchParser<P> {
-    pattern: P,
-    state: ConstParserState,
-}
-
-impl<'a,P> Parser<&'a str> for CharMatchParser<P> where P: Fn(char) -> bool {}
-impl<'a,D,P> ParseTo<&'a str,D> for CharMatchParser<P> where P: Fn(char) -> bool, D: Consumer<char> {
-    fn push_to(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> {
-        let ch = string.chars().next().unwrap();
-        let len = ch.len_utf8();
-        match self.state {
-            AtBeginning if string.len() == len && (self.pattern)(ch) => { downstream.accept(ch); self.state = AtEndMatched(true); Matched(None) },
-            AtBeginning if (self.pattern)(ch)                        => { downstream.accept(ch); self.state = AtEndMatched(false); Matched(Some(&string[len..])) },
-            AtBeginning                                              => { self.state = AtEndFailed(true); Failed(Some(string)) },
-            AtEndMatched(_)                                          => { self.state = AtEndMatched(false); Matched(Some(string)) },
-            AtEndFailed(_)                                           => { Failed(Some(string)) },
-        }
-    }
-    fn done_to(&mut self, _: &mut D) -> bool {
-        let result = self.state == AtEndMatched(true);
-        self.state = AtBeginning;
-        result
-    }
-}
-
-pub fn character_match<P>(pattern: P) -> CharMatchParser<P> {
-    CharMatchParser{ pattern: pattern, state: AtBeginning }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct CharParser {
-    ch: char,
-    state: ConstParserState,
-}
-
-impl<'a> Parser<&'a str> for CharParser {}
-impl<'a,D> ParseTo<&'a str,D> for CharParser where D: Consumer<char> {
-    fn push_to(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> {
-        let ch = string.chars().next().unwrap();
-        let len = ch.len_utf8();
-        match self.state {
-            AtBeginning if string.len() == len && self.ch == ch => { downstream.accept(ch); self.state = AtEndMatched(true); Matched(None) },
-            AtBeginning if self.ch == ch                        => { downstream.accept(ch); self.state = AtEndMatched(false); Matched(Some(&string[len..])) },
-            AtBeginning                                         => { self.state = AtEndFailed(true); Failed(Some(string)) },
-            AtEndMatched(_)                                     => { self.state = AtEndMatched(false); Matched(Some(string)) },
-            AtEndFailed(_)                                      => { Failed(Some(string)) },
-        }
-    }
-    fn done_to(&mut self, _: &mut D) -> bool {
-        let result = self.state == AtEndMatched(true);
-        self.state = AtBeginning;
-        result
-    }
-}
-
-pub fn character(ch: char) -> CharParser {
-    CharParser{ ch: ch, state: AtBeginning }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct TokenMatchParser<P> {
-    pattern: P,
-    state: ConstParserState,
-}
-
-impl<'a,T,P> Parser<&'a[T]> for TokenMatchParser<P> where P: Fn(T) -> bool {}
-impl<'a,D,T,P> ParseTo<&'a[T],D> for TokenMatchParser<P> where P: Fn(T) -> bool, D: Consumer<T>, T: Copy {
-    fn push_to(&mut self, tokens: &'a[T], downstream: &mut D) -> MatchResult<&'a[T]> {
-        let token = *tokens.first().unwrap();
-        match self.state {
-            AtBeginning if tokens.len() == 1 && (self.pattern)(token) => { downstream.accept(token); self.state = AtEndMatched(true); Matched(None) },
-            AtBeginning if (self.pattern)(token)                      => { downstream.accept(token); self.state = AtEndMatched(false); Matched(Some(&tokens[1..])) },
-            AtBeginning                                               => { self.state = AtEndFailed(true); Failed(Some(tokens)) },
-            AtEndMatched(_)                                           => { self.state = AtEndMatched(false); Matched(Some(tokens)) },
-            AtEndFailed(_)                                            => { Failed(Some(tokens)) },
-        }
-    }
-    fn done_to(&mut self, _: &mut D) -> bool {
-        let result = self.state == AtEndMatched(true);
-        self.state = AtBeginning;
-        result
-    }
-}
-
-pub fn token_match<P>(pattern: P) -> TokenMatchParser<P> {
-    TokenMatchParser{ pattern: pattern, state: AtBeginning }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct TokenParser<U> {
-    tok: U,
-    state: ConstParserState,
-}
-
-impl<'a,T,U> Parser<&'a[T]> for TokenParser<U> where T: PartialEq<U> {}
-impl<'a,D,T,U> ParseTo<&'a[T],D> for TokenParser<U> where D: Consumer<T>, T: Copy+PartialEq<U> {
-    fn push_to(&mut self, tokens: &'a[T], downstream: &mut D) -> MatchResult<&'a[T]> {
-        let tok = *tokens.first().unwrap();
-        match self.state {
-            AtBeginning if tokens.len() == 1 && tok == self.tok => { downstream.accept(tok); self.state = AtEndMatched(true); Matched(None) },
-            AtBeginning if tok == self.tok                      => { downstream.accept(tok); self.state = AtEndMatched(false); Matched(Some(&tokens[1..])) },
-            AtBeginning                                         => { self.state = AtEndFailed(true); Failed(Some(tokens)) },
-            AtEndMatched(_)                                     => { self.state = AtEndMatched(false); Matched(Some(tokens)) },
-            AtEndFailed(_)                                      => { Failed(Some(tokens)) },
-        }
-    }
-    fn done_to(&mut self, _: &mut D) -> bool {
-        let result = self.state == AtEndMatched(true);
-        self.state = AtBeginning;
-        result
-    }
-}
-
-pub fn token<U>(tok: U) -> TokenParser<U> {
-    TokenParser{ tok: tok, state: AtBeginning }
-}
-
-// Optional parser, with a default value
-
-#[derive(Clone, Debug)]
-pub struct OrEmitParser<P,T> {
-    parser: P,
-    default: T,
-    at_beginning: bool,
-}
-
-impl<S,P,T> Parser<S> for OrEmitParser<P,T> where P: Parser<S> {}
-impl<S,D,P,T> ParseTo<S,D> for OrEmitParser<P,T> where P: ParseTo<S,D>, D: Consumer<T>, T: Clone {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        if self.at_beginning {
-            self.at_beginning = false;
-            match self.parser.push_to(value, downstream) {
-                Failed(Some(rest))  => { downstream.accept(self.default.clone()); Matched(Some(rest)) },
-                result              => result,
-            }
-        } else {
-            self.parser.push_to(value, downstream)
-        }
-    }    
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        if self.at_beginning {
-            if !self.parser.done_to(downstream) { downstream.accept(self.default.clone()); }
-            true
-        } else {
-            self.at_beginning = true;
-            self.parser.done_to(downstream)
+impl<F> GuardedParser for CharGuard<F> where F: Fn(char) -> bool {}
+impl<'a,F> GuardedParserOf<&'a str> for CharGuard<F> where F: Fn(char) -> bool {
+    type Rest = EmitParser<char>;
+    fn parse(self, value: &'a str) -> GuardedParseResult<Self,&'a str> {
+        match value.chars().next() {
+            None => Empty(self),
+            Some(ch) if (self.0)(ch) => {
+                let len = ch.len_utf8();
+                Commit(Done(&value[len..],ch))
+            },
+            Some(_) => Abort(value),
         }
     }
 }
 
-// Collect the output of a parser into a buffer
-
-#[derive(Debug)]
-pub struct CollectConsumer<'a,T,D> where T: 'a, D: 'a {
-    buffer: &'a mut T,
-    downstream: &'a mut D,
+pub fn character<F>(f: F) -> CharGuard<F> where F: Fn(char) -> bool {
+    CharGuard(f)
 }
 
-impl<'a,T,D,X> Consumer<X> for CollectConsumer<'a,T,D> where T: Consumer<X> {
-    fn accept(&mut self, value: X) { self.buffer.accept(value); }
-}
+// ----------- Buffering -------------
 
-impl<'a,T,D,X> ErrConsumer<X> for CollectConsumer<'a,T,D> where D: ErrConsumer<X> {
-    fn error(&mut self, err: X) { self.downstream.error(err); }
-}
-
-#[derive(Clone, Debug)]
-pub struct CollectParser<P,T> {
-    parser: P,
-    buffer: T,
-    empty: T,
-    buffering: bool,
-}
-
-impl<S,P,T> Parser<S> for CollectParser<P,T> where P: Parser<S> {}
-impl<S,D,P,T> ParseTo<S,D> for CollectParser<P,T> where P: for<'a> ParseTo<S,CollectConsumer<'a,T,D>>, D: Consumer<T>, T: Clone {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        let result = self.parser.push_to(value, &mut CollectConsumer{ buffer: &mut self.buffer, downstream: downstream });
-        if self.buffering {
-            if let Matched(_) = result {
-                let buffer = mem::replace(&mut self.buffer, self.empty.clone());
-                self.buffering = false;
-                downstream.accept(buffer);
-            }
-        }
-        result
-    }    
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        let result = self.parser.done_to(&mut CollectConsumer{ buffer: &mut self.buffer, downstream: downstream });
-        if self.buffering {
-            let buffer = mem::replace(&mut self.buffer, self.empty.clone());
-            if result { downstream.accept(buffer); }
-        }
-        self.buffering = true;    
-        result
-    }
-}
-
-// If m is a ParseTo<&'a str, DiscardConsumer> then
-// m.buffer() is a ParseTo<&'a str, D, E> where D: Consumer<&str>.
+// If m is a ParserOf<&'a str>, then
+// m.buffer() is a Parser<&'a str> with Output Str<'a>.
 // It does as little buffering as it can, but it does allocate as buffer for the case
 // where the boundary marker of the input is misaligned with that of the parser.
 // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
 // we have to buffer up '"abc'.
 
-// TODO: at the moment, this is discarding errors
 
-#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
-enum BufferedParserState {
-    Beginning,
-    Middle(String),
-    EndMatch,
-    EndFail(bool),
+// TODO(ajeffrey): make this code generic in its input
+// this may involove something like:
+//
+// pub trait IntoOwned {
+//     type Owned;
+//     fn into_owned(self) -> Self::Owned;
+// }
+//
+// impl<'a,T> IntoOwned for &'a T where T: ToOwned {
+//     type Owned = T::Owned;
+//     fn into_owned(self) -> T::Owned { self.to_owned() }
+// }
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum Str<'a> {
+    Borrowed(&'a str),
+    Owned(String),
 }
 
-#[derive(Clone, Debug)]
-pub struct BufferedParser<P> {
-    parser: P,
-    state: BufferedParserState,
-}
+#[derive(Copy, Clone, Debug)]
+pub struct BufferedGuardedParser<P>(P);
 
-impl<'a,P> Parser<&'a str> for BufferedParser<P> where P: Parser<&'a str> {}
-impl<'a,P,D> ParseTo<&'a str,D> for BufferedParser<P> where P: ParseTo<&'a str,DiscardConsumer>, D: for<'b> Consumer<&'b str> {
-    fn push_to(&mut self, string: &'a str, downstream: &mut D) -> MatchResult<&'a str> {
-        match mem::replace(&mut self.state, EndMatch) {
-            Beginning => {
-                let result = self.parser.push_to(string, &mut DiscardConsumer);
-                match result {
-                    Undecided           => self.state = Middle(String::from(string)),
-                    Failed(Some(_))     => self.state = EndFail(true),
-                    Failed(None)        => self.state = EndFail(false),
-                    Matched(Some(rest)) => downstream.accept(&string[..(string.len()-rest.len())]),
-                    Matched(None)       => downstream.accept(string),
-                }
-                result
-            },
-            Middle(mut buffer) => {
-                let result = self.parser.push_to(string, &mut DiscardConsumer);
-                match result {
-                    Undecided           => { buffer.push_str(string); self.state = Middle(buffer); },
-                    Failed(Some(_))     => { self.state = EndFail(true) },
-                    Failed(None)        => { self.state = EndFail(false) },
-                    Matched(Some(rest)) => { buffer.push_str(&string[..(string.len()-rest.len())]); downstream.accept(&*buffer); },
-                    Matched(None)       => { buffer.push_str(string); downstream.accept(&*buffer); },
-                }
-                result
-            }
-            EndMatch => Matched(Some(string)),
-            EndFail(true) => Failed(Some(string)),
-            EndFail(false) => Failed(None),
+impl<P> GuardedParser for BufferedGuardedParser<P> where P: GuardedParser {}
+impl<'a,P> GuardedParserOf<&'a str> for BufferedGuardedParser<P> where P: GuardedParserOf<&'a str> {
+    type Rest = BufferedParser<P::Rest>;
+    fn parse(self, value: &'a str) -> GuardedParseResult<Self,&'a str> {
+        match self.0.parse(value) {
+            Empty(parser) => Empty(BufferedGuardedParser(parser)),
+            Commit(Done(rest,_)) => Commit(Done(rest,Borrowed(value.drop_suffix(rest)))),
+            Commit(Continue(parsing)) => Commit(Continue(BufferedParser(parsing,String::from(value)))),
+            Abort(value) => Abort(value),
         }
     }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        let result = self.parser.done_to(&mut DiscardConsumer);
-        if result { if let Middle(ref buffer) = self.state { downstream.accept(&*buffer) } }
-        self.state = Beginning;
-        result
+}
+
+#[derive(Clone,Debug)]
+pub struct BufferedParser<P>(P,String);
+
+impl<P> Parser for BufferedParser<P> where P: Parser {}
+impl<'a,P> ParserOf<&'a str> for BufferedParser<P> where P: ParserOf<&'a str> {
+    type Output = Str<'a>;
+    fn parse(mut self, value: &'a str) -> ParseResult<Self,&'a str> {
+        match self.0.parse(value) {
+            Done(rest,_) => { self.1.push_str(value.drop_suffix(rest)); Done(rest,Owned(self.1)) },
+            Continue(parsing) => { self.1.push_str(value); Continue(BufferedParser(parsing,self.1)) },
+        }
+    }
+    fn done(self) -> Self::Output {
+        Owned(self.1)
     }
 }
 
-// ----------- Laziness -------------
+// // ----------- Laziness -------------
 
-pub trait Factory {
-    type Boxed;
-    type Emitted;
-    fn build(&self) -> Self::Boxed;
-}
-
-pub enum LazyParser<F> where F: Factory {
-    Unbuilt(F),
-    Built(F::Boxed),
-}
-
-pub struct LazyConsumer<'a,T> where T: 'a {
-    downstream: &'a mut Consumer<T>,
-}
-    
-impl<'a,T> Consumer<T> for LazyConsumer<'a,T> {
-    fn accept(&mut self, value: T) { self.downstream.accept(value) }
-}
-
-impl<S,F> Parser<S> for LazyParser<F> where F: Factory {}
-impl<S,D,F> ParseTo<S,D> for LazyParser<F> where D: Consumer<F::Emitted>, F: Factory, F::Boxed: DerefMut, <F::Boxed as Deref>::Target: for<'a> ParseTo<S,LazyConsumer<'a,F::Emitted>> {
-    fn push_to(&mut self, value: S, downstream: &mut D) -> MatchResult<S> {
-        let mut downstream = LazyConsumer { downstream: downstream };
-        let mut boxed = match *self {
-            Unbuilt(ref thunk) => thunk.build(),
-            Built(ref mut parser) => { return parser.push_to(value, &mut downstream); },
-        };
-        let result = boxed.push_to(value, &mut downstream);
-        *self = Built(boxed);
-        result
-    }
-    fn done_to(&mut self, downstream: &mut D) -> bool {
-        let mut downstream = LazyConsumer { downstream: downstream };
-        let mut boxed = match *self {
-            Unbuilt(ref thunk) => thunk.build(),
-            Built(ref mut parser) => { return parser.done_to(&mut downstream); },
-        };
-        let result = boxed.done_to(&mut downstream);
-        *self = Built(boxed);
-        result
-    }
-}
-
-pub fn lazy<F>(f: F) -> LazyParser<F> where F: Factory {
-    Unbuilt(f)
-}
+// // TODO
 
 // ----------- Tests -------------
 
+#[allow(non_snake_case,dead_code)]
+impl<P,S> GuardedParseResult<P,S> where P: GuardedParserOf<S>, P::Rest: ParserOf<S> {
+
+    fn unEmpty(self) -> P {
+        match self {
+            Empty(p) => p,
+            _        => panic!("GuardedParseResult is not empty"),
+        }
+    }
+
+    fn unAbort(self) -> S {
+        match self {
+            Abort(s) => s,
+            _        => panic!("GuardedParseResult is not failure"),
+        }
+    }
+
+    fn unCommit(self) -> ParseResult<P::Rest,S> {
+        match self {
+            Commit(s) => s,
+            _       => panic!("GuardedParseResult is not success"),
+        }
+    }
+
+}
+
+#[allow(non_snake_case,dead_code)]
+impl<P,S> ParseResult<P,S> where P: ParserOf<S> {
+
+    fn unDone(self) -> (S,P::Output) {
+        match self {
+            Done(s,t) => (s,t),
+            _         => panic!("ParseResult is not done"),
+        }
+    }
+
+    fn unContinue(self) -> P {
+        match self {
+            Continue(p) => p,
+            _           => panic!("ParseResult is not continue"),
+        }
+    }
+
+}
+
 #[test]
 fn test_character() {
-    let mut parser = character_match(char::is_alphabetic);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("99"), Failed(Some("99")));
-    assert_eq!(parser.push("ab"), Failed(Some("ab")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcdef"), Matched(Some("bcdef")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("a"), Matched(None));
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("ab"), Matched(Some("b")));
-    assert_eq!(parser.push("cd"), Matched(Some("cd")));
-    assert_eq!(parser.done(), false);
-}
-
-#[test]
-fn test_and_then() {
-    let mut parser = character('a').and_then(character('b')).and_then(character('c'));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("fred"), Failed(Some("fred")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("alice"), Failed(None));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Matched(None));
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("abcd"), Matched(Some("d")));
-    assert_eq!(parser.done(), false);
-}
-
-#[test]
-fn test_zip() {
-    let mut parser = character_match(char::is_alphabetic).star().zip(character_match(char::is_numeric).star());
-    let mut results = Vec::new();
-    assert_eq!(parser.done_to(&mut results), true);
-    assert_eq!(results, []);
-    results.clear();
-    assert_eq!(parser.push_to("a1", &mut results), Undecided);
-    assert_eq!(parser.done_to(&mut results), true);
-    assert_eq!(results, [('a','1')]);
-    results.clear();
-    assert_eq!(parser.push_to("ab12", &mut results), Undecided);
-    assert_eq!(parser.done_to(&mut results), true);
-    assert_eq!(results, [('a','1'),('b','2')]);
-    results.clear();
-    assert_eq!(parser.push_to("abc12", &mut results), Undecided);
-    assert_eq!(parser.done_to(&mut results), true);
-    assert_eq!(results, [('a','1'),('b','2')]);
-    results.clear();
-    assert_eq!(parser.push_to("ab123", &mut results), Undecided);
-    assert_eq!(parser.done_to(&mut results), true);
-    assert_eq!(results, [('a','1'),('b','2')]);
-    results.clear();
-}
-
-#[test]
-fn test_or_else() {
-    let mut parser = character('a').and_then(character('b')).or_else(character('c').and_then(character('d')));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("fred"), Failed(Some("fred")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("alice"), Failed(None));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcdef"), Matched(Some("cdef")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Matched(None));
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("a"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("a"), Undecided);
-    assert_eq!(parser.push("bc"), Matched(Some("c")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("charlie"), Failed(None));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("cde"), Matched(Some("e")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("cd"), Matched(None));
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("c"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("c"), Undecided);
-    assert_eq!(parser.push("de"), Matched(Some("e")));
-    assert_eq!(parser.done(), false);
-}
-
-#[test]
-fn test_star() {
-    let mut parser = character('a').and_then(character('b')).and_then(character('c')).star();
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("fred"), Matched(Some("fred")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("alice"), Failed(None));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Undecided);
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("abca"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcfred"), Matched(Some("fred")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcabc"), Undecided);
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("abcabcghi"), Matched(Some("ghi")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("a"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("ca"), Undecided);
-    assert_eq!(parser.push("bcg"), Matched(Some("g")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("ca"), Undecided);
-    assert_eq!(parser.push("bc"), Undecided);
-    assert_eq!(parser.done(), true);
-}
-
-#[test]
-fn test_plus() {
-    let mut parser = character('a').and_then(character('b')).and_then(character('c')).plus();
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("fred"), Failed(Some("fred")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("alice"), Failed(None));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abc"), Undecided);
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("abca"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcfred"), Matched(Some("fred")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("abcabc"), Undecided);
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.push("abcabcghi"), Matched(Some("ghi")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("a"), Undecided);
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("ca"), Undecided);
-    assert_eq!(parser.push("bcg"), Matched(Some("g")));
-    assert_eq!(parser.done(), false);
-    assert_eq!(parser.push("ab"), Undecided);
-    assert_eq!(parser.push("ca"), Undecided);
-    assert_eq!(parser.push("bc"), Undecided);
-    assert_eq!(parser.done(), true);
-    assert_eq!(parser.done(), false);
-}
-
-#[test]
-fn test_map() {
-    let mut parser = character('a').and_then(character('b')).and_then(character('c')).map(|ch: char| ch.to_uppercase().collect::<String>());
-    let mut result = String::new();
-    assert_eq!(parser.done_to(&mut result), false);
-    assert_eq!(result, "");
-    assert_eq!(parser.push_to("a", &mut result), Undecided);
-    assert_eq!(result, "A");
-    assert_eq!(parser.push_to("b", &mut result), Undecided);
-    assert_eq!(result, "AB");
-    assert_eq!(parser.push_to("c", &mut result), Matched(None));
-    assert_eq!(result, "ABC");
-    assert_eq!(parser.done_to(&mut result), true);
-    assert_eq!(result, "ABC");
+    let parser = character(char::is_alphabetic);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("bc",'a'));
 }
 
 #[test]
 fn test_or_emit() {
-    let mut parser = character('a').and_then(character('b')).and_then(character('c')).or_emit('z');
-    let mut result = String::new();
-    assert_eq!(parser.push_to("a", &mut result), Undecided);
-    assert_eq!(result, "a");
-    assert_eq!(parser.push_to("b", &mut result), Undecided);
-    assert_eq!(result, "ab");
-    assert_eq!(parser.push_to("c", &mut result), Matched(None));
-    assert_eq!(result, "abc");
-    assert_eq!(parser.done_to(&mut result), true);
-    assert_eq!(result, "abc");
-    result.clear();
-    assert_eq!(parser.push_to("d", &mut result), Matched(Some("d")));
-    assert_eq!(parser.done_to(&mut result), false);
-    assert_eq!(result, "z");
-    result.clear();
-    assert_eq!(parser.push_to("ad", &mut result), Failed(None));
-    assert_eq!(parser.done_to(&mut result), false);
-    assert_eq!(result, "a");
-    result.clear();
-    assert_eq!(parser.done_to(&mut result), true);
-    assert_eq!(result, "z");
+    fn mk_x() -> char { 'X' }
+    let parser = character(char::is_alphabetic).or_emit(mk_x);
+    parser.parse("").unContinue();
+    assert_eq!(parser.parse("989").unDone(),("989",'X'));
+    assert_eq!(parser.parse("abc").unDone(),("bc",'a'));
 }
 
 #[test]
-fn test_collect() {
-    let mut parser = character_match(char::is_alphabetic).plus().and_then(character(';').ignore()).collect(String::new()).plus();
-    let mut results: Vec<String> = Vec::new();
-    assert_eq!(parser.done_to(&mut results), false);
-    assert_eq!(results.len(), 0);
-    results.clear();
-    assert_eq!(parser.push_to("abc;", &mut results), Undecided);
-    assert_eq!(parser.done_to(&mut results), true);
-    assert_eq!(results, ["abc"]);
-    results.clear();
-    assert_eq!(parser.push_to("abc;de", &mut results), Undecided);
-    assert_eq!(parser.push_to("f;", &mut results), Undecided);
-    assert_eq!(parser.done_to(&mut results), true);
-    assert_eq!(results, ["abc","def"]);
-    results.clear();
-    assert_eq!(parser.push_to("abc;def;ghi", &mut results), Undecided);
-    assert_eq!(parser.done_to(&mut results), false);
-    assert_eq!(results, ["abc","def"]);
-    results.clear();
-    assert_eq!(parser.push_to("abc;def;.", &mut results), Matched(Some(".")));
-    assert_eq!(parser.done_to(&mut results), false);
-    assert_eq!(results, ["abc","def"]);
-    results.clear();
+fn test_map() {
+    fn mk_none<T>() -> Option<T> { None }
+    let parser = character(char::is_alphabetic).map(Some).or_emit(mk_none);
+    parser.parse("").unContinue();
+    assert_eq!(parser.parse("989").unDone(),("989",None));
+    assert_eq!(parser.parse("abc").unDone(),("bc",Some('a')));
 }
 
 #[test]
+#[allow(non_snake_case)]
+fn test_and_then() {
+    fn mk_none<T>() -> Option<T> { None }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
+    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
+    parser.parse("").unContinue();
+    assert_eq!(parser.parse("989").unDone(),("989",None));
+    assert_eq!(parser.parse("a!").unDone(),("!",Some(('a',None))));
+    assert_eq!(parser.parse("abc").unDone(),("c",Some(('a',Some('b')))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_or_else() {
+    fn mk_none<T>() -> Option<T> { None }
+    let NUMERIC = character(char::is_numeric).map(Some).or_emit(mk_none);
+    let ALPHABETIC = character(char::is_alphabetic).map(Some).or_emit(mk_none);
+    let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some).
+        or_else(character(char::is_numeric).and_then(NUMERIC).map(Some)).
+        or_emit(mk_none);
+    parser.parse("").unContinue();
+    parser.parse("a").unContinue();
+    parser.parse("9").unContinue();
+    assert_eq!(parser.parse("!").unDone(),("!",None));
+    assert_eq!(parser.parse("a9").unDone(),("9",Some(('a',None))));
+    assert_eq!(parser.parse("9a").unDone(),("a",Some(('9',None))));
+    assert_eq!(parser.parse("abc").unDone(),("c",Some(('a',Some('b')))));
+    assert_eq!(parser.parse("123").unDone(),("3",Some(('1',Some('2')))));
+}
+
+#[test]
+#[allow(non_snake_case)]
 fn test_buffer() {
-    let mut parser = character('a').and_then(character('b')).and_then(character('c')).buffer();
-    let mut result = String::new();
-    assert_eq!(parser.done_to(&mut result), false);
-    assert_eq!(result, "");
-    assert_eq!(parser.push_to("a", &mut result), Undecided);
-    assert_eq!(result, "");
-    assert_eq!(parser.done_to(&mut result), false);
-    assert_eq!(result, "");
-    assert_eq!(parser.push_to("ab", &mut result), Undecided);
-    assert_eq!(result, "");
-    assert_eq!(parser.push_to("cd", &mut result), Matched(Some("d")));
-    assert_eq!(result, "abc");
-    assert_eq!(parser.done_to(&mut result), false);
-    assert_eq!(result, "abc");
-    assert_eq!(parser.star().push_to("abcabcd", &mut result), Matched(Some("d")));
-    assert_eq!(result, "abcabcabc");    
+    fn mk_none<T>() -> Option<T> { None }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none );
+    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).buffer();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Borrowed("a")));
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Borrowed("ab")));
+    let parsing = parser.parse("a").unCommit().unContinue();
+    assert_eq!(parsing.parse("bc").unDone(),("c",Owned(String::from("ab"))));
 }
 
 #[test]
-fn test_lazy() {
-    #[derive(Clone, Eq, PartialEq, Debug)]
-    struct TestTree { children: Vec<TestTree> }
-    fn mk_test_tree(children: TestTree) -> TestTree { TestTree{ children: vec![ children ] } }
-    type TestBox = Box<for<'a,'b> ParseTo<&'a str, LazyConsumer<'b, TestTree>>>;
-    struct TestFactory; 
-    impl Factory for TestFactory {
-        type Boxed = TestBox;
-        type Emitted = TestTree;
-        fn build(&self) -> TestBox {
-            Box::new(
-                character('(').ignore()
-                    .and_then(lazy(TestFactory))
-                    .and_then(character(')').ignore())
-                    .map(mk_test_tree)
-                    .or_emit(TestTree{ children: Vec::new() })
-            )
-        }
-    }
-    let mut parser = lazy(TestFactory);
-    let mut result = Vec::new();
-    assert_eq!(parser.push_to("(())",&mut result), Matched(None));
-    assert_eq!(parser.done_to(&mut result), true);
-    assert_eq!(result, vec![ TestTree{ children: vec![ TestTree{ children: vec![ TestTree{ children: vec![] } ] } ] } ]);
-    result.clear();
-    assert_eq!(parser.done_to(&mut result), true);
-    assert_eq!(result, vec![ TestTree{ children: vec![] } ]);
-    result.clear();
-}
-
-#[test]
+#[allow(non_snake_case)]
 fn test_different_lifetimes() {
-    fn go<'a,'b>(ab: &'a str, cd: &'b str) {
-        fn tail(x:&str) -> &str { &x[1..] }
-        let mut parser = character('a').and_then(character('b')).and_then(character('c')).buffer().map(tail);
-        let mut result = String::new();
-        assert_eq!(parser.push_to(ab, &mut result), Undecided);
-        assert_eq!(result, "");
-        assert_eq!(parser.push_to(cd, &mut result), Matched(Some("d")));
-        assert_eq!(result, "bc");
+    fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Copy+for<'c> ParserOf<&'c str,Output=Option<(char,Option<char>)>> {
+        let _: &'a str = parser.parse(ab).unDone().0;
+        let _: &'b str = parser.parse(cd).unDone().0;
+        assert_eq!(parser.parse(ab).unDone(),("",Some(('a',Some('b')))));
+        assert_eq!(parser.parse(cd).unDone(),("",Some(('c',Some('d')))));
     }
-    go("ab","cd");        
+    fn mk_none<T>() -> Option<T> { None }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
+    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
+    go("ab","cd",parser);
 }
