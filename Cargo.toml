@@ -1,14 +1,11 @@
 [package]
 
-name = "wasm"
+name = "parsimonious"
 version = "0.0.1"
 authors = [ "Alan Jeffrey <ajeffrey@mozilla.com>" ]
 
-description = "Web Assembly tools libraries for Rust"
-repository = "https://github.com/asajeffrey/wasm"
+description = "Parsimonious parser combinators"
+repository = "https://github.com/asajeffrey/parsimonious"
 readme = "README.md"
-keywords = [ "wasm", "web assembly" ]
+keywords = [ "parsing", "parser combinators" ]
 license = "MPL-2.0"
-
-[dev-dependencies]
-wasm_spec = { git = "https://github.com/asajeffrey/wasm-spec" }
