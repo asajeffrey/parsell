@@ -1,8 +1,9 @@
-# wasm: Web Assembly in Rust
+# parsimonious: a parser combinator library for Rust
 
-The goal of this project is to provide tools for manipulating Web
-Assembly programs in Rust. These tools will include a zero-copy
-streaming lexer, parser, typechecker, interpreter and JIT compiler.
+The goal of this project is to implement a parser combinator library that:
 
-Eventually, this project will allow Servo to execute Web Assembly code
-natively. This is a long way away!
+* Supports streaming input
+* Does as little buffering or copying as possible
+* Does not use dynamic method dispatch
+
+It is based on "Monadic Parsing in Haskell" by Hutton and Meijer, JFP 8(4) pp. 437-444.
