@@ -4,9 +4,9 @@ extern crate core;
 
 use self::GuardedParseResult::{Empty,Abort,Commit};
 use self::ParseResult::{Done,Continue};
-use self::OrElseParser::{Lhs,Rhs};
-use self::OrEmitParser::{Unresolved,Resolved};
-use self::AndThenParser::{InLhs,InRhs};
+use self::OrElseStatefulParser::{Lhs,Rhs};
+use self::OrEmitStatefulParser::{Unresolved,Resolved};
+use self::AndThenStatefulParser::{InLhs,InRhs};
 use self::Str::{Borrowed,Owned};
 
 // ----------- Types for consumers ------------
@@ -67,65 +67,84 @@ impl<'a,T> DropSuffix for &'a[T] {
 
 // ----------- Types for parsers ------------
 
-pub trait Parser {
-    fn map<F>(self, f: F) -> MapParser<Self,F> where Self:Sized, { MapParser(self,f) }
-}
-
-pub trait ParserOf<S>: Parser {
+pub trait StatefulParserOf<S> {
     type Output;
     fn parse(self, value: S) -> ParseResult<Self,S> where Self: Sized;
     fn done(self) -> Self::Output where Self: Sized;
 }
 
-pub enum ParseResult<P,S> where P: ParserOf<S> {
+pub enum ParseResult<P,S> where P: StatefulParserOf<S> {
     Done(S,P::Output),
     Continue(P),
 }
 
+// A parser of S to T is a partial function S* -> T
+// whose domain is prefix-closed (that is, if st is in the domain, then s is in the domain)
+// and non-empty.
+
+pub trait Parser {
+}
+
+pub trait ParserOf<S>: Parser {
+    type Output;
+    type State: StatefulParserOf<S,Output=Self::Output>;
+    fn init(self) -> Self::State;
+    fn parse(self, value: S) -> ParseResult<Self::State,S> where Self: Sized {
+        self.init().parse(value)
+    }
+    fn done(self) -> Self::Output where Self: Sized {
+        self.init().done()
+    }
+}
+
+// A guarded parser of S to T is a partial function S* -> T
+// whose domain is prefix-closed on non-empty strings
+// (that is, if st is in the domain, and s is non-empty then s is in the domain).
+
 pub trait GuardedParser {
     fn or_else<P>(self, other: P) -> OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParser { OrElseGuardedParser(self,other) }
-    fn or_emit<F,R>(self, default: F) -> OrEmitParser<Self,F,R> where Self:Sized { Unresolved(self,default) }
+    fn or_emit<F>(self, factory: F) -> OrEmitParser<Self,F> where Self:Sized { OrEmitParser(self,factory) }
     fn and_then<P>(self, other: P) -> AndThenGuardedParser<Self,P> where Self:Sized, P: Parser { AndThenGuardedParser(self,other) }
     fn plus<F>(self, factory: F) -> PlusParser<Self,F> where Self:Sized { PlusParser(self,factory) }
-    fn star<B,R>(self, buffer: B) -> StarParser<Self,R,B> where Self:Sized { StarParser(self,None,buffer) }
+    fn star<F>(self, factory: F) -> StarParser<Self,F> where Self:Sized { StarParser(self,factory) }
     fn map<F>(self, f: F) -> MapGuardedParser<Self,F> where Self:Sized, { MapGuardedParser(self,f) }
     fn buffer(self) -> BufferedGuardedParser<Self> where Self:Sized, { BufferedGuardedParser(self) }
 }
 
 pub trait GuardedParserOf<S>: GuardedParser {
-    type Rest: ParserOf<S>;
+    type Output;
+    type State: StatefulParserOf<S,Output=Self::Output>;
     fn parse(self, value: S) -> GuardedParseResult<Self,S> where Self: Sized;
 }
 
 pub enum GuardedParseResult<P,S> where P: GuardedParserOf<S> {
     Empty(P),
     Abort(S),
-    Commit(ParseResult<P::Rest,S>),
+    Commit(ParseResult<P::State,S>),
 }
 
 // ----------- Map ---------------
 
 #[derive(Debug)]
-pub struct MapParser<P,F>(P,F);
+pub struct MapStatefulParser<P,F>(P,F);
 
 // A work around for functions implmenting copy but not clone
 // https://github.com/rust-lang/rust/issues/28229
-impl<P,F> Copy for MapParser<P,F> where P: Copy, F: Copy {}
-impl<P,F> Clone for MapParser<P,F> where P: Clone, F: Copy {
+impl<P,F> Copy for MapStatefulParser<P,F> where P: Copy, F: Copy {}
+impl<P,F> Clone for MapStatefulParser<P,F> where P: Clone, F: Copy {
     fn clone(&self) -> Self {
-        MapParser(self.0.clone(),self.1)
+        MapStatefulParser(self.0.clone(),self.1)
     }
 }
 
 // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
 // See https://github.com/rust-lang/rust/issues/30867 for more details.
-impl<P,F> Parser for MapParser<P,F> where P: Parser {}
-impl<P,F,S,T> ParserOf<S> for MapParser<P,F> where P: ParserOf<S,Output=T>, F: Fn<(T,)> {
+impl<P,F,S,T> StatefulParserOf<S> for MapStatefulParser<P,F> where P: StatefulParserOf<S,Output=T>, F: Fn<(T,)> {
     type Output = F::Output;
     fn parse(self, value: S) -> ParseResult<Self,S> {
         match self.0.parse(value) {
             Done(rest,result) => Done(rest,(self.1)(result)),
-            Continue(parsing) => Continue(MapParser(parsing,self.1)),
+            Continue(parsing) => Continue(MapStatefulParser(parsing,self.1)),
         }
     }
     fn done(self) -> Self::Output {
@@ -146,13 +165,14 @@ impl<P,F> Clone for MapGuardedParser<P,F> where P: Clone, F: Copy {
 }
 
 impl<P,F> GuardedParser for MapGuardedParser<P,F> where P: GuardedParser {}
-impl<P,F,S,Q,T> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedParserOf<S,Rest=Q>, Q: ParserOf<S,Output=T>, F: Fn<(T,)> {
-    type Rest = MapParser<P::Rest,F>;
+impl<P,F,S> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedParserOf<S>, F: Fn<(P::Output,)> {
+    type Output = F::Output;        
+    type State = MapStatefulParser<P::State,F>;
     fn parse(self, value: S) -> GuardedParseResult<Self,S> {
         match self.0.parse(value) {
             Empty(parser) => Empty(MapGuardedParser(parser,self.1)),
             Commit(Done(rest,result)) => Commit(Done(rest,(self.1)(result))),
-            Commit(Continue(parsing)) => Commit(Continue(MapParser(parsing,self.1))),
+            Commit(Continue(parsing)) => Commit(Continue(MapStatefulParser(parsing,self.1))),
             Abort(value) => Abort(value),
         }
     }
@@ -164,14 +184,15 @@ impl<P,F,S,Q,T> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedPar
 pub struct AndThenGuardedParser<P,Q>(P,Q);
 
 impl<P,Q> GuardedParser for AndThenGuardedParser<P,Q> where P: GuardedParser, Q: Parser {}
-impl<P,Q,R,S> GuardedParserOf<S> for AndThenGuardedParser<P,Q> where P: GuardedParserOf<S,Rest=R>, Q: ParserOf<S>, R: ParserOf<S> {
-    type Rest = AndThenParser<R,Q,R::Output>;
+impl<P,Q,S> GuardedParserOf<S> for AndThenGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: ParserOf<S> {
+    type Output = (P::Output,Q::Output);
+    type State = AndThenStatefulParser<P::State,Q,Q::State,P::Output>;
     fn parse(self, value: S) -> GuardedParseResult<Self,S> {
         match self {
             AndThenGuardedParser(lhs,rhs) => {
                 match lhs.parse(value) {
                     Empty(lhs) => Empty(AndThenGuardedParser(lhs,rhs)),
-                    Commit(Done(rest,result1)) => match rhs.parse(rest) {
+                    Commit(Done(rest,result1)) => match rhs.init().parse(rest) {
                         Done(rest,result2) => Commit(Done(rest,(result1,result2))),
                         Continue(parsing) => Commit(Continue(InRhs(result1,parsing))),
                     },
@@ -184,19 +205,18 @@ impl<P,Q,R,S> GuardedParserOf<S> for AndThenGuardedParser<P,Q> where P: GuardedP
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum AndThenParser<P,Q,T> {
+pub enum AndThenStatefulParser<P,Q,R,T> {
     InLhs(P,Q),
-    InRhs(T,Q),
+    InRhs(T,R),
 }
 
-impl<P,Q,T> Parser for AndThenParser<P,Q,T> where P: Parser, Q: Parser {}
-impl<P,Q,T,U,S> ParserOf<S> for AndThenParser<P,Q,T> where P: ParserOf<S,Output=T>, Q: ParserOf<S,Output=U> {
-    type Output = (T,U);
+impl<P,Q,S> StatefulParserOf<S> for AndThenStatefulParser<P,Q,Q::State,P::Output> where P: StatefulParserOf<S>, Q: ParserOf<S> {
+    type Output = (P::Output,Q::Output);
     fn parse(self, value: S) -> ParseResult<Self,S> {
         match self {
             InLhs(lhs,rhs) => {
                 match lhs.parse(value) {
-                    Done(rest,result1) => match rhs.parse(rest) {
+                    Done(rest,result1) => match rhs.init().parse(rest) {
                         Done(rest,result2) => Done(rest,(result1,result2)),
                         Continue(parsing) => Continue(InRhs(result1,parsing)),
                     },
@@ -213,7 +233,7 @@ impl<P,Q,T,U,S> ParserOf<S> for AndThenParser<P,Q,T> where P: ParserOf<S,Output=
     }
     fn done(self) -> Self::Output {
         match self {
-            InLhs(lhs,rhs) => (lhs.done(), rhs.done()),
+            InLhs(lhs,rhs) => (lhs.done(), rhs.init().done()),
             InRhs(result1,rhs) => (result1, rhs.done()),
         }
     }
@@ -225,8 +245,9 @@ impl<P,Q,T,U,S> ParserOf<S> for AndThenParser<P,Q,T> where P: ParserOf<S,Output=
 pub struct OrElseGuardedParser<P,Q>(P,Q);
 
 impl<P,Q> GuardedParser for OrElseGuardedParser<P,Q> where P: GuardedParser, Q: GuardedParser {}
-impl<P,Q,S,T> GuardedParserOf<S> for OrElseGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: GuardedParserOf<S>, P::Rest: ParserOf<S,Output=T>, Q::Rest: ParserOf<S,Output=T> {
-    type Rest = OrElseParser<P::Rest,Q::Rest>;
+impl<P,Q,S> GuardedParserOf<S> for OrElseGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: GuardedParserOf<S,Output=P::Output> {
+    type Output = P::Output;
+    type State = OrElseStatefulParser<P::State,Q::State>;
     fn parse(self, value: S) -> GuardedParseResult<Self,S> {
         match self.0.parse(value) {
             Empty(lhs) => Empty(OrElseGuardedParser(lhs,self.1)),
@@ -243,14 +264,13 @@ impl<P,Q,S,T> GuardedParserOf<S> for OrElseGuardedParser<P,Q> where P: GuardedPa
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum OrElseParser<P,Q> {
+pub enum OrElseStatefulParser<P,Q> {
     Lhs(P),
     Rhs(Q),
 }
 
-impl<P,Q> Parser for OrElseParser<P,Q> where P: Parser, Q: Parser {}
-impl<P,Q,S,T> ParserOf<S> for OrElseParser<P,Q> where P: ParserOf<S,Output=T>, Q: ParserOf<S,Output=T> {
-    type Output = T;
+impl<P,Q,S> StatefulParserOf<S> for OrElseStatefulParser<P,Q> where P: StatefulParserOf<S>, Q: StatefulParserOf<S,Output=P::Output> {
+    type Output = P::Output;
     fn parse(self, value: S) -> ParseResult<Self,S> {
         match self {
             Lhs(lhs) => {
@@ -276,15 +296,15 @@ impl<P,Q,S,T> ParserOf<S> for OrElseParser<P,Q> where P: ParserOf<S,Output=T>, Q
 }
 
 #[derive(Debug)]
-pub enum OrEmitParser<P,F,R> {
+pub enum OrEmitStatefulParser<P,F,R> {
     Unresolved(P,F),
     Resolved(R),
 }
 
 // A work around for functions implmenting copy but not clone
 // https://github.com/rust-lang/rust/issues/28229
-impl<P,F,R> Copy for OrEmitParser<P,F,R> where P: Copy, F: Copy, R: Copy {}
-impl<P,F,R> Clone for OrEmitParser<P,F,R> where P: Copy, F: Copy, R: Clone {
+impl<P,F,R> Copy for OrEmitStatefulParser<P,F,R> where P: Copy, F: Copy, R: Copy {}
+impl<P,F,R> Clone for OrEmitStatefulParser<P,F,R> where P: Copy, F: Copy, R: Clone {
     fn clone(&self) -> Self {
         match *self {
             Unresolved(parser,default) => Unresolved(parser,default),
@@ -293,9 +313,8 @@ impl<P,F,R> Clone for OrEmitParser<P,F,R> where P: Copy, F: Copy, R: Clone {
     }
 }
 
-impl<P,F,R> Parser for OrEmitParser<P,F,R> where P: GuardedParser, R: Parser {}
-impl<P,F,R,S,T> ParserOf<S> for OrEmitParser<P,F,R> where P: GuardedParserOf<S,Rest=R>, R: ParserOf<S,Output=T>, F:Fn<(),Output=T> {
-    type Output = T;
+impl<P,F,S> StatefulParserOf<S> for OrEmitStatefulParser<P,F,P::State> where P: GuardedParserOf<S>, F:Fn<(),Output=P::Output> {
+    type Output = P::Output;
     fn parse(self, value: S) -> ParseResult<Self,S> {
         match self {
             Unresolved(parser,default) => {
@@ -314,7 +333,7 @@ impl<P,F,R,S,T> ParserOf<S> for OrEmitParser<P,F,R> where P: GuardedParserOf<S,R
             }
         }
     }
-    fn done(self) -> T {
+    fn done(self) -> Self::Output {
         match self {
             Unresolved(_,default) => default(),
             Resolved(parser) => parser.done(),
@@ -322,25 +341,44 @@ impl<P,F,R,S,T> ParserOf<S> for OrEmitParser<P,F,R> where P: GuardedParserOf<S,R
     }
 }
 
+pub struct OrEmitParser<P,F>(P,F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P,F> Copy for OrEmitParser<P,F> where P: Copy, F: Copy {}
+impl<P,F> Clone for OrEmitParser<P,F> where P: Clone, F: Copy {
+    fn clone(&self) -> Self {
+        OrEmitParser(self.0.clone(),self.1)
+    }
+}
+
+impl<P,F> Parser for OrEmitParser<P,F> where P: GuardedParser {}
+impl<P,F,S> ParserOf<S> for OrEmitParser<P,F> where P: GuardedParserOf<S>, F:Fn<(),Output=P::Output> {
+    type Output = P::Output;
+    type State = OrEmitStatefulParser<P,F,P::State>;
+    fn init(self) -> Self::State {
+        Unresolved(self.0,self.1)
+    }
+}
+
 // ----------- Kleene star ---------------
 
 #[derive(Clone,Debug)]
-pub struct StarParser<P,Q,T>(P,Option<Q>,T);
+pub struct StarStatefulParser<P,Q,T>(P,Option<Q>,T);
 
-impl<P,Q,T> Parser for StarParser<P,Q,T> where P: Copy+GuardedParser, Q: Parser {}
-impl<P,Q,T,S> ParserOf<S> for StarParser<P,Q,T> where P: Copy+GuardedParserOf<S,Rest=Q>, Q: ParserOf<S>, T: Consumer<Q::Output> {
+impl<P,T,S> StatefulParserOf<S> for StarStatefulParser<P,P::State,T> where P: Copy+GuardedParserOf<S>, T: Consumer<P::Output> {
     type Output = T;
     fn parse(mut self, mut value: S) -> ParseResult<Self,S> {
         loop {
             match self.1.take() {
                 None => match self.0.parse(value) {
-                    Empty(_) => return Continue(StarParser(self.0,None,self.2)),
-                    Commit(Continue(parsing)) => return Continue(StarParser(self.0,Some(parsing),self.2)),
+                    Empty(_) => return Continue(StarStatefulParser(self.0,None,self.2)),
+                    Commit(Continue(parsing)) => return Continue(StarStatefulParser(self.0,Some(parsing),self.2)),
                     Commit(Done(rest,result)) => { self.2.push(result); value = rest; },
                     Abort(rest) => return Done(rest,self.2),
                 },
                 Some(parser) => match parser.parse(value) {
-                    Continue(parsing) => return Continue(StarParser(self.0,Some(parsing),self.2)),
+                    Continue(parsing) => return Continue(StarStatefulParser(self.0,Some(parsing),self.2)),
                     Done(rest,result) => { self.2.push(result); value = rest; },
                 }
             }
@@ -364,40 +402,66 @@ impl<P,F> Clone for PlusParser<P,F> where P: Clone, F: Copy {
 }
 
 impl<P,F> GuardedParser for PlusParser<P,F> where P: Copy+GuardedParser {}
-impl<P,F,Q,S> GuardedParserOf<S> for PlusParser<P,F> where P: Copy+GuardedParserOf<S,Rest=Q>, Q: ParserOf<S>, F: Fn<()>, F::Output: Consumer<Q::Output> {
-    type Rest = StarParser<P,Q,F::Output>;
+impl<P,F,S> GuardedParserOf<S> for PlusParser<P,F> where P: Copy+GuardedParserOf<S>, F: Fn<()>, F::Output: Consumer<P::Output> {
+    type Output = F::Output;
+    type State = StarStatefulParser<P,P::State,F::Output>;
     fn parse(self, value: S) -> GuardedParseResult<Self,S> {
         match self.0.parse(value) {
             Empty(parser) => Empty(PlusParser(parser,self.1)),
             Abort(rest) => Abort(rest),
-            Commit(Continue(parsing)) => Commit(Continue(StarParser(self.0,Some(parsing),(self.1)()))),
+            Commit(Continue(parsing)) => Commit(Continue(StarStatefulParser(self.0,Some(parsing),(self.1)()))),
             Commit(Done(rest,result)) => {
                 let mut buffer = (self.1)();
                 buffer.push(result);
-                Commit(StarParser(self.0,None,buffer).parse(rest))
+                Commit(StarStatefulParser(self.0,None,buffer).parse(rest))
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct StarParser<P,F>(P,F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P,F> Copy for StarParser<P,F> where P: Copy, F: Copy {}
+impl<P,F> Clone for StarParser<P,F> where P: Clone, F: Copy {
+    fn clone(&self) -> Self {
+        StarParser(self.0.clone(),self.1)
+    }
+}
+
+impl<P,F> Parser for StarParser<P,F> where P: Copy+GuardedParser {}
+impl<P,F,S> ParserOf<S> for StarParser<P,F> where P: Copy+GuardedParserOf<S>, F: Fn<()>, F::Output: Consumer<P::Output> {
+    type Output = F::Output;
+    type State = StarStatefulParser<P,P::State,F::Output>;
+    fn init(self) -> Self::State {
+        StarStatefulParser(self.0,None,(self.1)())
     }
 }
 
 // ----------- Constant parsers -------------
 
 #[derive(Copy, Clone, Debug)]
-pub struct EmitParser<T>(T);
+pub enum Impossible{}
 
-impl<T> Parser for EmitParser<T> {}
-impl<T,S> ParserOf<S> for EmitParser<T> {
-    type Output = T;
-    fn parse(self, value: S) -> ParseResult<Self,S> {
-        Done(value,self.0)
-    }
-    fn done(self) -> T {
-        self.0
+impl Impossible {
+    fn cant_happen<T>(&self) -> T {
+        match *self {}
     }
 }
 
-pub fn emit<T>(value: T) -> EmitParser<T> {
-    EmitParser(value)
+#[derive(Copy, Clone, Debug)]
+pub struct ImpossibleStatefulParser<T>(Impossible,T);
+
+impl<T,S> StatefulParserOf<S> for ImpossibleStatefulParser<T> {
+    type Output = T;
+    fn parse(self, _: S) -> ParseResult<Self,S> {
+        self.0.cant_happen()
+    }
+    fn done(self) -> T {
+        self.0.cant_happen()
+    }
 }
 
 #[derive(Debug)]
@@ -414,7 +478,8 @@ impl<F> Clone for CharGuard<F> where F: Copy {
 
 impl<F> GuardedParser for CharGuard<F> where F: Fn(char) -> bool {}
 impl<'a,F> GuardedParserOf<&'a str> for CharGuard<F> where F: Fn(char) -> bool {
-    type Rest = EmitParser<char>;
+    type Output = char;
+    type State = ImpossibleStatefulParser<char>;
     fn parse(self, value: &'a str) -> GuardedParseResult<Self,&'a str> {
         match value.chars().next() {
             None => Empty(self),
@@ -433,13 +498,12 @@ pub fn character<F>(f: F) -> CharGuard<F> where F: Fn(char) -> bool {
 
 // ----------- Buffering -------------
 
-// If m is a ParserOf<&'a str>, then
-// m.buffer() is a Parser<&'a str> with Output Str<'a>.
+// If m is a GuardedParserOf<&'a str>, then
+// m.buffer() is a GuardedParserOf<&'a str> with Output Str<'a>.
 // It does as little buffering as it can, but it does allocate as buffer for the case
 // where the boundary marker of the input is misaligned with that of the parser.
 // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
 // we have to buffer up '"abc'.
-
 
 // TODO(ajeffrey): make this code generic in its input
 // this may involove something like:
@@ -465,27 +529,27 @@ pub struct BufferedGuardedParser<P>(P);
 
 impl<P> GuardedParser for BufferedGuardedParser<P> where P: GuardedParser {}
 impl<'a,P> GuardedParserOf<&'a str> for BufferedGuardedParser<P> where P: GuardedParserOf<&'a str> {
-    type Rest = BufferedParser<P::Rest>;
+    type Output = Str<'a>;
+    type State = BufferedStatefulParser<P::State>;
     fn parse(self, value: &'a str) -> GuardedParseResult<Self,&'a str> {
         match self.0.parse(value) {
             Empty(parser) => Empty(BufferedGuardedParser(parser)),
             Commit(Done(rest,_)) => Commit(Done(rest,Borrowed(value.drop_suffix(rest)))),
-            Commit(Continue(parsing)) => Commit(Continue(BufferedParser(parsing,String::from(value)))),
+            Commit(Continue(parsing)) => Commit(Continue(BufferedStatefulParser(parsing,String::from(value)))),
             Abort(value) => Abort(value),
         }
     }
 }
 
 #[derive(Clone,Debug)]
-pub struct BufferedParser<P>(P,String);
+pub struct BufferedStatefulParser<P>(P,String);
 
-impl<P> Parser for BufferedParser<P> where P: Parser {}
-impl<'a,P> ParserOf<&'a str> for BufferedParser<P> where P: ParserOf<&'a str> {
+impl<'a,P> StatefulParserOf<&'a str> for BufferedStatefulParser<P> where P: StatefulParserOf<&'a str> {
     type Output = Str<'a>;
     fn parse(mut self, value: &'a str) -> ParseResult<Self,&'a str> {
         match self.0.parse(value) {
             Done(rest,_) => { self.1.push_str(value.drop_suffix(rest)); Done(rest,Owned(self.1)) },
-            Continue(parsing) => { self.1.push_str(value); Continue(BufferedParser(parsing,self.1)) },
+            Continue(parsing) => { self.1.push_str(value); Continue(BufferedStatefulParser(parsing,self.1)) },
         }
     }
     fn done(self) -> Self::Output {
@@ -493,14 +557,14 @@ impl<'a,P> ParserOf<&'a str> for BufferedParser<P> where P: ParserOf<&'a str> {
     }
 }
 
-// // ----------- Laziness -------------
+// ----------- Laziness -------------
 
-// // TODO
+// TODO
 
 // ----------- Tests -------------
 
 #[allow(non_snake_case,dead_code)]
-impl<P,S> GuardedParseResult<P,S> where P: GuardedParserOf<S>, P::Rest: ParserOf<S> {
+impl<P,S> GuardedParseResult<P,S> where P: GuardedParserOf<S> {
 
     fn unEmpty(self) -> P {
         match self {
@@ -516,7 +580,7 @@ impl<P,S> GuardedParseResult<P,S> where P: GuardedParserOf<S>, P::Rest: ParserOf
         }
     }
 
-    fn unCommit(self) -> ParseResult<P::Rest,S> {
+    fn unCommit(self) -> ParseResult<P::State,S> {
         match self {
             Commit(s) => s,
             _       => panic!("GuardedParseResult is not success"),
@@ -526,7 +590,7 @@ impl<P,S> GuardedParseResult<P,S> where P: GuardedParserOf<S>, P::Rest: ParserOf
 }
 
 #[allow(non_snake_case,dead_code)]
-impl<P,S> ParseResult<P,S> where P: ParserOf<S> {
+impl<P,S> ParseResult<P,S> where P: StatefulParserOf<S> {
 
     fn unDone(self) -> (S,P::Output) {
         match self {
@@ -614,11 +678,11 @@ fn test_plus() {
 #[test]
 #[allow(non_snake_case)]
 fn test_star() {
-    let parser = character(char::is_alphanumeric).star(String::new());
-    parser.clone().parse("").unContinue();
-    assert_eq!(parser.clone().parse("!!!").unDone(),("!!!",String::from("")));
-    assert_eq!(parser.clone().parse("a!").unDone(),("!",String::from("a")));
-    assert_eq!(parser.clone().parse("abc98def!").unDone(),("!",String::from("abc98def")));
+    let parser = character(char::is_alphanumeric).star(String::new);
+    parser.parse("").unContinue();
+    assert_eq!(parser.parse("!!!").unDone(),("!!!",String::from("")));
+    assert_eq!(parser.parse("a!").unDone(),("!",String::from("a")));
+    assert_eq!(parser.parse("abc98def!").unDone(),("!",String::from("abc98def")));
 }
 
 #[test]
@@ -637,11 +701,11 @@ fn test_buffer() {
 #[test]
 #[allow(non_snake_case)]
 fn test_different_lifetimes() {
-    fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Clone+for<'c> ParserOf<&'c str,Output=Option<(char,Option<char>)>> {
-        let _: &'a str = parser.clone().parse(ab).unDone().0;
-        let _: &'b str = parser.clone().parse(cd).unDone().0;
-        assert_eq!(parser.clone().parse(ab).unDone(),("",Some(('a',Some('b')))));
-        assert_eq!(parser.clone().parse(cd).unDone(),("",Some(('c',Some('d')))));
+    fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Copy+for<'c> ParserOf<&'c str,Output=Option<(char,Option<char>)>> {
+        let _: &'a str = parser.parse(ab).unDone().0;
+        let _: &'b str = parser.parse(cd).unDone().0;
+        assert_eq!(parser.parse(ab).unDone(),("",Some(('a',Some('b')))));
+        assert_eq!(parser.parse(cd).unDone(),("",Some(('c',Some('d')))));
     }
     fn mk_none<T>() -> Option<T> { None }
     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
