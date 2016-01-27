@@ -375,7 +375,7 @@ impl<P,F,Q,S> GuardedParserOf<S> for PlusParser<P,F> where P: Copy+GuardedParser
                 let mut buffer = (self.1)();
                 buffer.push(result);
                 Commit(StarParser(self.0,None,buffer).parse(rest))
-            }                
+            }
         }
     }
 }
@@ -648,4 +648,3 @@ fn test_different_lifetimes() {
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     go("ab","cd",parser);
 }
-
