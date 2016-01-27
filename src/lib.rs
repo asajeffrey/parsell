@@ -86,7 +86,7 @@ pub trait GuardedParser {
     fn or_else<P>(self, other: P) -> OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParser { OrElseGuardedParser(self,other) }
     fn or_emit<F,R>(self, default: F) -> OrEmitParser<Self,F,R> where Self:Sized { Unresolved(self,default) }
     fn and_then<P>(self, other: P) -> AndThenGuardedParser<Self,P> where Self:Sized, P: Parser { AndThenGuardedParser(self,other) }
-    fn map<F>(self, f: F) -> MapParser<Self,F> where Self:Sized, { MapParser(self,f) }
+    fn map<F>(self, f: F) -> MapGuardedParser<Self,F> where Self:Sized, { MapGuardedParser(self,f) }
     fn buffer(self) -> BufferedGuardedParser<Self> where Self:Sized, { BufferedGuardedParser(self) }
 }
 
@@ -103,9 +103,17 @@ pub enum GuardedParseResult<P,S> where P: GuardedParserOf<S> {
 
 // ----------- Map ---------------
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub struct MapParser<P,F>(P,F);
 
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P,F> Copy for MapParser<P,F> where P: Copy, F: Copy {}
+impl<P,F> Clone for MapParser<P,F> where P: Clone, F: Copy {
+    fn clone(&self) -> Self {
+        MapParser(self.0.clone(),self.1)
+    }
+}
 
 // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
 // See https://github.com/rust-lang/rust/issues/30867 for more details.
@@ -123,12 +131,24 @@ impl<P,F,S,T> ParserOf<S> for MapParser<P,F> where P: ParserOf<S,Output=T>, F: F
     }
 }
 
-impl<P,F> GuardedParser for MapParser<P,F> where P: GuardedParser {}
-impl<P,F,S,Q,T> GuardedParserOf<S> for MapParser<P,F> where P: GuardedParserOf<S,Rest=Q>, Q: ParserOf<S,Output=T>, F: Fn<(T,)> {
+#[derive(Debug)]
+pub struct MapGuardedParser<P,F>(P,F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P,F> Copy for MapGuardedParser<P,F> where P: Copy, F: Copy {}
+impl<P,F> Clone for MapGuardedParser<P,F> where P: Clone, F: Copy {
+    fn clone(&self) -> Self {
+        MapGuardedParser(self.0.clone(),self.1)
+    }
+}
+
+impl<P,F> GuardedParser for MapGuardedParser<P,F> where P: GuardedParser {}
+impl<P,F,S,Q,T> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedParserOf<S,Rest=Q>, Q: ParserOf<S,Output=T>, F: Fn<(T,)> {
     type Rest = MapParser<P::Rest,F>;
     fn parse(self, value: S) -> GuardedParseResult<Self,S> {
         match self.0.parse(value) {
-            Empty(parser) => Empty(MapParser(parser,self.1)),
+            Empty(parser) => Empty(MapGuardedParser(parser,self.1)),
             Commit(Done(rest,result)) => Commit(Done(rest,(self.1)(result))),
             Commit(Continue(parsing)) => Commit(Continue(MapParser(parsing,self.1))),
             Abort(value) => Abort(value),
@@ -253,10 +273,22 @@ impl<P,Q,S,T> ParserOf<S> for OrElseParser<P,Q> where P: ParserOf<S,Output=T>, Q
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub enum OrEmitParser<P,F,R> {
     Unresolved(P,F),
     Resolved(R),
+}
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P,F,R> Copy for OrEmitParser<P,F,R> where P: Copy, F: Copy, R: Copy {}
+impl<P,F,R> Clone for OrEmitParser<P,F,R> where P: Copy, F: Copy, R: Clone {
+    fn clone(&self) -> Self {
+        match *self {
+            Unresolved(parser,default) => Unresolved(parser,default),
+            Resolved(ref parser) => Resolved(parser.clone()),
+        }
+    }
 }
 
 impl<P,F,R> Parser for OrEmitParser<P,F,R> where P: GuardedParser, R: Parser {}
@@ -312,8 +344,17 @@ pub fn emit<T>(value: T) -> EmitParser<T> {
     EmitParser(value)
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub struct CharGuard<F>(F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<F> Copy for CharGuard<F> where F: Copy {}
+impl<F> Clone for CharGuard<F> where F: Copy {
+    fn clone(&self) -> Self {
+        CharGuard(self.0)
+    }
+}
 
 impl<F> GuardedParser for CharGuard<F> where F: Fn(char) -> bool {}
 impl<'a,F> GuardedParserOf<&'a str> for CharGuard<F> where F: Fn(char) -> bool {
@@ -520,14 +561,15 @@ fn test_buffer() {
 #[test]
 #[allow(non_snake_case)]
 fn test_different_lifetimes() {
-    fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Copy+for<'c> ParserOf<&'c str,Output=Option<(char,Option<char>)>> {
-        let _: &'a str = parser.parse(ab).unDone().0;
-        let _: &'b str = parser.parse(cd).unDone().0;
-        assert_eq!(parser.parse(ab).unDone(),("",Some(('a',Some('b')))));
-        assert_eq!(parser.parse(cd).unDone(),("",Some(('c',Some('d')))));
+    fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Clone+for<'c> ParserOf<&'c str,Output=Option<(char,Option<char>)>> {
+        let _: &'a str = parser.clone().parse(ab).unDone().0;
+        let _: &'b str = parser.clone().parse(cd).unDone().0;
+        assert_eq!(parser.clone().parse(ab).unDone(),("",Some(('a',Some('b')))));
+        assert_eq!(parser.clone().parse(cd).unDone(),("",Some(('c',Some('d')))));
     }
     fn mk_none<T>() -> Option<T> { None }
     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     go("ab","cd",parser);
 }
+
