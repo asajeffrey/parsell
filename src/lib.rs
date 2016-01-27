@@ -86,6 +86,8 @@ pub trait GuardedParser {
     fn or_else<P>(self, other: P) -> OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParser { OrElseGuardedParser(self,other) }
     fn or_emit<F,R>(self, default: F) -> OrEmitParser<Self,F,R> where Self:Sized { Unresolved(self,default) }
     fn and_then<P>(self, other: P) -> AndThenGuardedParser<Self,P> where Self:Sized, P: Parser { AndThenGuardedParser(self,other) }
+    fn plus<F>(self, factory: F) -> PlusParser<Self,F> where Self:Sized { PlusParser(self,factory) }
+    fn star<B,R>(self, buffer: B) -> StarParser<Self,R,B> where Self:Sized { StarParser(self,None,buffer) }
     fn map<F>(self, f: F) -> MapGuardedParser<Self,F> where Self:Sized, { MapGuardedParser(self,f) }
     fn buffer(self) -> BufferedGuardedParser<Self> where Self:Sized, { BufferedGuardedParser(self) }
 }
@@ -322,7 +324,61 @@ impl<P,F,R,S,T> ParserOf<S> for OrEmitParser<P,F,R> where P: GuardedParserOf<S,R
 
 // ----------- Kleene star ---------------
 
-// TODO!
+#[derive(Clone,Debug)]
+pub struct StarParser<P,Q,T>(P,Option<Q>,T);
+
+impl<P,Q,T> Parser for StarParser<P,Q,T> where P: Copy+GuardedParser, Q: Parser {}
+impl<P,Q,T,S> ParserOf<S> for StarParser<P,Q,T> where P: Copy+GuardedParserOf<S,Rest=Q>, Q: ParserOf<S>, T: Consumer<Q::Output> {
+    type Output = T;
+    fn parse(mut self, mut value: S) -> ParseResult<Self,S> {
+        loop {
+            match self.1.take() {
+                None => match self.0.parse(value) {
+                    Empty(_) => return Continue(StarParser(self.0,None,self.2)),
+                    Commit(Continue(parsing)) => return Continue(StarParser(self.0,Some(parsing),self.2)),
+                    Commit(Done(rest,result)) => { self.2.push(result); value = rest; },
+                    Abort(rest) => return Done(rest,self.2),
+                },
+                Some(parser) => match parser.parse(value) {
+                    Continue(parsing) => return Continue(StarParser(self.0,Some(parsing),self.2)),
+                    Done(rest,result) => { self.2.push(result); value = rest; },
+                }
+            }
+        }
+    }
+    fn done(self) -> T {
+        self.2
+    }
+}
+
+#[derive(Debug)]
+pub struct PlusParser<P,F>(P,F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P,F> Copy for PlusParser<P,F> where P: Copy, F: Copy {}
+impl<P,F> Clone for PlusParser<P,F> where P: Clone, F: Copy {
+    fn clone(&self) -> Self {
+        PlusParser(self.0.clone(),self.1)
+    }
+}
+
+impl<P,F> GuardedParser for PlusParser<P,F> where P: Copy+GuardedParser {}
+impl<P,F,Q,S> GuardedParserOf<S> for PlusParser<P,F> where P: Copy+GuardedParserOf<S,Rest=Q>, Q: ParserOf<S>, F: Fn<()>, F::Output: Consumer<Q::Output> {
+    type Rest = StarParser<P,Q,F::Output>;
+    fn parse(self, value: S) -> GuardedParseResult<Self,S> {
+        match self.0.parse(value) {
+            Empty(parser) => Empty(PlusParser(parser,self.1)),
+            Abort(rest) => Abort(rest),
+            Commit(Continue(parsing)) => Commit(Continue(StarParser(self.0,Some(parsing),(self.1)()))),
+            Commit(Done(rest,result)) => {
+                let mut buffer = (self.1)();
+                buffer.push(result);
+                Commit(StarParser(self.0,None,buffer).parse(rest))
+            }                
+        }
+    }
+}
 
 // ----------- Constant parsers -------------
 
@@ -543,6 +599,26 @@ fn test_or_else() {
     assert_eq!(parser.parse("9a").unDone(),("a",Some(('9',None))));
     assert_eq!(parser.parse("abc").unDone(),("c",Some(('a',Some('b')))));
     assert_eq!(parser.parse("123").unDone(),("3",Some(('1',Some('2')))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_plus() {
+    let parser = character(char::is_alphanumeric).plus(String::new);
+    parser.parse("").unEmpty();
+    parser.parse("!!!").unAbort();
+    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",String::from("a")));
+    assert_eq!(parser.parse("abc98def!").unCommit().unDone(),("!",String::from("abc98def")));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_star() {
+    let parser = character(char::is_alphanumeric).star(String::new());
+    parser.clone().parse("").unContinue();
+    assert_eq!(parser.clone().parse("!!!").unDone(),("!!!",String::from("")));
+    assert_eq!(parser.clone().parse("a!").unDone(),("!",String::from("a")));
+    assert_eq!(parser.clone().parse("abc98def!").unDone(),("!",String::from("abc98def")));
 }
 
 #[test]
