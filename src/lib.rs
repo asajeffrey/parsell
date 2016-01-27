@@ -88,11 +88,11 @@ pub trait Parser {
 pub trait ParserOf<S>: Parser {
     type Output;
     type State: StatefulParserOf<S,Output=Self::Output>;
-    fn init(self) -> Self::State;
-    fn parse(self, value: S) -> ParseResult<Self::State,S> where Self: Sized {
+    fn init(&self) -> Self::State;
+    fn parse(&self, value: S) -> ParseResult<Self::State,S> where Self: Sized {
         self.init().parse(value)
     }
-    fn done(self) -> Self::Output where Self: Sized {
+    fn done(&self) -> Self::Output where Self: Sized {
         self.init().done()
     }
 }
@@ -114,13 +114,13 @@ pub trait GuardedParser {
 pub trait GuardedParserOf<S>: GuardedParser {
     type Output;
     type State: StatefulParserOf<S,Output=Self::Output>;
-    fn parse(self, value: S) -> GuardedParseResult<Self,S> where Self: Sized;
+    fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> where Self: Sized;
 }
 
-pub enum GuardedParseResult<P,S> where P: GuardedParserOf<S> {
-    Empty(P),
+pub enum GuardedParseResult<P,S> where P: StatefulParserOf<S> {
+    Empty,
     Abort(S),
-    Commit(ParseResult<P::State,S>),
+    Commit(ParseResult<P,S>),
 }
 
 // ----------- Map ---------------
@@ -165,12 +165,12 @@ impl<P,F> Clone for MapGuardedParser<P,F> where P: Clone, F: Copy {
 }
 
 impl<P,F> GuardedParser for MapGuardedParser<P,F> where P: GuardedParser {}
-impl<P,F,S> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedParserOf<S>, F: Fn<(P::Output,)> {
+impl<P,F,S> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedParserOf<S>, F: Copy+Fn<(P::Output,)> {
     type Output = F::Output;        
     type State = MapStatefulParser<P::State,F>;
-    fn parse(self, value: S) -> GuardedParseResult<Self,S> {
+    fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
         match self.0.parse(value) {
-            Empty(parser) => Empty(MapGuardedParser(parser,self.1)),
+            Empty => Empty,
             Commit(Done(rest,result)) => Commit(Done(rest,(self.1)(result))),
             Commit(Continue(parsing)) => Commit(Continue(MapStatefulParser(parsing,self.1))),
             Abort(value) => Abort(value),
@@ -186,37 +186,33 @@ pub struct AndThenGuardedParser<P,Q>(P,Q);
 impl<P,Q> GuardedParser for AndThenGuardedParser<P,Q> where P: GuardedParser, Q: Parser {}
 impl<P,Q,S> GuardedParserOf<S> for AndThenGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: ParserOf<S> {
     type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q,Q::State,P::Output>;
-    fn parse(self, value: S) -> GuardedParseResult<Self,S> {
-        match self {
-            AndThenGuardedParser(lhs,rhs) => {
-                match lhs.parse(value) {
-                    Empty(lhs) => Empty(AndThenGuardedParser(lhs,rhs)),
-                    Commit(Done(rest,result1)) => match rhs.init().parse(rest) {
-                        Done(rest,result2) => Commit(Done(rest,(result1,result2))),
-                        Continue(parsing) => Commit(Continue(InRhs(result1,parsing))),
-                    },
-                    Commit(Continue(parsing)) => Commit(Continue(InLhs(parsing,rhs))),
-                    Abort(value) => Abort(value),
-                }
+    type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
+    fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
+        match self.0.parse(value) {
+            Empty => Empty,
+            Commit(Done(rest,result1)) => match self.1.init().parse(rest) {
+                Done(rest,result2) => Commit(Done(rest,(result1,result2))),
+                Continue(parsing) => Commit(Continue(InRhs(result1,parsing))),
             },
+            Commit(Continue(parsing)) => Commit(Continue(InLhs(parsing,self.1.init()))),
+            Abort(value) => Abort(value),
         }
     }
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum AndThenStatefulParser<P,Q,R,T> {
+pub enum AndThenStatefulParser<P,Q,T> {
     InLhs(P,Q),
-    InRhs(T,R),
+    InRhs(T,Q),
 }
 
-impl<P,Q,S> StatefulParserOf<S> for AndThenStatefulParser<P,Q,Q::State,P::Output> where P: StatefulParserOf<S>, Q: ParserOf<S> {
+impl<P,Q,S> StatefulParserOf<S> for AndThenStatefulParser<P,Q,P::Output> where P: StatefulParserOf<S>, Q: StatefulParserOf<S> {
     type Output = (P::Output,Q::Output);
     fn parse(self, value: S) -> ParseResult<Self,S> {
         match self {
             InLhs(lhs,rhs) => {
                 match lhs.parse(value) {
-                    Done(rest,result1) => match rhs.init().parse(rest) {
+                    Done(rest,result1) => match rhs.parse(rest) {
                         Done(rest,result2) => Done(rest,(result1,result2)),
                         Continue(parsing) => Continue(InRhs(result1,parsing)),
                     },
@@ -233,7 +229,7 @@ impl<P,Q,S> StatefulParserOf<S> for AndThenStatefulParser<P,Q,Q::State,P::Output
     }
     fn done(self) -> Self::Output {
         match self {
-            InLhs(lhs,rhs) => (lhs.done(), rhs.init().done()),
+            InLhs(lhs,rhs) => (lhs.done(), rhs.done()),
             InRhs(result1,rhs) => (result1, rhs.done()),
         }
     }
@@ -248,13 +244,13 @@ impl<P,Q> GuardedParser for OrElseGuardedParser<P,Q> where P: GuardedParser, Q: 
 impl<P,Q,S> GuardedParserOf<S> for OrElseGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: GuardedParserOf<S,Output=P::Output> {
     type Output = P::Output;
     type State = OrElseStatefulParser<P::State,Q::State>;
-    fn parse(self, value: S) -> GuardedParseResult<Self,S> {
+    fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
         match self.0.parse(value) {
-            Empty(lhs) => Empty(OrElseGuardedParser(lhs,self.1)),
+            Empty => Empty,
             Commit(Done(rest,result)) => Commit(Done(rest,result)),
             Commit(Continue(parsing)) => Commit(Continue(Lhs(parsing))),
             Abort(value) => match self.1.parse(value) {
-                Empty(_) => panic!("lhs and rhs disagree about emptiness"),
+                Empty => Empty,
                 Commit(Done(rest,result)) => Commit(Done(rest,result)),
                 Commit(Continue(parsing)) => Commit(Continue(Rhs(parsing))),
                 Abort(value) => Abort(value),
@@ -319,7 +315,7 @@ impl<P,F,S> StatefulParserOf<S> for OrEmitStatefulParser<P,F,P::State> where P: 
         match self {
             Unresolved(parser,default) => {
                 match parser.parse(value) {
-                    Empty(parser) => Continue(Unresolved(parser,default)),
+                    Empty => Continue(Unresolved(parser,default)),
                     Commit(Done(rest,result)) => Done(rest,result),
                     Commit(Continue(parsing)) => Continue(Resolved(parsing)),
                     Abort(value) => Done(value,default()),
@@ -353,11 +349,11 @@ impl<P,F> Clone for OrEmitParser<P,F> where P: Clone, F: Copy {
 }
 
 impl<P,F> Parser for OrEmitParser<P,F> where P: GuardedParser {}
-impl<P,F,S> ParserOf<S> for OrEmitParser<P,F> where P: GuardedParserOf<S>, F:Fn<(),Output=P::Output> {
+impl<P,F,S> ParserOf<S> for OrEmitParser<P,F> where P: Clone+GuardedParserOf<S>, F: Copy+Fn<(),Output=P::Output> {
     type Output = P::Output;
     type State = OrEmitStatefulParser<P,F,P::State>;
-    fn init(self) -> Self::State {
-        Unresolved(self.0,self.1)
+    fn init(&self) -> Self::State {
+        Unresolved(self.0.clone(),self.1)
     }
 }
 
@@ -372,7 +368,7 @@ impl<P,T,S> StatefulParserOf<S> for StarStatefulParser<P,P::State,T> where P: Co
         loop {
             match self.1.take() {
                 None => match self.0.parse(value) {
-                    Empty(_) => return Continue(StarStatefulParser(self.0,None,self.2)),
+                    Empty => return Continue(StarStatefulParser(self.0,None,self.2)),
                     Commit(Continue(parsing)) => return Continue(StarStatefulParser(self.0,Some(parsing),self.2)),
                     Commit(Done(rest,result)) => { self.2.push(result); value = rest; },
                     Abort(rest) => return Done(rest,self.2),
@@ -405,9 +401,9 @@ impl<P,F> GuardedParser for PlusParser<P,F> where P: Copy+GuardedParser {}
 impl<P,F,S> GuardedParserOf<S> for PlusParser<P,F> where P: Copy+GuardedParserOf<S>, F: Fn<()>, F::Output: Consumer<P::Output> {
     type Output = F::Output;
     type State = StarStatefulParser<P,P::State,F::Output>;
-    fn parse(self, value: S) -> GuardedParseResult<Self,S> {
+    fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
         match self.0.parse(value) {
-            Empty(parser) => Empty(PlusParser(parser,self.1)),
+            Empty => Empty,
             Abort(rest) => Abort(rest),
             Commit(Continue(parsing)) => Commit(Continue(StarStatefulParser(self.0,Some(parsing),(self.1)()))),
             Commit(Done(rest,result)) => {
@@ -435,7 +431,7 @@ impl<P,F> Parser for StarParser<P,F> where P: Copy+GuardedParser {}
 impl<P,F,S> ParserOf<S> for StarParser<P,F> where P: Copy+GuardedParserOf<S>, F: Fn<()>, F::Output: Consumer<P::Output> {
     type Output = F::Output;
     type State = StarStatefulParser<P,P::State,F::Output>;
-    fn init(self) -> Self::State {
+    fn init(&self) -> Self::State {
         StarStatefulParser(self.0,None,(self.1)())
     }
 }
@@ -480,9 +476,9 @@ impl<F> GuardedParser for CharGuard<F> where F: Fn(char) -> bool {}
 impl<'a,F> GuardedParserOf<&'a str> for CharGuard<F> where F: Fn(char) -> bool {
     type Output = char;
     type State = ImpossibleStatefulParser<char>;
-    fn parse(self, value: &'a str) -> GuardedParseResult<Self,&'a str> {
+    fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
         match value.chars().next() {
-            None => Empty(self),
+            None => Empty,
             Some(ch) if (self.0)(ch) => {
                 let len = ch.len_utf8();
                 Commit(Done(&value[len..],ch))
@@ -531,9 +527,9 @@ impl<P> GuardedParser for BufferedGuardedParser<P> where P: GuardedParser {}
 impl<'a,P> GuardedParserOf<&'a str> for BufferedGuardedParser<P> where P: GuardedParserOf<&'a str> {
     type Output = Str<'a>;
     type State = BufferedStatefulParser<P::State>;
-    fn parse(self, value: &'a str) -> GuardedParseResult<Self,&'a str> {
+    fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
         match self.0.parse(value) {
-            Empty(parser) => Empty(BufferedGuardedParser(parser)),
+            Empty => Empty,
             Commit(Done(rest,_)) => Commit(Done(rest,Borrowed(value.drop_suffix(rest)))),
             Commit(Continue(parsing)) => Commit(Continue(BufferedStatefulParser(parsing,String::from(value)))),
             Abort(value) => Abort(value),
@@ -564,12 +560,12 @@ impl<'a,P> StatefulParserOf<&'a str> for BufferedStatefulParser<P> where P: Stat
 // ----------- Tests -------------
 
 #[allow(non_snake_case,dead_code)]
-impl<P,S> GuardedParseResult<P,S> where P: GuardedParserOf<S> {
+impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 
-    fn unEmpty(self) -> P {
+    fn unEmpty(self) {
         match self {
-            Empty(p) => p,
-            _        => panic!("GuardedParseResult is not empty"),
+            Empty => (),
+            _     => panic!("GuardedParseResult is not empty"),
         }
     }
 
@@ -580,7 +576,7 @@ impl<P,S> GuardedParseResult<P,S> where P: GuardedParserOf<S> {
         }
     }
 
-    fn unCommit(self) -> ParseResult<P::State,S> {
+    fn unCommit(self) -> ParseResult<P,S> {
         match self {
             Commit(s) => s,
             _       => panic!("GuardedParseResult is not success"),
