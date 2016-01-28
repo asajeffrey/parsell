@@ -708,3 +708,75 @@ fn test_different_lifetimes() {
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     go("ab","cd",parser);
 }
+
+#[test]
+#[allow(non_snake_case)]
+#[allow(private_in_public)]
+fn test_lazy() {
+
+    // Mucking around with recursive descent parsing, this needs tidied up and moved into the library.
+    
+    trait LazyState<S> {
+        type Output;
+        fn parse_mut(&mut self, value: S) -> Option<(S,Self::Output)>;
+        fn done_mut(&mut self) -> Self::Output;
+    }
+
+    struct MkLazyState<P> (Option<P>);
+    impl<P,S> LazyState<S> for MkLazyState<P> where P: StatefulParserOf<S> {
+        type Output = P::Output;
+        fn parse_mut(&mut self, value: S) -> Option<(S,Self::Output)> {
+            match self.0.take().unwrap().parse(value) {
+                Done(rest,result) => Some((rest,result)),
+                Continue(parsing) => { self.0 = Some(parsing); None },
+            }
+        }
+        fn done_mut(&mut self) -> Self::Output {
+            self.0.take().unwrap().done()
+        }
+    }
+
+    impl<P:?Sized,S> StatefulParserOf<S> for Box<P> where P: LazyState<S> {
+        type Output = P::Output;
+        fn parse(mut self, value: S) -> ParseResult<Self,S> {
+            match self.parse_mut(value) {
+                Some((rest,result)) => Done(rest,result),
+                None => Continue(self),
+            }
+        }
+        fn done(mut self) -> Self::Output {
+            self.done_mut()
+        }
+    }
+
+    type FooState = Box<for<'a> LazyState<&'a str, Output=String>>;
+
+    #[derive(Copy,Clone,Debug)]
+    struct Foo;
+    impl Parser for Foo {}
+    impl<'a> ParserOf<&'a str> for Foo {
+        type Output = String;
+        type State = FooState;
+        fn init(&self) -> FooState {
+            fn is_lparen(ch: char) -> bool { ch == '(' }
+            fn is_rparen(ch: char) -> bool { ch == ')' }
+            fn mk_none<T>() -> Option<T> { None }
+            fn mk_tree(children: ((char, String), Option<char>)) -> String {
+                String::from("[") + &*(children.0).1 + "]"
+            }
+            let RPAREN = character(is_rparen).map(Some).or_emit(mk_none);
+            let parser = character(is_lparen).and_then(Foo).and_then(RPAREN).map(mk_tree)
+                .or_emit(String::new);
+            let lazy = MkLazyState(Some(parser.init()));
+            let result: FooState = Box::new(lazy);
+            result
+        }
+    }
+
+    assert_eq!(Foo.parse("!").unDone(),("!",String::from("")));
+    assert_eq!(Foo.parse("()!").unDone(),("!",String::from("[]")));
+    assert_eq!(Foo.parse("(()))").unDone(),(")",String::from("[[]]")));
+    assert_eq!(Foo.parse("(").unContinue().parse(")!").unDone(),("!",String::from("[]")));
+    assert_eq!(Foo.parse("((").unContinue().parse("))!").unDone(),("!",String::from("[[]]")));
+
+}
