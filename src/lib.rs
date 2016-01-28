@@ -770,6 +770,7 @@ fn test_lazy() {
             Box::new(MkLazyState(Some(parser.init())))
         } 
         fn parse(&self, value: &'a str) -> ParseResult<FooState,&'a str> {
+            // TODO: avoid this duplication
             fn is_lparen(ch: char) -> bool { ch == '(' }
             fn is_rparen(ch: char) -> bool { ch == ')' }
             fn mk_none<T>() -> Option<T> { None }
