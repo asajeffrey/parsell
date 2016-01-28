@@ -767,11 +767,24 @@ fn test_lazy() {
             let RPAREN = character(is_rparen).map(Some).or_emit(mk_none);
             let parser = character(is_lparen).and_then(Foo).and_then(RPAREN).map(mk_tree)
                 .or_emit(String::new);
-            let lazy = MkLazyState(Some(parser.init()));
-            let result: FooState = Box::new(lazy);
-            result
+            Box::new(MkLazyState(Some(parser.init())))
+        } 
+        fn parse(&self, value: &'a str) -> ParseResult<FooState,&'a str> {
+            fn is_lparen(ch: char) -> bool { ch == '(' }
+            fn is_rparen(ch: char) -> bool { ch == ')' }
+            fn mk_none<T>() -> Option<T> { None }
+            fn mk_tree(children: ((char, String), Option<char>)) -> String {
+                String::from("[") + &*(children.0).1 + "]"
+            }
+            let RPAREN = character(is_rparen).map(Some).or_emit(mk_none);
+            let parser = character(is_lparen).and_then(Foo).and_then(RPAREN).map(mk_tree)
+                .or_emit(String::new);
+            match parser.parse(value) {
+                Done(rest,result) => Done(rest,result),
+                Continue(parsing) => Continue(Box::new(MkLazyState(Some(parsing)))),
+            }
         }
-    }
+   }
 
     assert_eq!(Foo.parse("!").unDone(),("!",String::from("")));
     assert_eq!(Foo.parse("()!").unDone(),("!",String::from("[]")));
