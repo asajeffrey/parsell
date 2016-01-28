@@ -715,7 +715,7 @@ fn test_different_lifetimes() {
 fn test_lazy() {
 
     // Mucking around with recursive descent parsing, this needs tidied up and moved into the library.
-    
+
     trait LazyState<S> {
         type Output;
         fn parse_mut(&mut self, value: S) -> Option<(S,Self::Output)>;
