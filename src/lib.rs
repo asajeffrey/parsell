@@ -190,7 +190,7 @@ impl<P,Q,S> GuardedParserOf<S> for AndThenGuardedParser<P,Q> where P: GuardedPar
     fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
         match self.0.parse(value) {
             Empty => Empty,
-            Commit(Done(rest,result1)) => match self.1.init().parse(rest) {
+            Commit(Done(rest,result1)) => match self.1.parse(rest) {
                 Done(rest,result2) => Commit(Done(rest,(result1,result2))),
                 Continue(parsing) => Commit(Continue(InRhs(result1,parsing))),
             },
