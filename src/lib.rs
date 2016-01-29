@@ -749,15 +749,21 @@ fn test_lazy() {
         }
     }
 
-    type FooState = Box<for<'a> DynamicState<&'a str, Output=String>>;
+    trait DynamicParserOf<S>: ParserOf<S> {
+        fn dynamic(self) -> MkDynamicState<Self::State> where Self: Sized {
+            MkDynamicState(Some(self.init()))
+        }
+    }
+
+    impl<P,S> DynamicParserOf<S> for P where P: ParserOf<S> {}
 
     #[derive(Copy,Clone,Debug)]
     struct Foo;
     impl Parser for Foo {}
     impl<'a> ParserOf<&'a str> for Foo {
         type Output = String;
-        type State = FooState;
-        fn init(&self) -> FooState {
+        type State = Box<for<'b> DynamicState<&'b str, Output=String>>;
+        fn init(&self) -> Self::State {
             fn is_lparen(ch: char) -> bool { ch == '(' }
             fn is_rparen(ch: char) -> bool { ch == ')' }
             fn mk_none<T>() -> Option<T> { None }
@@ -767,7 +773,7 @@ fn test_lazy() {
             let RPAREN = character(is_rparen).map(Some).or_emit(mk_none);
             let parser = character(is_lparen).and_then(Foo).and_then(RPAREN).map(mk_tree)
                 .or_emit(String::new);
-            Box::new(MkDynamicState(Some(parser.init())))
+            Box::new(parser.dynamic())
         } 
     }
 
