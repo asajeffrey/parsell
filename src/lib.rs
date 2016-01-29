@@ -769,22 +769,6 @@ fn test_lazy() {
                 .or_emit(String::new);
             Box::new(MkDynamicState(Some(parser.init())))
         } 
-        fn parse(&self, value: &'a str) -> ParseResult<FooState,&'a str> {
-            // TODO: avoid this duplication
-            fn is_lparen(ch: char) -> bool { ch == '(' }
-            fn is_rparen(ch: char) -> bool { ch == ')' }
-            fn mk_none<T>() -> Option<T> { None }
-            fn mk_tree(children: ((char, String), Option<char>)) -> String {
-                String::from("[") + &*(children.0).1 + "]"
-            }
-            let RPAREN = character(is_rparen).map(Some).or_emit(mk_none);
-            let parser = character(is_lparen).and_then(Foo).and_then(RPAREN).map(mk_tree)
-                .or_emit(String::new);
-            match parser.parse(value) {
-                Done(rest,result) => Done(rest,result),
-                Continue(parsing) => Continue(Box::new(MkDynamicState(Some(parsing)))),
-            }
-        }
     }
 
     assert_eq!(Foo.parse("!").unDone(),("!",String::from("")));
