@@ -456,6 +456,35 @@ impl<T,S> StatefulParserOf<S> for ImpossibleStatefulParser<T> {
 }
 
 #[derive(Debug)]
+pub struct CharacterStatefulParser<F>(F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<F> Copy for CharacterStatefulParser<F> where F: Copy {}
+impl<F> Clone for CharacterStatefulParser<F> where F: Copy {
+    fn clone(&self) -> Self {
+        CharacterStatefulParser(self.0)
+    }
+}
+
+impl<'a,F> StatefulParserOf<&'a str> for CharacterStatefulParser<F> where F: Fn(char) -> bool {
+    type Output = Option<char>;
+    fn parse(self, value: &'a str) -> ParseResult<Self,&'a str> {
+        match value.chars().next() {
+            None => Continue(self),
+            Some(ch) if (self.0)(ch) => {
+                let len = ch.len_utf8();
+                Done(&value[len..],Some(ch))
+            },
+            Some(_) => Done(value,None)
+        }
+    }
+    fn done(self) -> Option<char> {
+        None
+    }
+}
+
+#[derive(Debug)]
 pub struct CharacterParser<F>(F);
 
 // A work around for functions implmenting copy but not clone
@@ -464,6 +493,15 @@ impl<F> Copy for CharacterParser<F> where F: Copy {}
 impl<F> Clone for CharacterParser<F> where F: Copy {
     fn clone(&self) -> Self {
         CharacterParser(self.0)
+    }
+}
+
+impl<F> Parser for CharacterParser<F> where F: Fn(char) -> bool {}
+impl<'a,F> ParserOf<&'a str> for CharacterParser<F> where F: Copy+Fn(char) -> bool {
+    type Output = Option<char>;
+    type State = CharacterStatefulParser<F>;
+    fn init(&self) -> Self::State {
+        CharacterStatefulParser(self.0)
     }
 }
 
@@ -636,6 +674,9 @@ fn test_character() {
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("abc").unCommit().unDone(),("bc",'a'));
+    parser.init().parse("").unContinue();
+    assert_eq!(parser.init().parse("989").unDone(),("989",None));
+    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')))
 }
 
 #[test]
@@ -660,7 +701,7 @@ fn test_map() {
 #[allow(non_snake_case)]
 fn test_and_then() {
     fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
+    let ALPHANUMERIC = character(char::is_alphanumeric);
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("989",None));
@@ -672,8 +713,8 @@ fn test_and_then() {
 #[allow(non_snake_case)]
 fn test_or_else() {
     fn mk_none<T>() -> Option<T> { None }
-    let NUMERIC = character(char::is_numeric).map(Some).or_emit(mk_none);
-    let ALPHABETIC = character(char::is_alphabetic).map(Some).or_emit(mk_none);
+    let NUMERIC = character(char::is_numeric);
+    let ALPHABETIC = character(char::is_alphabetic);
     let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some).
         or_else(character(char::is_numeric).and_then(NUMERIC).map(Some)).
         or_emit(mk_none);
@@ -710,8 +751,7 @@ fn test_star() {
 #[test]
 #[allow(non_snake_case)]
 fn test_buffer() {
-    fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none );
+    let ALPHANUMERIC = character(char::is_alphanumeric);
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).buffer();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Borrowed("a")));
@@ -730,7 +770,7 @@ fn test_different_lifetimes() {
         assert_eq!(parser.init().parse(cd).unDone(),("",Some(('c',Some('d')))));
     }
     fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
+    let ALPHANUMERIC = character(char::is_alphanumeric);
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     go("ab","cd",parser);
 }
@@ -749,12 +789,12 @@ fn test_boxable() {
         fn init(&self) -> Self::State {
             fn is_lparen(ch: char) -> bool { ch == '(' }
             fn is_rparen(ch: char) -> bool { ch == ')' }
-            fn mk_none<T>() -> Option<T> { None }
             fn mk_tree(children: ((char, String), Option<char>)) -> String {
                 String::from("[") + &*(children.0).1 + "]"
             }
-            let RPAREN = character(is_rparen).map(Some).or_emit(mk_none);
-            let parser = character(is_lparen).and_then(Foo).and_then(RPAREN).map(mk_tree)
+            let LPAREN = character(is_lparen);
+            let RPAREN = character(is_rparen);
+            let parser = LPAREN.and_then(Foo).and_then(RPAREN).map(mk_tree)
                 .or_emit(String::new);
             Box::new(parser.boxable())
         } 
