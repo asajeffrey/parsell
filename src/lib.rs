@@ -780,30 +780,36 @@ fn test_different_lifetimes() {
 #[allow(private_in_public)]
 fn test_boxable() {
 
+    #[derive(Clone,Debug,Eq,PartialEq)]
+    struct Tree(Vec<Tree>);
+    
     #[derive(Copy,Clone,Debug)]
     struct Foo;
     impl Parser for Foo {}
     impl<'a> ParserOf<&'a str> for Foo {
-        type Output = String;
-        type State = Box<for<'b> BoxableParserOf<&'b str, Output=String>>;
+        type Output = Tree;
+        type State = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
         fn init(&self) -> Self::State {
             fn is_lparen(ch: char) -> bool { ch == '(' }
             fn is_rparen(ch: char) -> bool { ch == ')' }
-            fn mk_tree(children: ((char, String), Option<char>)) -> String {
-                String::from("[") + &*(children.0).1 + "]"
+            fn mk_empty_tree() -> Tree {
+                Tree(vec![ ])
+            }
+            fn mk_tree(children: ((char, Tree), Option<char>)) -> Tree {
+                Tree(vec![ (children.0).1 ])
             }
             let LPAREN = character(is_lparen);
             let RPAREN = character(is_rparen);
             let parser = LPAREN.and_then(Foo).and_then(RPAREN).map(mk_tree)
-                .or_emit(String::new);
+                .or_emit(mk_empty_tree);
             Box::new(parser.boxable())
         } 
     }
 
-    assert_eq!(Foo.init().parse("!").unDone(),("!",String::from("")));
-    assert_eq!(Foo.init().parse("()!").unDone(),("!",String::from("[]")));
-    assert_eq!(Foo.init().parse("(()))").unDone(),(")",String::from("[[]]")));
-    assert_eq!(Foo.init().parse("(").unContinue().parse(")!").unDone(),("!",String::from("[]")));
-    assert_eq!(Foo.init().parse("((").unContinue().parse("))!").unDone(),("!",String::from("[[]]")));
+    assert_eq!(Foo.init().parse("!").unDone(),("!",Tree(vec![])));
+    assert_eq!(Foo.init().parse("()!").unDone(),("!",Tree(vec![Tree(vec![])])));
+    assert_eq!(Foo.init().parse("(()))").unDone(),(")",Tree(vec![Tree(vec![Tree(vec![])])])));
+    assert_eq!(Foo.init().parse("(").unContinue().parse(")!").unDone(),("!",Tree(vec![Tree(vec![])])));
+    assert_eq!(Foo.init().parse("((").unContinue().parse("))!").unDone(),("!",Tree(vec![Tree(vec![Tree(vec![])])])));
 
 }
