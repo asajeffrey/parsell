@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `StatefulParserOf` trait in crate `parsimonious`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, StatefulParserOf">
+
+    <title>parsimonious::StatefulParserOf - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>parsimonious</a></p><script>window.sidebarCurrent = {name: 'StatefulParserOf', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>parsimonious</a>::<wbr><a class='trait' href=''>StatefulParserOf</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-11' class='srclink' href='../src/parsimonious/lib.rs.html#39-118' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait StatefulParserOf&lt;S&gt; {
+    type Output;
+    fn <a href='#tymethod.parse' class='fnname'>parse</a>(self, value: S) -&gt; <a class='enum' href='../parsimonious/enum.ParseResult.html' title='parsimonious::ParseResult'>ParseResult</a>&lt;Self, S&gt; <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span>;
+    fn <a href='#tymethod.done' class='fnname'>done</a>(self) -&gt; Self::<a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>Output</a> <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span>;
+}</pre><div class='docblock'><p>A trait for stateful parsers.</p>
+
+<p>Stateful parsers are typically constructed by calling the <code>init</code> method of a parser,
+for example:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>stateless</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>char</span>::<span class='ident'>is_alphanumeric</span>).<span class='ident'>star</span>(<span class='ident'>String</span>::<span class='ident'>new</span>);
+<span class='kw'>let</span> <span class='ident'>stateful</span> <span class='op'>=</span> <span class='ident'>stateless</span>.<span class='ident'>init</span>();</pre>
+
+<p>Here, <code>stateless</code> is a <code>ParserOf&lt;&amp;str,Output=String&gt;</code>, and <code>stateful</code> is a <code>StatefulParserOf&lt;&amp;str,Output=String&gt;</code>.</p>
+</div>
+            <h2 id='associated-types'>Associated Types</h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Output' class='method stab '><code>type Output</code></h3><div class='docblock'><p>The type of the data being produced by the parser.</p>
+</div></div>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.parse' class='method stab '><code>fn <a href='#tymethod.parse' class='fnname'>parse</a>(self, value: S) -&gt; <a class='enum' href='../parsimonious/enum.ParseResult.html' title='parsimonious::ParseResult'>ParseResult</a>&lt;Self, S&gt; <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span></code></h3><div class='docblock'><p>Provides data to the parser.</p>
+
+<p>If <code>parser: StatefulParserOf&lt;S,Output=T&gt;</code>, then <code>parser.parse(data)</code> either:</p>
+
+<ul>
+<li>returns <code>Done(rest, result)</code> where <code>rest: S</code> is any remaining input,
+and <code>result: T</code> is the parsed output, or</li>
+<li>returns <code>Continue(parsing)</code> where <code>parsing: Self</code> is the new state of the parser.</li>
+</ul>
+
+<p>For example:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>char</span>::<span class='ident'>is_alphabetic</span>).<span class='ident'>star</span>(<span class='ident'>String</span>::<span class='ident'>new</span>);
+<span class='kw'>let</span> <span class='ident'>stateful</span> <span class='op'>=</span> <span class='ident'>parser</span>.<span class='ident'>init</span>();
+<span class='kw'>match</span> <span class='ident'>stateful</span>.<span class='ident'>parse</span>(<span class='string'>&quot;abc&quot;</span>) {
+    <span class='ident'>Done</span>(_,_) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+    <span class='ident'>Continue</span>(<span class='ident'>parsing</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>parsing</span>.<span class='ident'>parse</span>(<span class='string'>&quot;def!&quot;</span>) {
+        <span class='ident'>Continue</span>(_) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+        <span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> {
+            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>rest</span>,<span class='string'>&quot;!&quot;</span>);
+            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='string'>&quot;abcdef&quot;</span>);
+        }
+    }
+}</pre>
+
+<p>Note that <code>parser.parse(data)</code> consumes both the <code>parser</code> and the <code>data</code>. In particular,
+the <code>parser</code> is no longer available, so the following does not typecheck:</p>
+
+<pre><code class="language-text">let parser = character(char::is_alphabetic).star(String::new);
+let stateful = parser.init();
+stateful.parse(&quot;abc&quot;);
+stateful.parse(&quot;def!&quot;);
+</code></pre>
+
+<p>This helps with parser safety, as it stops a client from calling <code>parse</code> after a
+a stateful parser has finished.</p>
+</div><h3 id='tymethod.done' class='method stab '><code>fn <a href='#tymethod.done' class='fnname'>done</a>(self) -&gt; Self::<a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>Output</a> <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span></code></h3><div class='docblock'><p>Tells the parser that it will not receive any more data.</p>
+
+<p>If <code>parser: StatefulParserOf&lt;S,Output=T&gt;</code>, then <code>parser.done()</code> returns a result of type <code>T</code>
+for example:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>char</span>::<span class='ident'>is_alphabetic</span>).<span class='ident'>star</span>(<span class='ident'>String</span>::<span class='ident'>new</span>);
+<span class='kw'>let</span> <span class='ident'>stateful</span> <span class='op'>=</span> <span class='ident'>parser</span>.<span class='ident'>init</span>();
+<span class='kw'>match</span> <span class='ident'>stateful</span>.<span class='ident'>parse</span>(<span class='string'>&quot;abc&quot;</span>) {
+    <span class='ident'>Done</span>(_,_) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+    <span class='ident'>Continue</span>(<span class='ident'>parsing</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>parsing</span>.<span class='ident'>parse</span>(<span class='string'>&quot;def&quot;</span>) {
+        <span class='ident'>Done</span>(_,_) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+        <span class='ident'>Continue</span>(<span class='ident'>parsing</span>) <span class='op'>=&gt;</span> <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>parsing</span>.<span class='ident'>done</span>(),<span class='string'>&quot;abcdef&quot;</span>),
+    }
+}</pre>
+
+<p>Note that <code>parser.done()</code> consumes the <code>parser</code>. In particular,
+the <code>parser</code> is no longer available, so the following does not typecheck:</p>
+
+<pre><code class="language-text">let parser = character(char::is_alphabetic).star(String::new);
+let stateful = parser.init();
+stateful.done();
+stateful.parse(&quot;def!&quot;);
+</code></pre>
+
+<p>This helps with parser safety, as it stops a client from calling <code>parse</code> after a
+a stateful parser has finished.</p>
+</div></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl&lt;P, F, S, T&gt; <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/struct.MapStatefulParser.html' title='parsimonious::MapStatefulParser'>MapStatefulParser</a>&lt;P, F&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S, Output=T&gt;, F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(T,)</a>&gt;</span></code></li>
+<li><code>impl&lt;P, Q, S&gt; <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt; for <a class='enum' href='../parsimonious/enum.AndThenStatefulParser.html' title='parsimonious::AndThenStatefulParser'>AndThenStatefulParser</a>&lt;P, Q, P::Output&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;, Q: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span></code></li>
+<li><code>impl&lt;P, Q, S&gt; <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt; for <a class='enum' href='../parsimonious/enum.OrElseStatefulParser.html' title='parsimonious::OrElseStatefulParser'>OrElseStatefulParser</a>&lt;P, Q&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;, Q: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S, Output=P::Output&gt;</span></code></li>
+<li><code>impl&lt;P, F, S&gt; <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt; for <a class='enum' href='../parsimonious/enum.OrEmitStatefulParser.html' title='parsimonious::OrEmitStatefulParser'>OrEmitStatefulParser</a>&lt;P, F, P::State&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.GuardedParserOf.html' title='parsimonious::GuardedParserOf'>GuardedParserOf</a>&lt;S&gt;, F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Output=P::Output&gt;</span></code></li>
+<li><code>impl&lt;P, T, S&gt; <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/struct.StarStatefulParser.html' title='parsimonious::StarStatefulParser'>StarStatefulParser</a>&lt;P, P::State, T&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> + <a class='trait' href='../parsimonious/trait.GuardedParserOf.html' title='parsimonious::GuardedParserOf'>GuardedParserOf</a>&lt;S&gt;, T: <a class='trait' href='../parsimonious/trait.Consumer.html' title='parsimonious::Consumer'>Consumer</a>&lt;P::Output&gt;</span></code></li>
+<li><code>impl&lt;T, S&gt; <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/struct.ImpossibleStatefulParser.html' title='parsimonious::ImpossibleStatefulParser'>ImpossibleStatefulParser</a>&lt;T&gt;</code></li>
+<li><code>impl&lt;'a, F&gt; <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;&amp;'a <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt; for <a class='struct' href='../parsimonious/struct.CharacterStatefulParser.html' title='parsimonious::CharacterStatefulParser'>CharacterStatefulParser</a>&lt;F&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></span></code></li>
+<li><code>impl&lt;'a, P&gt; <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;&amp;'a <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt; for <a class='struct' href='../parsimonious/struct.BufferedStatefulParser.html' title='parsimonious::BufferedStatefulParser'>BufferedStatefulParser</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;&amp;'a <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt;</span></code></li>
+<li><code>impl&lt;P: ?<a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a>, S&gt; <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt; for <a class='struct' href='https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>BoxableParserOf</a>&lt;S&gt;</span></code></li>
+</ul><script type="text/javascript" async
+                              src="../implementors/parsimonious/trait.StatefulParserOf.js">
+                      </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "parsimonious";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script defer src="../search-index.js"></script>
+</body>
+</html>
