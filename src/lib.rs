@@ -1,3 +1,14 @@
+//! Parsimonious: a parser combinator library for Rust
+//!
+//! The goal of this library is to provide parser combinators that:
+//!
+//! * are optimized for LL(1) grammars,
+//! * support streaming input,
+//! * do as little buffering or copying as possible, and
+//! * do as little dynamic method dispatch as possible.
+//!
+//! It is based on "Monadic Parsing in Haskell" by Hutton and Meijer, JFP 8(4) pp. 437-444.
+
 #![feature(unboxed_closures)]
 
 extern crate core;
@@ -11,10 +22,99 @@ use self::Str::{Borrowed,Owned};
 
 // ----------- Types for parsers ------------
 
+/// A trait for stateful parsers.
+///
+/// Stateful parsers are typically constructed by calling the `init` method of a parser,
+/// for example:
+///
+/// ```
+/// # use parsimonious::{character,GuardedParser,ParserOf,StatefulParserOf};
+/// let stateless = character(char::is_alphanumeric).star(String::new);
+/// let stateful = stateless.init();
+/// ```
+///
+/// Here, `stateless` is a `ParserOf<&str,Output=String>`, and `stateful` is a `StatefulParserOf<&str,Output=String>`.
+
+
 pub trait StatefulParserOf<S> {
+
+    /// The type of the data being produced by the parser.
     type Output;
+
+    /// Provides data to the parser.
+    /// 
+    /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.parse(data)` either:
+    ///
+    /// * returns `Done(rest, result)` where `rest: S` is any remaining input,
+    ///   and `result: T` is the parsed output, or
+    /// * returns `Continue(parsing)` where `parsing: Self` is the new state of the parser.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// # use parsimonious::{character,GuardedParser,ParserOf,StatefulParserOf};
+    /// # use parsimonious::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let stateful = parser.init();
+    /// match stateful.parse("abc") {
+    ///     Done(_,_) => panic!("can't happen"),
+    ///     Continue(parsing) => match parsing.parse("def!") {
+    ///         Continue(_) => panic!("can't happen"),
+    ///         Done(rest,result) => {
+    ///             assert_eq!(rest,"!");
+    ///             assert_eq!(result,"abcdef");
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Note that `parser.parse(data)` consumes both the `parser` and the `data`. In particular,
+    /// the `parser` is no longer available, so the following does not typecheck:
+    ///
+    /// ```text
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let stateful = parser.init();
+    /// stateful.parse("abc");
+    /// stateful.parse("def!");
+    /// ```
+    ///
+    /// This helps with parser safety, as it stops a client from calling `parse` after a
+    /// a stateful parser has finished.
     fn parse(self, value: S) -> ParseResult<Self,S> where Self: Sized;
+
+    /// Tells the parser that it will not receive any more data.
+    /// 
+    /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.done()` returns a result of type `T`
+    /// for example:
+    ///
+    /// ```
+    /// # use parsimonious::{character,GuardedParser,ParserOf,StatefulParserOf};
+    /// # use parsimonious::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let stateful = parser.init();
+    /// match stateful.parse("abc") {
+    ///     Done(_,_) => panic!("can't happen"),
+    ///     Continue(parsing) => match parsing.parse("def") {
+    ///         Done(_,_) => panic!("can't happen"),
+    ///         Continue(parsing) => assert_eq!(parsing.done(),"abcdef"),
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Note that `parser.done()` consumes the `parser`. In particular,
+    /// the `parser` is no longer available, so the following does not typecheck:
+    ///
+    /// ```text
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let stateful = parser.init();
+    /// stateful.done();
+    /// stateful.parse("def!");
+    /// ```
+    ///
+    /// This helps with parser safety, as it stops a client from calling `parse` after a
+    /// a stateful parser has finished.
     fn done(self) -> Self::Output where Self: Sized;
+
 }
 
 pub enum ParseResult<P,S> where P: StatefulParserOf<S> {
@@ -298,7 +398,42 @@ impl<P,F,S> ParserOf<S> for OrEmitParser<P,F> where P: Clone+GuardedParserOf<S>,
 
 // ----------- Kleene star ---------------
 
+/// A trait for consumers of data, typically buffers.
+///
+/// # Examples
+///
+/// `String` is a consumer of `&str` and of `char`.
+///
+/// ```
+/// # use parsimonious::Consumer;
+/// let mut buffer = String::new();
+/// buffer.accept("abc");
+/// buffer.accept('d');
+/// assert_eq!(buffer,"abcd");
+/// ```
+///
+/// `Vec<T>` is a consumer of `&[T]` when `T` is `Clone`, and of `T`.
+///
+/// ```
+/// # use parsimonious::Consumer;
+/// let mut buffer = Vec::new();
+/// buffer.accept(&[1,2,3][..]);
+/// buffer.accept(4);
+/// assert_eq!(buffer,&[1,2,3,4]);
+/// ```
+///
+/// The unit type `()` is a trivial consumer that discards data.
+///
+/// ```
+/// # use parsimonious::Consumer;
+/// let mut discarder = ();
+/// discarder.accept("this");
+/// discarder.accept(4);
+/// assert_eq!(discarder,());
+/// ```
+
 pub trait Consumer<T> {
+    /// Accepts data.
     fn accept(&mut self, value: T);
 }
 
