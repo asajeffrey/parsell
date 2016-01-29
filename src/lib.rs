@@ -95,6 +95,7 @@ pub trait ParserOf<S>: Parser {
     fn done(&self) -> Self::Output where Self: Sized {
         self.init().done()
     }
+    fn boxable(self) -> BoxableParser<Self::State> where Self: Sized { BoxableParser(Some(self.init())) }
 }
 
 // A guarded parser of S to T is a partial function S* -> T
@@ -553,9 +554,40 @@ impl<'a,P> StatefulParserOf<&'a str> for BufferedStatefulParser<P> where P: Stat
     }
 }
 
-// ----------- Laziness -------------
+// ----------- Parsers which are boxable -------------
 
-// TODO
+pub trait BoxableParserOf<S> {
+    type Output;
+    fn parse_boxable(&mut self, value: S) -> Option<(S,Self::Output)>;
+    fn done_boxable(&mut self) -> Self::Output;
+}
+
+pub struct BoxableParser<P> (Option<P>);
+impl<P,S> BoxableParserOf<S> for BoxableParser<P> where P: StatefulParserOf<S> {
+    type Output = P::Output;
+    fn parse_boxable(&mut self, value: S) -> Option<(S,Self::Output)> {
+        match self.0.take().unwrap().parse(value) {
+            Done(rest,result) => Some((rest,result)),
+            Continue(parsing) => { self.0 = Some(parsing); None },
+        }
+    }
+    fn done_boxable(&mut self) -> Self::Output {
+        self.0.take().unwrap().done()
+    }
+}
+
+impl<P:?Sized,S> StatefulParserOf<S> for Box<P> where P: BoxableParserOf<S> {
+    type Output = P::Output;
+    fn parse(mut self, value: S) -> ParseResult<Self,S> {
+        match self.parse_boxable(value) {
+            Some((rest,result)) => Done(rest,result),
+            None => Continue(self),
+        }
+    }
+    fn done(mut self) -> Self::Output {
+        self.done_boxable()
+    }
+}
 
 // ----------- Tests -------------
 
@@ -712,57 +744,14 @@ fn test_different_lifetimes() {
 #[test]
 #[allow(non_snake_case)]
 #[allow(private_in_public)]
-fn test_lazy() {
-
-    // Mucking around with recursive descent parsing, this needs tidied up and moved into the library.
-
-    trait DynamicState<S> {
-        type Output;
-        fn parse_dyn(&mut self, value: S) -> Option<(S,Self::Output)>;
-        fn done_dyn(&mut self) -> Self::Output;
-    }
-
-    struct MkDynamicState<P> (Option<P>);
-    impl<P,S> DynamicState<S> for MkDynamicState<P> where P: StatefulParserOf<S> {
-        type Output = P::Output;
-        fn parse_dyn(&mut self, value: S) -> Option<(S,Self::Output)> {
-            match self.0.take().unwrap().parse(value) {
-                Done(rest,result) => Some((rest,result)),
-                Continue(parsing) => { self.0 = Some(parsing); None },
-            }
-        }
-        fn done_dyn(&mut self) -> Self::Output {
-            self.0.take().unwrap().done()
-        }
-    }
-
-    impl<P:?Sized,S> StatefulParserOf<S> for Box<P> where P: DynamicState<S> {
-        type Output = P::Output;
-        fn parse(mut self, value: S) -> ParseResult<Self,S> {
-            match self.parse_dyn(value) {
-                Some((rest,result)) => Done(rest,result),
-                None => Continue(self),
-            }
-        }
-        fn done(mut self) -> Self::Output {
-            self.done_dyn()
-        }
-    }
-
-    trait DynamicParserOf<S>: ParserOf<S> {
-        fn dynamic(self) -> MkDynamicState<Self::State> where Self: Sized {
-            MkDynamicState(Some(self.init()))
-        }
-    }
-
-    impl<P,S> DynamicParserOf<S> for P where P: ParserOf<S> {}
+fn test_boxable() {
 
     #[derive(Copy,Clone,Debug)]
     struct Foo;
     impl Parser for Foo {}
     impl<'a> ParserOf<&'a str> for Foo {
         type Output = String;
-        type State = Box<for<'b> DynamicState<&'b str, Output=String>>;
+        type State = Box<for<'b> BoxableParserOf<&'b str, Output=String>>;
         fn init(&self) -> Self::State {
             fn is_lparen(ch: char) -> bool { ch == '(' }
             fn is_rparen(ch: char) -> bool { ch == ')' }
@@ -773,7 +762,7 @@ fn test_lazy() {
             let RPAREN = character(is_rparen).map(Some).or_emit(mk_none);
             let parser = character(is_lparen).and_then(Foo).and_then(RPAREN).map(mk_tree)
                 .or_emit(String::new);
-            Box::new(parser.dynamic())
+            Box::new(parser.boxable())
         } 
     }
 
