@@ -9,24 +9,6 @@ use self::OrEmitStatefulParser::{Unresolved,Resolved};
 use self::AndThenStatefulParser::{InLhs,InRhs};
 use self::Str::{Borrowed,Owned};
 
-// ----------- Types data which can discard a suffix (e.g. strings, slices...) ------------
-
-pub trait DropSuffix {
-    fn drop_suffix(self, suffix: Self) -> Self;
-}
-
-impl<'a> DropSuffix for &'a str {
-    fn drop_suffix(self, suffix: &'a str) -> &'a str {
-        &self[0..(self.len() - suffix.len())]
-    }
-}
-
-impl<'a,T> DropSuffix for &'a[T] {
-    fn drop_suffix(self, suffix: &'a[T]) -> &'a[T] {
-        &self[0..(self.len() - suffix.len())]
-    }
-}
-
 // ----------- Types for parsers ------------
 
 pub trait StatefulParserOf<S> {
