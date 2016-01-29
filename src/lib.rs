@@ -9,50 +9,6 @@ use self::OrEmitStatefulParser::{Unresolved,Resolved};
 use self::AndThenStatefulParser::{InLhs,InRhs};
 use self::Str::{Borrowed,Owned};
 
-// ----------- Types for consumers ------------
-
-pub trait Consumer<T> {
-    fn push(&mut self, value: T);
-}
-
-pub struct DiscardConsumer;
-
-impl DiscardConsumer {
-    pub fn new() -> Self {
-        DiscardConsumer
-    }
-}
-
-impl<T> Consumer<T> for DiscardConsumer {
-    fn push(&mut self, _: T) {}
-}
-
-impl Consumer<String> for String {
-    fn push(&mut self, arg: String) {
-        self.push_str(&*arg);
-    }
-}
-
-impl<'a> Consumer<&'a str> for String {
-    fn push(&mut self, arg: &'a str) {
-        self.push_str(arg);
-    }
-}
-
-impl Consumer<char> for String {
-    fn push(&mut self, x: char) { self.push(x); }
-}
-
-impl<'a,T> Consumer<&'a[T]> for Vec<T> where T: Clone {
-    fn push(&mut self, arg: &'a[T]) {
-        self.extend(arg.iter().cloned());
-    }
-}
-
-impl<T> Consumer<T> for Vec<T> {
-    fn push(&mut self, x: T) { self.push(x); }
-}
-
 // ----------- Types data which can discard a suffix (e.g. strings, slices...) ------------
 
 pub trait DropSuffix {
@@ -360,6 +316,42 @@ impl<P,F,S> ParserOf<S> for OrEmitParser<P,F> where P: Clone+GuardedParserOf<S>,
 
 // ----------- Kleene star ---------------
 
+pub trait Consumer<T> {
+    fn accept(&mut self, value: T);
+}
+
+impl<T> Consumer<T> for () {
+    fn accept(&mut self, _: T) {}
+}
+
+pub fn ignore() -> () { () }
+
+impl Consumer<String> for String {
+    fn accept(&mut self, arg: String) {
+        self.push_str(&*arg);
+    }
+}
+
+impl<'a> Consumer<&'a str> for String {
+    fn accept(&mut self, arg: &'a str) {
+        self.push_str(arg);
+    }
+}
+
+impl Consumer<char> for String {
+    fn accept(&mut self, x: char) { self.push(x); }
+}
+
+impl<'a,T> Consumer<&'a[T]> for Vec<T> where T: Clone {
+    fn accept(&mut self, arg: &'a[T]) {
+        self.extend(arg.iter().cloned());
+    }
+}
+
+impl<T> Consumer<T> for Vec<T> {
+    fn accept(&mut self, x: T) { self.push(x); }
+}
+
 #[derive(Clone,Debug)]
 pub struct StarStatefulParser<P,Q,T>(P,Option<Q>,T);
 
@@ -371,12 +363,12 @@ impl<P,T,S> StatefulParserOf<S> for StarStatefulParser<P,P::State,T> where P: Co
                 None => match self.0.parse(value) {
                     Empty => return Continue(StarStatefulParser(self.0,None,self.2)),
                     Commit(Continue(parsing)) => return Continue(StarStatefulParser(self.0,Some(parsing),self.2)),
-                    Commit(Done(rest,result)) => { self.2.push(result); value = rest; },
+                    Commit(Done(rest,result)) => { self.2.accept(result); value = rest; },
                     Abort(rest) => return Done(rest,self.2),
                 },
                 Some(parser) => match parser.parse(value) {
                     Continue(parsing) => return Continue(StarStatefulParser(self.0,Some(parsing),self.2)),
-                    Done(rest,result) => { self.2.push(result); value = rest; },
+                    Done(rest,result) => { self.2.accept(result); value = rest; },
                 }
             }
         }
@@ -409,7 +401,7 @@ impl<P,F,S> GuardedParserOf<S> for PlusParser<P,F> where P: Copy+GuardedParserOf
             Commit(Continue(parsing)) => Commit(Continue(StarStatefulParser(self.0,Some(parsing),(self.1)()))),
             Commit(Done(rest,result)) => {
                 let mut buffer = (self.1)();
-                buffer.push(result);
+                buffer.accept(result);
                 Commit(StarStatefulParser(self.0,None,buffer).parse(rest))
             }
         }
@@ -759,7 +751,7 @@ fn test_star() {
 fn test_buffer() {
     let ALPHABETIC = character(char::is_alphabetic);
     let ALPHANUMERIC = character(char::is_alphanumeric);
-    let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(DiscardConsumer::new)).buffer();
+    let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(ignore)).buffer();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Borrowed("a")));
     assert_eq!(parser.parse("abc!").unCommit().unDone(),("!",Borrowed("abc")));
