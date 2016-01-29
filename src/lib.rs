@@ -17,6 +17,12 @@ pub trait Consumer<T> {
 
 pub struct DiscardConsumer;
 
+impl DiscardConsumer {
+    pub fn new() -> Self {
+        DiscardConsumer
+    }
+}
+
 impl<T> Consumer<T> for DiscardConsumer {
     fn push(&mut self, _: T) {}
 }
@@ -751,13 +757,14 @@ fn test_star() {
 #[test]
 #[allow(non_snake_case)]
 fn test_buffer() {
+    let ALPHABETIC = character(char::is_alphabetic);
     let ALPHANUMERIC = character(char::is_alphanumeric);
-    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).buffer();
+    let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(DiscardConsumer::new)).buffer();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Borrowed("a")));
-    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Borrowed("ab")));
+    assert_eq!(parser.parse("abc!").unCommit().unDone(),("!",Borrowed("abc")));
     let parsing = parser.parse("a").unCommit().unContinue();
-    assert_eq!(parsing.parse("bc").unDone(),("c",Owned(String::from("ab"))));
+    assert_eq!(parsing.parse("bc!").unDone(),("!",Owned(String::from("abc"))));
 }
 
 #[test]
