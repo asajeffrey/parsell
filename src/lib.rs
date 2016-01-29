@@ -716,40 +716,40 @@ fn test_lazy() {
 
     // Mucking around with recursive descent parsing, this needs tidied up and moved into the library.
 
-    trait LazyState<S> {
+    trait DynamicState<S> {
         type Output;
-        fn parse_mut(&mut self, value: S) -> Option<(S,Self::Output)>;
-        fn done_mut(&mut self) -> Self::Output;
+        fn parse_dyn(&mut self, value: S) -> Option<(S,Self::Output)>;
+        fn done_dyn(&mut self) -> Self::Output;
     }
 
-    struct MkLazyState<P> (Option<P>);
-    impl<P,S> LazyState<S> for MkLazyState<P> where P: StatefulParserOf<S> {
+    struct MkDynamicState<P> (Option<P>);
+    impl<P,S> DynamicState<S> for MkDynamicState<P> where P: StatefulParserOf<S> {
         type Output = P::Output;
-        fn parse_mut(&mut self, value: S) -> Option<(S,Self::Output)> {
+        fn parse_dyn(&mut self, value: S) -> Option<(S,Self::Output)> {
             match self.0.take().unwrap().parse(value) {
                 Done(rest,result) => Some((rest,result)),
                 Continue(parsing) => { self.0 = Some(parsing); None },
             }
         }
-        fn done_mut(&mut self) -> Self::Output {
+        fn done_dyn(&mut self) -> Self::Output {
             self.0.take().unwrap().done()
         }
     }
 
-    impl<P:?Sized,S> StatefulParserOf<S> for Box<P> where P: LazyState<S> {
+    impl<P:?Sized,S> StatefulParserOf<S> for Box<P> where P: DynamicState<S> {
         type Output = P::Output;
         fn parse(mut self, value: S) -> ParseResult<Self,S> {
-            match self.parse_mut(value) {
+            match self.parse_dyn(value) {
                 Some((rest,result)) => Done(rest,result),
                 None => Continue(self),
             }
         }
         fn done(mut self) -> Self::Output {
-            self.done_mut()
+            self.done_dyn()
         }
     }
 
-    type FooState = Box<for<'a> LazyState<&'a str, Output=String>>;
+    type FooState = Box<for<'a> DynamicState<&'a str, Output=String>>;
 
     #[derive(Copy,Clone,Debug)]
     struct Foo;
@@ -767,7 +767,7 @@ fn test_lazy() {
             let RPAREN = character(is_rparen).map(Some).or_emit(mk_none);
             let parser = character(is_lparen).and_then(Foo).and_then(RPAREN).map(mk_tree)
                 .or_emit(String::new);
-            Box::new(MkLazyState(Some(parser.init())))
+            Box::new(MkDynamicState(Some(parser.init())))
         } 
         fn parse(&self, value: &'a str) -> ParseResult<FooState,&'a str> {
             // TODO: avoid this duplication
@@ -782,10 +782,10 @@ fn test_lazy() {
                 .or_emit(String::new);
             match parser.parse(value) {
                 Done(rest,result) => Done(rest,result),
-                Continue(parsing) => Continue(Box::new(MkLazyState(Some(parsing)))),
+                Continue(parsing) => Continue(Box::new(MkDynamicState(Some(parsing)))),
             }
         }
-   }
+    }
 
     assert_eq!(Foo.parse("!").unDone(),("!",String::from("")));
     assert_eq!(Foo.parse("()!").unDone(),("!",String::from("[]")));
