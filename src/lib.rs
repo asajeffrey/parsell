@@ -543,7 +543,7 @@ impl<'a,P> GuardedParserOf<&'a str> for BufferedGuardedParser<P> where P: Guarde
     fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
         match self.0.parse(value) {
             Empty => Empty,
-            Commit(Done(rest,_)) => Commit(Done(rest,Borrowed(value.drop_suffix(rest)))),
+            Commit(Done(rest,_)) => Commit(Done(rest,Borrowed(&value[..(value.len() - rest.len())]))),
             Commit(Continue(parsing)) => Commit(Continue(BufferedStatefulParser(parsing,String::from(value)))),
             Abort(value) => Abort(value),
         }
@@ -557,7 +557,7 @@ impl<'a,P> StatefulParserOf<&'a str> for BufferedStatefulParser<P> where P: Stat
     type Output = Str<'a>;
     fn parse(mut self, value: &'a str) -> ParseResult<Self,&'a str> {
         match self.0.parse(value) {
-            Done(rest,_) => { self.1.push_str(value.drop_suffix(rest)); Done(rest,Owned(self.1)) },
+            Done(rest,_) => { self.1.push_str(&value[..(value.len() - rest.len())]); Done(rest,Owned(self.1)) },
             Continue(parsing) => { self.1.push_str(value); Continue(BufferedStatefulParser(parsing,self.1)) },
         }
     }
