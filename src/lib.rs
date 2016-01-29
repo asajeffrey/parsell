@@ -462,19 +462,19 @@ impl<T,S> StatefulParserOf<S> for ImpossibleStatefulParser<T> {
 }
 
 #[derive(Debug)]
-pub struct CharGuard<F>(F);
+pub struct CharacterParser<F>(F);
 
 // A work around for functions implmenting copy but not clone
 // https://github.com/rust-lang/rust/issues/28229
-impl<F> Copy for CharGuard<F> where F: Copy {}
-impl<F> Clone for CharGuard<F> where F: Copy {
+impl<F> Copy for CharacterParser<F> where F: Copy {}
+impl<F> Clone for CharacterParser<F> where F: Copy {
     fn clone(&self) -> Self {
-        CharGuard(self.0)
+        CharacterParser(self.0)
     }
 }
 
-impl<F> GuardedParser for CharGuard<F> where F: Fn(char) -> bool {}
-impl<'a,F> GuardedParserOf<&'a str> for CharGuard<F> where F: Fn(char) -> bool {
+impl<F> GuardedParser for CharacterParser<F> where F: Fn(char) -> bool {}
+impl<'a,F> GuardedParserOf<&'a str> for CharacterParser<F> where F: Fn(char) -> bool {
     type Output = char;
     type State = ImpossibleStatefulParser<char>;
     fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
@@ -489,8 +489,8 @@ impl<'a,F> GuardedParserOf<&'a str> for CharGuard<F> where F: Fn(char) -> bool {
     }
 }
 
-pub fn character<F>(f: F) -> CharGuard<F> where F: Fn(char) -> bool {
-    CharGuard(f)
+pub fn character<F>(f: F) -> CharacterParser<F> where F: Fn(char) -> bool {
+    CharacterParser(f)
 }
 
 // ----------- Buffering -------------
