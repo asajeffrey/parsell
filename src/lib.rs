@@ -89,12 +89,6 @@ pub trait ParserOf<S>: Parser {
     type Output;
     type State: StatefulParserOf<S,Output=Self::Output>;
     fn init(&self) -> Self::State;
-    fn parse(&self, value: S) -> ParseResult<Self::State,S> where Self: Sized {
-        self.init().parse(value)
-    }
-    fn done(&self) -> Self::Output where Self: Sized {
-        self.init().done()
-    }
     fn boxable(self) -> BoxableParser<Self::State> where Self: Sized { BoxableParser(Some(self.init())) }
 }
 
@@ -191,7 +185,7 @@ impl<P,Q,S> GuardedParserOf<S> for AndThenGuardedParser<P,Q> where P: GuardedPar
     fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
         match self.0.parse(value) {
             Empty => Empty,
-            Commit(Done(rest,result1)) => match self.1.parse(rest) {
+            Commit(Done(rest,result1)) => match self.1.init().parse(rest) {
                 Done(rest,result2) => Commit(Done(rest,(result1,result2))),
                 Continue(parsing) => Commit(Continue(InRhs(result1,parsing))),
             },
@@ -648,18 +642,18 @@ fn test_character() {
 fn test_or_emit() {
     fn mk_x() -> char { 'X' }
     let parser = character(char::is_alphabetic).or_emit(mk_x);
-    parser.parse("").unContinue();
-    assert_eq!(parser.parse("989").unDone(),("989",'X'));
-    assert_eq!(parser.parse("abc").unDone(),("bc",'a'));
+    parser.init().parse("").unContinue();
+    assert_eq!(parser.init().parse("989").unDone(),("989",'X'));
+    assert_eq!(parser.init().parse("abc").unDone(),("bc",'a'));
 }
 
 #[test]
 fn test_map() {
     fn mk_none<T>() -> Option<T> { None }
     let parser = character(char::is_alphabetic).map(Some).or_emit(mk_none);
-    parser.parse("").unContinue();
-    assert_eq!(parser.parse("989").unDone(),("989",None));
-    assert_eq!(parser.parse("abc").unDone(),("bc",Some('a')));
+    parser.init().parse("").unContinue();
+    assert_eq!(parser.init().parse("989").unDone(),("989",None));
+    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
 }
 
 #[test]
@@ -668,10 +662,10 @@ fn test_and_then() {
     fn mk_none<T>() -> Option<T> { None }
     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
-    parser.parse("").unContinue();
-    assert_eq!(parser.parse("989").unDone(),("989",None));
-    assert_eq!(parser.parse("a!").unDone(),("!",Some(('a',None))));
-    assert_eq!(parser.parse("abc").unDone(),("c",Some(('a',Some('b')))));
+    parser.init().parse("").unContinue();
+    assert_eq!(parser.init().parse("989").unDone(),("989",None));
+    assert_eq!(parser.init().parse("a!").unDone(),("!",Some(('a',None))));
+    assert_eq!(parser.init().parse("abc").unDone(),("c",Some(('a',Some('b')))));
 }
 
 #[test]
@@ -683,14 +677,14 @@ fn test_or_else() {
     let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some).
         or_else(character(char::is_numeric).and_then(NUMERIC).map(Some)).
         or_emit(mk_none);
-    parser.parse("").unContinue();
-    parser.parse("a").unContinue();
-    parser.parse("9").unContinue();
-    assert_eq!(parser.parse("!").unDone(),("!",None));
-    assert_eq!(parser.parse("a9").unDone(),("9",Some(('a',None))));
-    assert_eq!(parser.parse("9a").unDone(),("a",Some(('9',None))));
-    assert_eq!(parser.parse("abc").unDone(),("c",Some(('a',Some('b')))));
-    assert_eq!(parser.parse("123").unDone(),("3",Some(('1',Some('2')))));
+    parser.init().parse("").unContinue();
+    parser.init().parse("a").unContinue();
+    parser.init().parse("9").unContinue();
+    assert_eq!(parser.init().parse("!").unDone(),("!",None));
+    assert_eq!(parser.init().parse("a9").unDone(),("9",Some(('a',None))));
+    assert_eq!(parser.init().parse("9a").unDone(),("a",Some(('9',None))));
+    assert_eq!(parser.init().parse("abc").unDone(),("c",Some(('a',Some('b')))));
+    assert_eq!(parser.init().parse("123").unDone(),("3",Some(('1',Some('2')))));
 }
 
 #[test]
@@ -707,10 +701,10 @@ fn test_plus() {
 #[allow(non_snake_case)]
 fn test_star() {
     let parser = character(char::is_alphanumeric).star(String::new);
-    parser.parse("").unContinue();
-    assert_eq!(parser.parse("!!!").unDone(),("!!!",String::from("")));
-    assert_eq!(parser.parse("a!").unDone(),("!",String::from("a")));
-    assert_eq!(parser.parse("abc98def!").unDone(),("!",String::from("abc98def")));
+    parser.init().parse("").unContinue();
+    assert_eq!(parser.init().parse("!!!").unDone(),("!!!",String::from("")));
+    assert_eq!(parser.init().parse("a!").unDone(),("!",String::from("a")));
+    assert_eq!(parser.init().parse("abc98def!").unDone(),("!",String::from("abc98def")));
 }
 
 #[test]
@@ -730,10 +724,10 @@ fn test_buffer() {
 #[allow(non_snake_case)]
 fn test_different_lifetimes() {
     fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Copy+for<'c> ParserOf<&'c str,Output=Option<(char,Option<char>)>> {
-        let _: &'a str = parser.parse(ab).unDone().0;
-        let _: &'b str = parser.parse(cd).unDone().0;
-        assert_eq!(parser.parse(ab).unDone(),("",Some(('a',Some('b')))));
-        assert_eq!(parser.parse(cd).unDone(),("",Some(('c',Some('d')))));
+        let _: &'a str = parser.init().parse(ab).unDone().0;
+        let _: &'b str = parser.init().parse(cd).unDone().0;
+        assert_eq!(parser.init().parse(ab).unDone(),("",Some(('a',Some('b')))));
+        assert_eq!(parser.init().parse(cd).unDone(),("",Some(('c',Some('d')))));
     }
     fn mk_none<T>() -> Option<T> { None }
     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
@@ -766,10 +760,10 @@ fn test_boxable() {
         } 
     }
 
-    assert_eq!(Foo.parse("!").unDone(),("!",String::from("")));
-    assert_eq!(Foo.parse("()!").unDone(),("!",String::from("[]")));
-    assert_eq!(Foo.parse("(()))").unDone(),(")",String::from("[[]]")));
-    assert_eq!(Foo.parse("(").unContinue().parse(")!").unDone(),("!",String::from("[]")));
-    assert_eq!(Foo.parse("((").unContinue().parse("))!").unDone(),("!",String::from("[[]]")));
+    assert_eq!(Foo.init().parse("!").unDone(),("!",String::from("")));
+    assert_eq!(Foo.init().parse("()!").unDone(),("!",String::from("[]")));
+    assert_eq!(Foo.init().parse("(()))").unDone(),(")",String::from("[[]]")));
+    assert_eq!(Foo.init().parse("(").unContinue().parse(")!").unDone(),("!",String::from("[]")));
+    assert_eq!(Foo.init().parse("((").unContinue().parse("))!").unDone(),("!",String::from("[[]]")));
 
 }
