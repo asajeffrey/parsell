@@ -46,7 +46,7 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-0' class='srclink' href='../src/parsimonious/lib.rs.html#1-931' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-0' class='srclink' href='../src/parsimonious/lib.rs.html#1-1116' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Parsimonious: a parser combinator library for Rust</p>
 
 <p>The goal of this library is to provide parser combinators that:</p>
@@ -58,12 +58,20 @@
 <li>do as little dynamic method dispatch as possible.</li>
 </ul>
 
-<p>It is based on &quot;Monadic Parsing in Haskell&quot; by Hutton and Meijer, JFP 8(4) pp. 437-444.</p>
+<p>It is based on:</p>
+
+<ul>
+<li><a href="http://www.cs.nott.ac.uk/%7Epszgmh/pearl.pdf">Monadic Parsing in Haskell</a> by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,</li>
+<li><a href="https://github.com/Geal/nom">Nom, eating data byte by byte</a> by G. Couprie.</li>
+</ul>
+
+<p><a href="https://github.com/asajeffrey/parsimonious">Repo</a> |
+<a href="https://crates.io/crates/parsimonious">Crate</a></p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.AndThenGuardedParser.html'
-                               title='parsimonious::AndThenGuardedParser'>AndThenGuardedParser</a></td>
+                        <td><a class='struct' href='struct.AndThenParser.html'
+                               title='parsimonious::AndThenParser'>AndThenParser</a></td>
                         <td class='docblock short'>
                              
                         </td>
@@ -88,6 +96,14 @@
                     <tr class=' module-item'>
                         <td><a class='struct' href='struct.BufferedStatefulParser.html'
                                title='parsimonious::BufferedStatefulParser'>BufferedStatefulParser</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.CharacterGuardedParser.html'
+                               title='parsimonious::CharacterGuardedParser'>CharacterGuardedParser</a></td>
                         <td class='docblock short'>
                              
                         </td>
@@ -186,7 +202,8 @@
                         <td><a class='enum' href='enum.GuardedParseResult.html'
                                title='parsimonious::GuardedParseResult'>GuardedParseResult</a></td>
                         <td class='docblock short'>
-                             
+                             <p>The result of a guarded parse.</p>
+
                         </td>
                     </tr>
                 
@@ -218,7 +235,8 @@
                         <td><a class='enum' href='enum.ParseResult.html'
                                title='parsimonious::ParseResult'>ParseResult</a></td>
                         <td class='docblock short'>
-                             
+                             <p>The result of a parse.</p>
+
                         </td>
                     </tr>
                 
@@ -249,26 +267,11 @@
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='trait' href='trait.GuardedParser.html'
-                               title='parsimonious::GuardedParser'>GuardedParser</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
                         <td><a class='trait' href='trait.GuardedParserOf.html'
                                title='parsimonious::GuardedParserOf'>GuardedParserOf</a></td>
                         <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='trait' href='trait.Parser.html'
-                               title='parsimonious::Parser'>Parser</a></td>
-                        <td class='docblock short'>
-                             
+                             <p>A trait for stateless guarded parsers.</p>
+
                         </td>
                     </tr>
                 
@@ -276,7 +279,8 @@
                         <td><a class='trait' href='trait.ParserOf.html'
                                title='parsimonious::ParserOf'>ParserOf</a></td>
                         <td class='docblock short'>
-                             
+                             <p>A trait for stateless parsers.</p>
+
                         </td>
                     </tr>
                 
@@ -293,6 +297,14 @@
                     <tr class=' module-item'>
                         <td><a class='fn' href='fn.character.html'
                                title='parsimonious::character'>character</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.character_guard.html'
+                               title='parsimonious::character_guard'>character_guard</a></td>
                         <td class='docblock short'>
                              
                         </td>
