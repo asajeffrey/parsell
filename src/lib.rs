@@ -7,7 +7,13 @@
 //! * do as little buffering or copying as possible, and
 //! * do as little dynamic method dispatch as possible.
 //!
-//! It is based on "Monadic Parsing in Haskell" by Hutton and Meijer, JFP 8(4) pp. 437-444.
+//! It is based on:
+//!
+//! * [Monadic Parsing in Haskell](http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf) by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,
+//! * [Nom, eating data byte by byte](https://github.com/Geal/nom) by G. Couprie.
+//!
+//! [Repo](https://github.com/asajeffrey/parsimonious) |
+//! [Crate](https://crates.io/crates/parsimonious)
 
 #![feature(unboxed_closures)]
 
@@ -24,17 +30,16 @@ use self::Str::{Borrowed,Owned};
 
 /// A trait for stateful parsers.
 ///
-/// Stateful parsers are typically constructed by calling the `init` method of a parser,
+/// Stateful parsers are typically constructed by calling the `init` method of a stateless parser,
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character,GuardedParser,ParserOf,StatefulParserOf};
-/// let stateless = character(char::is_alphanumeric).star(String::new);
+/// # use parsimonious::{character_guard,GuardedParserOf,ParserOf};
+/// let stateless = character_guard(char::is_alphanumeric).star(String::new);
 /// let stateful = stateless.init();
 /// ```
 ///
 /// Here, `stateless` is a `ParserOf<&str,Output=String>`, and `stateful` is a `StatefulParserOf<&str,Output=String>`.
-
 
 pub trait StatefulParserOf<S> {
 
@@ -52,9 +57,9 @@ pub trait StatefulParserOf<S> {
     /// For example:
     ///
     /// ```
-    /// # use parsimonious::{character,GuardedParser,ParserOf,StatefulParserOf};
+    /// # use parsimonious::{character_guard,GuardedParserOf,ParserOf,StatefulParserOf};
     /// # use parsimonious::ParseResult::{Continue,Done};
-    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
     ///     Done(_,_) => panic!("can't happen"),
@@ -88,9 +93,9 @@ pub trait StatefulParserOf<S> {
     /// for example:
     ///
     /// ```
-    /// # use parsimonious::{character,GuardedParser,ParserOf,StatefulParserOf};
+    /// # use parsimonious::{character_guard,GuardedParserOf,ParserOf,StatefulParserOf};
     /// # use parsimonious::ParseResult::{Continue,Done};
-    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
     ///     Done(_,_) => panic!("can't happen"),
@@ -117,48 +122,204 @@ pub trait StatefulParserOf<S> {
 
 }
 
+/// The result of a parse.
 pub enum ParseResult<P,S> where P: StatefulParserOf<S> {
+    /// The parse is finished.
     Done(S,P::Output),
+    /// The parse can continue.
     Continue(P),
 }
 
-// A parser of S to T is a partial function S* -> T
-// whose domain is prefix-closed (that is, if st is in the domain, then s is in the domain)
-// and non-empty.
+/// A trait for stateless parsers.
+///
+/// Stateful parsers are typically constructed by calling the methods of the library,
+/// for example:
+///
+/// ```
+/// # use parsimonious::{character_guard,GuardedParserOf};
+/// let stateless = character_guard(char::is_alphanumeric).star(String::new);
+/// ```
+///
+/// Here, `stateless` is a `ParserOf<&str,Output=String>`.
+///
+/// The reason for distinguishing between stateful and stateless parsers is that
+/// stateless parsers are usually copyable, whereas stateful parsers are not
+/// (they may, for example, have created and partially filled some buffers).
+/// Copying parsers is quite common, for example:
+///
+/// ```
+/// # use parsimonious::{character,GuardedParserOf,ParserOf,StatefulParserOf};
+/// # use parsimonious::ParseResult::Done;
+/// let DIGIT = character(char::is_numeric);
+/// let TWO_DIGITS = DIGIT.and_then(DIGIT);
+/// match TWO_DIGITS.init().parse("123") {
+///    Done(_,result) => assert_eq!(result,(Some('1'),Some('2'))),
+///    _ => panic!("Can't happen"),
+/// }
+/// ```
+///
+/// Semantically, a parser with input *S* and output *T* is a partial function *S\* → T*
+/// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
+/// and non-empty.
 
-pub trait Parser {
-}
+pub trait ParserOf<S> {
 
-pub trait ParserOf<S>: Parser {
+    /// The type of the data being produced by the parser.
     type Output;
+
+    /// The type of the parser state.
     type State: StatefulParserOf<S,Output=Self::Output>;
+
+    /// Create a stateful parser by initializing a stateless parser.
     fn init(&self) -> Self::State;
+
+    /// Make this parser boxable.
     fn boxable(self) -> BoxableParser<Self::State> where Self: Sized { BoxableParser(Some(self.init())) }
+
+    // Sequence this parser with another parser.
+    fn and_then<P>(self, other: P) -> AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { AndThenParser(self,other) }
+    
 }
 
-// A guarded parser of S to T is a partial function S* -> T
-// whose domain is prefix-closed on non-empty strings
-// (that is, if st is in the domain, and s is non-empty then s is in the domain).
+/// A trait for stateless guarded parsers.
+///
+/// A guarded parser can decide based on the first token of input whether
+/// it will commit to parsing, or immediately backtrack and try another option.
+///
+/// The advantage of guarded parsers over parsers is they support choice:
+/// `p.or_else(q)` will try `p`, and commit if it commits, but if it backtracks
+/// will then try `q`; and `p.or_emit(f)` will try `p` and commit if it commits,
+/// but if it backtracks will stop parsing and return `f()`. For example:
+///
+/// ```
+/// # use parsimonious::{character_guard,GuardedParserOf,ParserOf,StatefulParserOf};
+/// # use parsimonious::ParseResult::Done;
+/// fn default_char() -> char { '?' }
+/// let parser =
+///    character_guard(char::is_numeric)
+///        .or_else(character_guard(char::is_alphabetic))
+///        .or_emit(default_char);
+/// match parser.init().parse("123") {
+///    Done(_,result) => assert_eq!(result,'1'),
+///    _ => panic!("Can't happen"),
+/// }
+/// match parser.init().parse("abc") {
+///    Done(_,result) => assert_eq!(result,'a'),
+///    _ => panic!("Can't happen"),
+/// }
+/// match parser.init().parse("!@#") {
+///    Done(_,result) => assert_eq!(result,'?'),
+///    _ => panic!("Can't happen"),
+/// }
+/// ```
+///
+/// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
+/// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
-pub trait GuardedParser {
-    fn or_else<P>(self, other: P) -> OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParser { OrElseGuardedParser(self,other) }
-    fn or_emit<F>(self, factory: F) -> OrEmitParser<Self,F> where Self:Sized { OrEmitParser(self,factory) }
-    fn and_then<P>(self, other: P) -> AndThenGuardedParser<Self,P> where Self:Sized, P: Parser { AndThenGuardedParser(self,other) }
-    fn plus<F>(self, factory: F) -> PlusParser<Self,F> where Self:Sized { PlusParser(self,factory) }
-    fn star<F>(self, factory: F) -> StarParser<Self,F> where Self:Sized { StarParser(self,factory) }
-    fn map<F>(self, f: F) -> MapGuardedParser<Self,F> where Self:Sized, { MapGuardedParser(self,f) }
-    fn buffer(self) -> BufferedGuardedParser<Self> where Self:Sized, { BufferedGuardedParser(self) }
-}
+pub trait GuardedParserOf<S> {
 
-pub trait GuardedParserOf<S>: GuardedParser {
+    /// The type of the data being produced by the parser.
     type Output;
+
+    /// The type of the parser state.
     type State: StatefulParserOf<S,Output=Self::Output>;
+
+    /// Provides data to the parser.
+    /// 
+    /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.parse(data)` either:
+    ///
+    /// * returns `Empty` because `data` was empty,
+    /// * returns `Abort(data)` because the parser should backtrack, or
+    /// * returns `Commit(result)` because the parser has committed.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// # use parsimonious::{character_guard,GuardedParserOf,StatefulParserOf};
+    /// # use parsimonious::GuardedParseResult::{Empty,Commit,Abort};
+    /// # use parsimonious::ParseResult::{Done,Continue};
+    /// let parser = character_guard(char::is_alphabetic).plus(String::new);
+    /// match parser.parse("") {
+    ///     Empty => (),
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// match parser.parse("!abc") {
+    ///     Abort("!abc") => (),
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// match parser.parse("abc!") {
+    ///     Commit(Done("!",result)) => assert_eq!(result,"abc"),
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// match parser.parse("abc") {
+    ///     Commit(Continue(parsing)) => match parsing.parse("def!") {
+    ///         Done("!",result) => assert_eq!(result,"abcdef"),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+    ///
+    /// Note that the decision to commit or abort must be made on the first
+    /// token of data (since the parser only retries on empty input)
+    /// so this is appropriate for LL(1) grammars that only perform one token
+    /// of lookahead.
     fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> where Self: Sized;
+
+    /// Choice between guarded parsers (returns a guarded parser).
+    fn or_else<P>(self, other: P) -> OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParserOf<S> { OrElseGuardedParser(self,other) }
+
+    /// Gives a guarded parser a default value (returns a parser).
+    fn or_emit<F>(self, factory: F) -> OrEmitParser<Self,F> where Self:Sized { OrEmitParser(self,factory) }
+
+    /// Sequencing with a parser (returns a guarded parser).
+    fn and_then<P>(self, other: P) -> AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { AndThenParser(self,other) }
+
+    /// Iterate one or more times (returns a guarded parser).
+    fn plus<F>(self, factory: F) -> PlusParser<Self,F> where Self:Sized { PlusParser(self,factory) }
+
+    /// Iterate zero or more times (returns a parser).
+    fn star<F>(self, factory: F) -> StarParser<Self,F> where Self:Sized { StarParser(self,factory) }
+
+    /// Apply a function to the result (returns a guarded parser).
+    fn map<F>(self, f: F) -> MapGuardedParser<Self,F> where Self:Sized, { MapGuardedParser(self,f) }
+
+    /// Replace the result with the input.
+    ///
+    /// This does its best to avoid having to buffer the input. The result of a buffered parser
+    /// may be borrowed (because no buffering was required) or owned (because buffering was required).
+    /// Buffering is required in the case that the input was provided in chunks, rather than
+    /// contiguously. For example:
+    ///
+    /// ```
+    /// # use parsimonious::{character_guard,ignore,GuardedParserOf,StatefulParserOf};
+    /// # use parsimonious::GuardedParseResult::{Commit}; 
+    /// # use parsimonious::ParseResult::{Done,Continue};
+    /// # use parsimonious::Str::{Borrowed,Owned};
+    /// let parser = character_guard(char::is_alphabetic).plus(ignore).buffer();
+    /// match parser.parse("abc!") {
+    ///     Commit(Done("!",result)) => assert_eq!(result,Borrowed("abc")),
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// match parser.parse("abc") {
+    ///     Commit(Continue(parsing)) => match parsing.parse("def!") {
+    ///         Done("!",result) => assert_eq!(result,Owned(String::from("abcdef"))),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+    fn buffer(self) -> BufferedGuardedParser<Self> where Self:Sized, { BufferedGuardedParser(self) }
+    
 }
 
+/// The result of a guarded parse.
 pub enum GuardedParseResult<P,S> where P: StatefulParserOf<S> {
+    /// The input was empty.
     Empty,
+    /// The parser must backtrack.
     Abort(S),
+    /// The parser has committed to parsing the input.
     Commit(ParseResult<P,S>),
 }
 
@@ -203,7 +364,6 @@ impl<P,F> Clone for MapGuardedParser<P,F> where P: Clone, F: Copy {
     }
 }
 
-impl<P,F> GuardedParser for MapGuardedParser<P,F> where P: GuardedParser {}
 impl<P,F,S> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedParserOf<S>, F: Copy+Fn<(P::Output,)> {
     type Output = F::Output;        
     type State = MapStatefulParser<P::State,F>;
@@ -220,10 +380,17 @@ impl<P,F,S> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedParserO
 // ----------- Sequencing ---------------
 
 #[derive(Copy, Clone, Debug)]
-pub struct AndThenGuardedParser<P,Q>(P,Q);
+pub struct AndThenParser<P,Q>(P,Q);
 
-impl<P,Q> GuardedParser for AndThenGuardedParser<P,Q> where P: GuardedParser, Q: Parser {}
-impl<P,Q,S> GuardedParserOf<S> for AndThenGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: ParserOf<S> {
+impl<P,Q,S> ParserOf<S> for AndThenParser<P,Q> where P: ParserOf<S>, Q: ParserOf<S> {
+    type Output = (P::Output,Q::Output);
+    type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
+    fn init(&self) -> Self::State {
+        InLhs(self.0.init(),self.1.init())
+    }
+}
+
+impl<P,Q,S> GuardedParserOf<S> for AndThenParser<P,Q> where P: GuardedParserOf<S>, Q: ParserOf<S> {
     type Output = (P::Output,Q::Output);
     type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
     fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
@@ -279,7 +446,6 @@ impl<P,Q,S> StatefulParserOf<S> for AndThenStatefulParser<P,Q,P::Output> where P
 #[derive(Copy, Clone, Debug)]
 pub struct OrElseGuardedParser<P,Q>(P,Q);
 
-impl<P,Q> GuardedParser for OrElseGuardedParser<P,Q> where P: GuardedParser, Q: GuardedParser {}
 impl<P,Q,S> GuardedParserOf<S> for OrElseGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: GuardedParserOf<S,Output=P::Output> {
     type Output = P::Output;
     type State = OrElseStatefulParser<P::State,Q::State>;
@@ -387,7 +553,6 @@ impl<P,F> Clone for OrEmitParser<P,F> where P: Clone, F: Copy {
     }
 }
 
-impl<P,F> Parser for OrEmitParser<P,F> where P: GuardedParser {}
 impl<P,F,S> ParserOf<S> for OrEmitParser<P,F> where P: Clone+GuardedParserOf<S>, F: Copy+Fn<(),Output=P::Output> {
     type Output = P::Output;
     type State = OrEmitStatefulParser<P,F,P::State>;
@@ -507,7 +672,6 @@ impl<P,F> Clone for PlusParser<P,F> where P: Clone, F: Copy {
     }
 }
 
-impl<P,F> GuardedParser for PlusParser<P,F> where P: Copy+GuardedParser {}
 impl<P,F,S> GuardedParserOf<S> for PlusParser<P,F> where P: Copy+GuardedParserOf<S>, F: Fn<()>, F::Output: Consumer<P::Output> {
     type Output = F::Output;
     type State = StarStatefulParser<P,P::State,F::Output>;
@@ -537,7 +701,6 @@ impl<P,F> Clone for StarParser<P,F> where P: Clone, F: Copy {
     }
 }
 
-impl<P,F> Parser for StarParser<P,F> where P: Copy+GuardedParser {}
 impl<P,F,S> ParserOf<S> for StarParser<P,F> where P: Copy+GuardedParserOf<S>, F: Fn<()>, F::Output: Consumer<P::Output> {
     type Output = F::Output;
     type State = StarStatefulParser<P,P::State,F::Output>;
@@ -611,7 +774,6 @@ impl<F> Clone for CharacterParser<F> where F: Copy {
     }
 }
 
-impl<F> Parser for CharacterParser<F> where F: Fn(char) -> bool {}
 impl<'a,F> ParserOf<&'a str> for CharacterParser<F> where F: Copy+Fn(char) -> bool {
     type Output = Option<char>;
     type State = CharacterStatefulParser<F>;
@@ -620,8 +782,19 @@ impl<'a,F> ParserOf<&'a str> for CharacterParser<F> where F: Copy+Fn(char) -> bo
     }
 }
 
-impl<F> GuardedParser for CharacterParser<F> where F: Fn(char) -> bool {}
-impl<'a,F> GuardedParserOf<&'a str> for CharacterParser<F> where F: Fn(char) -> bool {
+#[derive(Debug)]
+pub struct CharacterGuardedParser<F>(F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<F> Copy for CharacterGuardedParser<F> where F: Copy {}
+impl<F> Clone for CharacterGuardedParser<F> where F: Copy {
+    fn clone(&self) -> Self {
+        CharacterGuardedParser(self.0)
+    }
+}
+
+impl<'a,F> GuardedParserOf<&'a str> for CharacterGuardedParser<F> where F: Fn(char) -> bool {
     type Output = char;
     type State = ImpossibleStatefulParser<char>;
     fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
@@ -638,6 +811,10 @@ impl<'a,F> GuardedParserOf<&'a str> for CharacterParser<F> where F: Fn(char) -> 
 
 pub fn character<F>(f: F) -> CharacterParser<F> where F: Fn(char) -> bool {
     CharacterParser(f)
+}
+
+pub fn character_guard<F>(f: F) -> CharacterGuardedParser<F> where F: Fn(char) -> bool {
+    CharacterGuardedParser(f)
 }
 
 // ----------- Buffering -------------
@@ -671,7 +848,6 @@ pub enum Str<'a> {
 #[derive(Copy, Clone, Debug)]
 pub struct BufferedGuardedParser<P>(P);
 
-impl<P> GuardedParser for BufferedGuardedParser<P> where P: GuardedParser {}
 impl<'a,P> GuardedParserOf<&'a str> for BufferedGuardedParser<P> where P: GuardedParserOf<&'a str> {
     type Output = Str<'a>;
     type State = BufferedStatefulParser<P::State>;
@@ -786,18 +962,23 @@ impl<P,S> ParseResult<P,S> where P: StatefulParserOf<S> {
 #[test]
 fn test_character() {
     let parser = character(char::is_alphabetic);
+    parser.init().parse("").unContinue();
+    assert_eq!(parser.init().parse("989").unDone(),("989",None));
+    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
+}
+
+#[test]
+fn test_character_guard() {
+    let parser = character_guard(char::is_alphabetic);
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("abc").unCommit().unDone(),("bc",'a'));
-    parser.init().parse("").unContinue();
-    assert_eq!(parser.init().parse("989").unDone(),("989",None));
-    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')))
 }
 
 #[test]
 fn test_or_emit() {
     fn mk_x() -> char { 'X' }
-    let parser = character(char::is_alphabetic).or_emit(mk_x);
+    let parser = character_guard(char::is_alphabetic).or_emit(mk_x);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("989",'X'));
     assert_eq!(parser.init().parse("abc").unDone(),("bc",'a'));
@@ -806,7 +987,7 @@ fn test_or_emit() {
 #[test]
 fn test_map() {
     fn mk_none<T>() -> Option<T> { None }
-    let parser = character(char::is_alphabetic).map(Some).or_emit(mk_none);
+    let parser = character_guard(char::is_alphabetic).map(Some).or_emit(mk_none);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("989",None));
     assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
@@ -817,11 +998,16 @@ fn test_map() {
 fn test_and_then() {
     fn mk_none<T>() -> Option<T> { None }
     let ALPHANUMERIC = character(char::is_alphanumeric);
-    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("989",None));
     assert_eq!(parser.init().parse("a!").unDone(),("!",Some(('a',None))));
     assert_eq!(parser.init().parse("abc").unDone(),("c",Some(('a',Some('b')))));
+    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC);
+    parser.init().parse("").unContinue();
+    assert_eq!(parser.init().parse("989").unDone(),("89",(None,Some('9'))));
+    assert_eq!(parser.init().parse("a!").unDone(),("!",(Some('a'),None)));
+    assert_eq!(parser.init().parse("abc").unDone(),("c",(Some('a'),Some('b'))));
 }
 
 #[test]
@@ -830,8 +1016,8 @@ fn test_or_else() {
     fn mk_none<T>() -> Option<T> { None }
     let NUMERIC = character(char::is_numeric);
     let ALPHABETIC = character(char::is_alphabetic);
-    let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some).
-        or_else(character(char::is_numeric).and_then(NUMERIC).map(Some)).
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHABETIC).map(Some).
+        or_else(character_guard(char::is_numeric).and_then(NUMERIC).map(Some)).
         or_emit(mk_none);
     parser.init().parse("").unContinue();
     parser.init().parse("a").unContinue();
@@ -846,7 +1032,7 @@ fn test_or_else() {
 #[test]
 #[allow(non_snake_case)]
 fn test_plus() {
-    let parser = character(char::is_alphanumeric).plus(String::new);
+    let parser = character_guard(char::is_alphanumeric).plus(String::new);
     parser.parse("").unEmpty();
     parser.parse("!!!").unAbort();
     assert_eq!(parser.parse("a!").unCommit().unDone(),("!",String::from("a")));
@@ -856,7 +1042,7 @@ fn test_plus() {
 #[test]
 #[allow(non_snake_case)]
 fn test_star() {
-    let parser = character(char::is_alphanumeric).star(String::new);
+    let parser = character_guard(char::is_alphanumeric).star(String::new);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("!!!").unDone(),("!!!",String::from("")));
     assert_eq!(parser.init().parse("a!").unDone(),("!",String::from("a")));
@@ -866,8 +1052,8 @@ fn test_star() {
 #[test]
 #[allow(non_snake_case)]
 fn test_buffer() {
-    let ALPHABETIC = character(char::is_alphabetic);
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let ALPHABETIC = character_guard(char::is_alphabetic);
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric);
     let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(ignore)).buffer();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Borrowed("a")));
@@ -887,7 +1073,7 @@ fn test_different_lifetimes() {
     }
     fn mk_none<T>() -> Option<T> { None }
     let ALPHANUMERIC = character(char::is_alphanumeric);
-    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     go("ab","cd",parser);
 }
 
@@ -901,7 +1087,6 @@ fn test_boxable() {
     
     #[derive(Copy,Clone,Debug)]
     struct Foo;
-    impl Parser for Foo {}
     impl<'a> ParserOf<&'a str> for Foo {
         type Output = Tree;
         type State = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
@@ -914,7 +1099,7 @@ fn test_boxable() {
             fn mk_tree(children: ((char, Tree), Option<char>)) -> Tree {
                 Tree(vec![ (children.0).1 ])
             }
-            let LPAREN = character(is_lparen);
+            let LPAREN = character_guard(is_lparen);
             let RPAREN = character(is_rparen);
             let parser = LPAREN.and_then(Foo).and_then(RPAREN).map(mk_tree)
                 .or_emit(mk_empty_tree);

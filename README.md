@@ -6,7 +6,13 @@ The goal of this project is to implement a parser combinator library that:
 * Does as little buffering or copying as possible
 * Does as little dynamic method dispatch as possible
 
-It is based on "Monadic Parsing in Haskell" by Hutton and Meijer, JFP 8(4) pp. 437-444.
+It is based on:
+
+* [Monadic Parsing in Haskell](http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf) by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,
+* [Nom, eating data byte by byte](https://github.com/Geal/nom) by G. Couprie.
+
+[Rustdoc](http://asajeffrey.github.io/parsimonious) |
+[Crate](https://crates.io/crates/parsimonious)
 
 ## Example
 
