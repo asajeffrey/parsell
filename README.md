@@ -1,10 +1,11 @@
 # parsimonious: a parser combinator library for Rust
 
-The goal of this project is to implement a parser combinator library that:
+The goal of this library is to provide parser combinators that:
 
-* Supports streaming input
-* Does as little buffering or copying as possible
-* Does as little dynamic method dispatch as possible
+* are optimized for LL(1) grammars,
+* support streaming input,
+* do as little buffering or copying as possible, and
+* do as little dynamic method dispatch as possible.
 
 It is based on:
 
@@ -18,7 +19,7 @@ It is based on:
 
 To parse a sequence of alphanumerics into a string buffer:
 ```rust
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric);
     let ALPHANUMERICS = ALPHANUMERIC.star(String::new);
 ```
 If you provide complete input to the parser, you will get back a `Done` response, for example:
