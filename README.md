@@ -1,10 +1,11 @@
 # parsimonious: a parser combinator library for Rust
 
-The goal of this project is to implement a parser combinator library that:
+The goal of this library is to provide parser combinators that:
 
-* Supports streaming input
-* Does as little buffering or copying as possible
-* Does as little dynamic method dispatch as possible
+* are optimized for LL(1) grammars,
+* support streaming input,
+* do as little buffering or copying as possible, and
+* do as little dynamic method dispatch as possible.
 
 It is based on:
 
