@@ -13,7 +13,8 @@
 //! * [Nom, eating data byte by byte](https://github.com/Geal/nom) by G. Couprie.
 //!
 //! [Repo](https://github.com/asajeffrey/parsimonious) |
-//! [Crate](https://crates.io/crates/parsimonious)
+//! [Crate](https://crates.io/crates/parsimonious) |
+//! [CI](https://travis-ci.org/asajeffrey/parsimonious)
 
 #![feature(unboxed_closures)]
 
