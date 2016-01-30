@@ -150,7 +150,6 @@ pub enum ParseResult<P,S> where P: StatefulParserOf<S> {
 /// ```
 /// # use parsimonious::{character,GuardedParserOf,ParserOf,StatefulParserOf};
 /// # use parsimonious::ParseResult::Done;
-/// # use parsimonious::GuardedParseResult::Commit;
 /// let DIGIT = character(char::is_numeric);
 /// let TWO_DIGITS = DIGIT.and_then(DIGIT);
 /// match TWO_DIGITS.init().parse("123") {
@@ -182,26 +181,145 @@ pub trait ParserOf<S> {
     
 }
 
-// A guarded parser of S to T is a partial function S* -> T
-// whose domain is prefix-closed on non-empty strings
-// (that is, if st is in the domain, and s is non-empty then s is in the domain).
+/// A trait for stateless guarded parsers.
+///
+/// A guarded parser can decide based on the first token of input whether
+/// it will commit to parsing, or immediately backtrack and try another option.
+///
+/// The advantage of guarded parsers over parsers is they support choice:
+/// `p.or_else(q)` will try `p`, and commit if it commits, but if it backtracks
+/// will then try `q`; and `p.or_emit(f)` will try `p` and commit if it commits,
+/// but if it backtracks will stop parsing and return `f()`. For example:
+///
+/// ```
+/// # use parsimonious::{character_guard,GuardedParserOf,ParserOf,StatefulParserOf};
+/// # use parsimonious::ParseResult::Done;
+/// fn default_char() -> char { '?' }
+/// let parser =
+///    character_guard(char::is_numeric)
+///        .or_else(character_guard(char::is_alphabetic))
+///        .or_emit(default_char);
+/// match parser.init().parse("123") {
+///    Done(_,result) => assert_eq!(result,'1'),
+///    _ => panic!("Can't happen"),
+/// }
+/// match parser.init().parse("abc") {
+///    Done(_,result) => assert_eq!(result,'a'),
+///    _ => panic!("Can't happen"),
+/// }
+/// match parser.init().parse("!@#") {
+///    Done(_,result) => assert_eq!(result,'?'),
+///    _ => panic!("Can't happen"),
+/// }
+/// ```
+///
+/// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
+/// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
 pub trait GuardedParserOf<S> {
-    fn or_else<P>(self, other: P) -> OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParserOf<S> { OrElseGuardedParser(self,other) }
-    fn or_emit<F>(self, factory: F) -> OrEmitParser<Self,F> where Self:Sized { OrEmitParser(self,factory) }
-    fn and_then<P>(self, other: P) -> AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { AndThenParser(self,other) }
-    fn plus<F>(self, factory: F) -> PlusParser<Self,F> where Self:Sized { PlusParser(self,factory) }
-    fn star<F>(self, factory: F) -> StarParser<Self,F> where Self:Sized { StarParser(self,factory) }
-    fn map<F>(self, f: F) -> MapGuardedParser<Self,F> where Self:Sized, { MapGuardedParser(self,f) }
-    fn buffer(self) -> BufferedGuardedParser<Self> where Self:Sized, { BufferedGuardedParser(self) }
+
+    /// The type of the data being produced by the parser.
     type Output;
+
+    /// The type of the parser state.
     type State: StatefulParserOf<S,Output=Self::Output>;
+
+    /// Provides data to the parser.
+    /// 
+    /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.parse(data)` either:
+    ///
+    /// * returns `Empty` because `data` was empty,
+    /// * returns `Abort(data)` because the parser should backtrack, or
+    /// * returns `Commit(result)` because the parser has committed.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// # use parsimonious::{character_guard,GuardedParserOf,StatefulParserOf};
+    /// # use parsimonious::GuardedParseResult::{Empty,Commit,Abort};
+    /// # use parsimonious::ParseResult::{Done,Continue};
+    /// let parser = character_guard(char::is_alphabetic).plus(String::new);
+    /// match parser.parse("") {
+    ///     Empty => (),
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// match parser.parse("!abc") {
+    ///     Abort("!abc") => (),
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// match parser.parse("abc!") {
+    ///     Commit(Done("!",result)) => assert_eq!(result,"abc"),
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// match parser.parse("abc") {
+    ///     Commit(Continue(parsing)) => match parsing.parse("def!") {
+    ///         Done("!",result) => assert_eq!(result,"abcdef"),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+    ///
+    /// Note that the decision to commit or abort must be made on the first
+    /// token of data (since the parser only retries on empty input)
+    /// so this is appropriate for LL(1) grammars that only perform one token
+    /// of lookahead.
     fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> where Self: Sized;
+
+    /// Choice between guarded parsers (returns a guarded parser).
+    fn or_else<P>(self, other: P) -> OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParserOf<S> { OrElseGuardedParser(self,other) }
+
+    /// Gives a guarded parser a default value (returns a parser).
+    fn or_emit<F>(self, factory: F) -> OrEmitParser<Self,F> where Self:Sized { OrEmitParser(self,factory) }
+
+    /// Sequencing with a parser (returns a guarded parser).
+    fn and_then<P>(self, other: P) -> AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { AndThenParser(self,other) }
+
+    /// Iterate one or more times (returns a guarded parser).
+    fn plus<F>(self, factory: F) -> PlusParser<Self,F> where Self:Sized { PlusParser(self,factory) }
+
+    /// Iterate zero or more times (returns a parser).
+    fn star<F>(self, factory: F) -> StarParser<Self,F> where Self:Sized { StarParser(self,factory) }
+
+    /// Apply a function to the result (returns a guarded parser).
+    fn map<F>(self, f: F) -> MapGuardedParser<Self,F> where Self:Sized, { MapGuardedParser(self,f) }
+
+    /// Replace the result with the input.
+    ///
+    /// This does its best to avoid having to buffer the input. The result of a buffered parser
+    /// may be borrowed (because no buffering was required) or owned (because buffering was required).
+    /// Buffering is required in the case that the input was provided in chunks, rather than
+    /// contiguously. For example:
+    ///
+    /// ```
+    /// # use parsimonious::{character_guard,ignore,GuardedParserOf,StatefulParserOf};
+    /// # use parsimonious::GuardedParseResult::{Commit}; 
+    /// # use parsimonious::ParseResult::{Done,Continue};
+    /// # use parsimonious::Str::{Borrowed,Owned};
+    /// let parser = character_guard(char::is_alphabetic).plus(ignore).buffer();
+    /// match parser.parse("abc!") {
+    ///     Commit(Done("!",result)) => assert_eq!(result,Borrowed("abc")),
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// match parser.parse("abc") {
+    ///     Commit(Continue(parsing)) => match parsing.parse("def!") {
+    ///         Done("!",result) => assert_eq!(result,Owned(String::from("abcdef"))),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+    fn buffer(self) -> BufferedGuardedParser<Self> where Self:Sized, { BufferedGuardedParser(self) }
+    
 }
 
+/// The result of a guarded parse.
 pub enum GuardedParseResult<P,S> where P: StatefulParserOf<S> {
+    /// The input was empty.
     Empty,
+    /// The parser must backtrack.
     Abort(S),
+    /// The parser has committed to parsing the input.
     Commit(ParseResult<P,S>),
 }
 
