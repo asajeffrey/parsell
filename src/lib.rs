@@ -34,8 +34,8 @@ use self::Str::{Borrowed,Owned};
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character,GuardedParserOf,ParserOf};
-/// let stateless = character(char::is_alphanumeric).star(String::new);
+/// # use parsimonious::{character_guard,GuardedParserOf,ParserOf};
+/// let stateless = character_guard(char::is_alphanumeric).star(String::new);
 /// let stateful = stateless.init();
 /// ```
 ///
@@ -57,9 +57,9 @@ pub trait StatefulParserOf<S> {
     /// For example:
     ///
     /// ```
-    /// # use parsimonious::{character,GuardedParserOf,ParserOf,StatefulParserOf};
+    /// # use parsimonious::{character_guard,GuardedParserOf,ParserOf,StatefulParserOf};
     /// # use parsimonious::ParseResult::{Continue,Done};
-    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
     ///     Done(_,_) => panic!("can't happen"),
@@ -93,9 +93,9 @@ pub trait StatefulParserOf<S> {
     /// for example:
     ///
     /// ```
-    /// # use parsimonious::{character,GuardedParserOf,ParserOf,StatefulParserOf};
+    /// # use parsimonious::{character_guard,GuardedParserOf,ParserOf,StatefulParserOf};
     /// # use parsimonious::ParseResult::{Continue,Done};
-    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
     ///     Done(_,_) => panic!("can't happen"),
@@ -136,8 +136,8 @@ pub enum ParseResult<P,S> where P: StatefulParserOf<S> {
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character,GuardedParserOf};
-/// let stateless = character(char::is_alphanumeric).star(String::new);
+/// # use parsimonious::{character_guard,GuardedParserOf};
+/// let stateless = character_guard(char::is_alphanumeric).star(String::new);
 /// ```
 ///
 /// Here, `stateless` is a `ParserOf<&str,Output=String>`.
@@ -153,8 +153,8 @@ pub enum ParseResult<P,S> where P: StatefulParserOf<S> {
 /// # use parsimonious::GuardedParseResult::Commit;
 /// let DIGIT = character(char::is_numeric);
 /// let TWO_DIGITS = DIGIT.and_then(DIGIT);
-/// match TWO_DIGITS.parse("123") {
-///    Commit(Done(_,result)) => assert_eq!(result,('1',Some('2'))),
+/// match TWO_DIGITS.init().parse("123") {
+///    Done(_,result) => assert_eq!(result,(Some('1'),Some('2'))),
 ///    _ => panic!("Can't happen"),
 /// }
 /// ```
@@ -177,6 +177,9 @@ pub trait ParserOf<S> {
     /// Make this parser boxable.
     fn boxable(self) -> BoxableParser<Self::State> where Self: Sized { BoxableParser(Some(self.init())) }
 
+    // Sequence this parser with another parser.
+    fn and_then<P>(self, other: P) -> AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { AndThenParser(self,other) }
+    
 }
 
 // A guarded parser of S to T is a partial function S* -> T
@@ -260,6 +263,14 @@ impl<P,F,S> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedParserO
 
 #[derive(Copy, Clone, Debug)]
 pub struct AndThenParser<P,Q>(P,Q);
+
+impl<P,Q,S> ParserOf<S> for AndThenParser<P,Q> where P: ParserOf<S>, Q: ParserOf<S> {
+    type Output = (P::Output,Q::Output);
+    type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
+    fn init(&self) -> Self::State {
+        InLhs(self.0.init(),self.1.init())
+    }
+}
 
 impl<P,Q,S> GuardedParserOf<S> for AndThenParser<P,Q> where P: GuardedParserOf<S>, Q: ParserOf<S> {
     type Output = (P::Output,Q::Output);
@@ -653,7 +664,19 @@ impl<'a,F> ParserOf<&'a str> for CharacterParser<F> where F: Copy+Fn(char) -> bo
     }
 }
 
-impl<'a,F> GuardedParserOf<&'a str> for CharacterParser<F> where F: Fn(char) -> bool {
+#[derive(Debug)]
+pub struct CharacterGuardedParser<F>(F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<F> Copy for CharacterGuardedParser<F> where F: Copy {}
+impl<F> Clone for CharacterGuardedParser<F> where F: Copy {
+    fn clone(&self) -> Self {
+        CharacterGuardedParser(self.0)
+    }
+}
+
+impl<'a,F> GuardedParserOf<&'a str> for CharacterGuardedParser<F> where F: Fn(char) -> bool {
     type Output = char;
     type State = ImpossibleStatefulParser<char>;
     fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
@@ -670,6 +693,10 @@ impl<'a,F> GuardedParserOf<&'a str> for CharacterParser<F> where F: Fn(char) -> 
 
 pub fn character<F>(f: F) -> CharacterParser<F> where F: Fn(char) -> bool {
     CharacterParser(f)
+}
+
+pub fn character_guard<F>(f: F) -> CharacterGuardedParser<F> where F: Fn(char) -> bool {
+    CharacterGuardedParser(f)
 }
 
 // ----------- Buffering -------------
@@ -817,18 +844,23 @@ impl<P,S> ParseResult<P,S> where P: StatefulParserOf<S> {
 #[test]
 fn test_character() {
     let parser = character(char::is_alphabetic);
+    parser.init().parse("").unContinue();
+    assert_eq!(parser.init().parse("989").unDone(),("989",None));
+    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
+}
+
+#[test]
+fn test_character_guard() {
+    let parser = character_guard(char::is_alphabetic);
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("abc").unCommit().unDone(),("bc",'a'));
-    parser.init().parse("").unContinue();
-    assert_eq!(parser.init().parse("989").unDone(),("989",None));
-    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')))
 }
 
 #[test]
 fn test_or_emit() {
     fn mk_x() -> char { 'X' }
-    let parser = character(char::is_alphabetic).or_emit(mk_x);
+    let parser = character_guard(char::is_alphabetic).or_emit(mk_x);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("989",'X'));
     assert_eq!(parser.init().parse("abc").unDone(),("bc",'a'));
@@ -837,7 +869,7 @@ fn test_or_emit() {
 #[test]
 fn test_map() {
     fn mk_none<T>() -> Option<T> { None }
-    let parser = character(char::is_alphabetic).map(Some).or_emit(mk_none);
+    let parser = character_guard(char::is_alphabetic).map(Some).or_emit(mk_none);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("989",None));
     assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
@@ -848,11 +880,16 @@ fn test_map() {
 fn test_and_then() {
     fn mk_none<T>() -> Option<T> { None }
     let ALPHANUMERIC = character(char::is_alphanumeric);
-    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("989",None));
     assert_eq!(parser.init().parse("a!").unDone(),("!",Some(('a',None))));
     assert_eq!(parser.init().parse("abc").unDone(),("c",Some(('a',Some('b')))));
+    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC);
+    parser.init().parse("").unContinue();
+    assert_eq!(parser.init().parse("989").unDone(),("89",(None,Some('9'))));
+    assert_eq!(parser.init().parse("a!").unDone(),("!",(Some('a'),None)));
+    assert_eq!(parser.init().parse("abc").unDone(),("c",(Some('a'),Some('b'))));
 }
 
 #[test]
@@ -861,8 +898,8 @@ fn test_or_else() {
     fn mk_none<T>() -> Option<T> { None }
     let NUMERIC = character(char::is_numeric);
     let ALPHABETIC = character(char::is_alphabetic);
-    let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some).
-        or_else(character(char::is_numeric).and_then(NUMERIC).map(Some)).
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHABETIC).map(Some).
+        or_else(character_guard(char::is_numeric).and_then(NUMERIC).map(Some)).
         or_emit(mk_none);
     parser.init().parse("").unContinue();
     parser.init().parse("a").unContinue();
@@ -877,7 +914,7 @@ fn test_or_else() {
 #[test]
 #[allow(non_snake_case)]
 fn test_plus() {
-    let parser = character(char::is_alphanumeric).plus(String::new);
+    let parser = character_guard(char::is_alphanumeric).plus(String::new);
     parser.parse("").unEmpty();
     parser.parse("!!!").unAbort();
     assert_eq!(parser.parse("a!").unCommit().unDone(),("!",String::from("a")));
@@ -887,7 +924,7 @@ fn test_plus() {
 #[test]
 #[allow(non_snake_case)]
 fn test_star() {
-    let parser = character(char::is_alphanumeric).star(String::new);
+    let parser = character_guard(char::is_alphanumeric).star(String::new);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("!!!").unDone(),("!!!",String::from("")));
     assert_eq!(parser.init().parse("a!").unDone(),("!",String::from("a")));
@@ -897,8 +934,8 @@ fn test_star() {
 #[test]
 #[allow(non_snake_case)]
 fn test_buffer() {
-    let ALPHABETIC = character(char::is_alphabetic);
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let ALPHABETIC = character_guard(char::is_alphabetic);
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric);
     let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(ignore)).buffer();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Borrowed("a")));
@@ -918,7 +955,7 @@ fn test_different_lifetimes() {
     }
     fn mk_none<T>() -> Option<T> { None }
     let ALPHANUMERIC = character(char::is_alphanumeric);
-    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     go("ab","cd",parser);
 }
 
@@ -944,7 +981,7 @@ fn test_boxable() {
             fn mk_tree(children: ((char, Tree), Option<char>)) -> Tree {
                 Tree(vec![ (children.0).1 ])
             }
-            let LPAREN = character(is_lparen);
+            let LPAREN = character_guard(is_lparen);
             let RPAREN = character(is_rparen);
             let parser = LPAREN.and_then(Foo).and_then(RPAREN).map(mk_tree)
                 .or_emit(mk_empty_tree);
