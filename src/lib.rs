@@ -7,7 +7,13 @@
 //! * do as little buffering or copying as possible, and
 //! * do as little dynamic method dispatch as possible.
 //!
-//! It is based on "Monadic Parsing in Haskell" by Hutton and Meijer, JFP 8(4) pp. 437-444.
+//! It is based on:
+//!
+//! * [Monadic Parsing in Haskell](http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf) by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,
+//! * [Nom, eating data byte by byte](https://github.com/Geal/nom) by G. Couprie.
+//!
+//! [Repo](https://github.com/asajeffrey/parsimonious) |
+//! [Crate](https://crates.io/crates/parsimonious)
 
 #![feature(unboxed_closures)]
 
@@ -24,7 +30,7 @@ use self::Str::{Borrowed,Owned};
 
 /// A trait for stateful parsers.
 ///
-/// Stateful parsers are typically constructed by calling the `init` method of a parser,
+/// Stateful parsers are typically constructed by calling the `init` method of a stateless parser,
 /// for example:
 ///
 /// ```
@@ -34,7 +40,6 @@ use self::Str::{Borrowed,Owned};
 /// ```
 ///
 /// Here, `stateless` is a `ParserOf<&str,Output=String>`, and `stateful` is a `StatefulParserOf<&str,Output=String>`.
-
 
 pub trait StatefulParserOf<S> {
 
@@ -117,8 +122,11 @@ pub trait StatefulParserOf<S> {
 
 }
 
+/// The result of a parse.
 pub enum ParseResult<P,S> where P: StatefulParserOf<S> {
+    /// The parse is finished.
     Done(S,P::Output),
+    /// The parse can continue.
     Continue(P),
 }
 
@@ -134,15 +142,41 @@ pub enum ParseResult<P,S> where P: StatefulParserOf<S> {
 ///
 /// Here, `stateless` is a `ParserOf<&str,Output=String>`.
 ///
+/// The reason for distinguishing between stateful and stateless parsers is that
+/// stateless parsers are usually copyable, whereas stateful parsers are not
+/// (they may, for example, have created and partially filled some buffers).
+/// Copying parsers is quite common, for example:
+///
+/// ```
+/// # use parsimonious::{character,GuardedParserOf,ParserOf,StatefulParserOf};
+/// # use parsimonious::ParseResult::Done;
+/// # use parsimonious::GuardedParseResult::Commit;
+/// let DIGIT = character(char::is_numeric);
+/// let TWO_DIGITS = DIGIT.and_then(DIGIT);
+/// match TWO_DIGITS.parse("123") {
+///    Commit(Done(_,result)) => assert_eq!(result,('1',Some('2'))),
+///    _ => panic!("Can't happen"),
+/// }
+/// ```
+///
 /// Semantically, a parser with input *S* and output *T* is a partial function *S\* → T*
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
 /// and non-empty.
 
 pub trait ParserOf<S> {
+
+    /// The type of the data being produced by the parser.
     type Output;
+
+    /// The type of the parser state.
     type State: StatefulParserOf<S,Output=Self::Output>;
+
+    /// Create a stateful parser by initializing a stateless parser.
     fn init(&self) -> Self::State;
+
+    /// Make this parser boxable.
     fn boxable(self) -> BoxableParser<Self::State> where Self: Sized { BoxableParser(Some(self.init())) }
+
 }
 
 // A guarded parser of S to T is a partial function S* -> T
