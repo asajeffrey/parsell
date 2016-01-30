@@ -6,6 +6,7 @@ authors = [ "Alan Jeffrey <ajeffrey@mozilla.com>" ]
 
 description = "Parsimonious parser combinators"
 repository = "https://github.com/asajeffrey/parsimonious"
+documentation = "http://asajeffrey.github.io/parsimonious"
 readme = "README.md"
 keywords = [ "parser", "parsing", "streaming", "parser-combinators" ]
 license = "MPL-2.0"

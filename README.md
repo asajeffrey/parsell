@@ -8,6 +8,9 @@ The goal of this project is to implement a parser combinator library that:
 
 It is based on "Monadic Parsing in Haskell" by Hutton and Meijer, JFP 8(4) pp. 437-444.
 
+[Rustdoc](http://asajeffrey.github.io/parsimonious) |
+[Crate](https://crates.io/crates/parsimonious)
+
 ## Example
 
 To parse a sequence of alphanumerics into a string buffer:
