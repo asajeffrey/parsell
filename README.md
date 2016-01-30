@@ -19,7 +19,7 @@ It is based on:
 
 To parse a sequence of alphanumerics into a string buffer:
 ```rust
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric);
     let ALPHANUMERICS = ALPHANUMERIC.star(String::new);
 ```
 If you provide complete input to the parser, you will get back a `Done` response, for example:
