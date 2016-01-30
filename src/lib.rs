@@ -186,7 +186,7 @@ pub trait ParserOf<S> {
 pub trait GuardedParserOf<S> {
     fn or_else<P>(self, other: P) -> OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParserOf<S> { OrElseGuardedParser(self,other) }
     fn or_emit<F>(self, factory: F) -> OrEmitParser<Self,F> where Self:Sized { OrEmitParser(self,factory) }
-    fn and_then<P>(self, other: P) -> AndThenGuardedParser<Self,P> where Self:Sized, P: ParserOf<S> { AndThenGuardedParser(self,other) }
+    fn and_then<P>(self, other: P) -> AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { AndThenParser(self,other) }
     fn plus<F>(self, factory: F) -> PlusParser<Self,F> where Self:Sized { PlusParser(self,factory) }
     fn star<F>(self, factory: F) -> StarParser<Self,F> where Self:Sized { StarParser(self,factory) }
     fn map<F>(self, f: F) -> MapGuardedParser<Self,F> where Self:Sized, { MapGuardedParser(self,f) }
@@ -259,9 +259,9 @@ impl<P,F,S> GuardedParserOf<S> for MapGuardedParser<P,F> where P: GuardedParserO
 // ----------- Sequencing ---------------
 
 #[derive(Copy, Clone, Debug)]
-pub struct AndThenGuardedParser<P,Q>(P,Q);
+pub struct AndThenParser<P,Q>(P,Q);
 
-impl<P,Q,S> GuardedParserOf<S> for AndThenGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: ParserOf<S> {
+impl<P,Q,S> GuardedParserOf<S> for AndThenParser<P,Q> where P: GuardedParserOf<S>, Q: ParserOf<S> {
     type Output = (P::Output,Q::Output);
     type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
     fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
