@@ -46,12 +46,13 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-895' class='srclink' href='../src/parsimonious/lib.rs.html#882-886' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-76' class='srclink' href='../src/parsimonious/lib.rs.html#324-328' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait BoxableParserOf&lt;S&gt; {
     type Output;
     fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;;
     fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>;
-}</pre>
+}</pre><div class='docblock'><p>A trait for boxable parsers.</p>
+</div>
             <h2 id='associated-types'>Associated Types</h2>
             <div class='methods'>
         <h3 id='associatedtype.Output' class='method stab '><code>type Output</code></h3></div>
@@ -60,7 +61,7 @@
         <h3 id='tymethod.parse_boxable' class='method stab '><code>fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;</code></h3><h3 id='tymethod.done_boxable' class='method stab '><code>fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a></code></h3></div>
         <h2 id='implementors'>Implementors</h2>
         <ul class='item-list' id='implementors-list'>
-    <li><code>impl&lt;P, S&gt; <a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>BoxableParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/struct.BoxableParser.html' title='parsimonious::BoxableParser'>BoxableParser</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span></code></li>
+    <li><code>impl&lt;P, S&gt; <a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>BoxableParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/impls/struct.BoxableParser.html' title='parsimonious::impls::BoxableParser'>BoxableParser</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span></code></li>
 </ul><script type="text/javascript" async
                               src="../implementors/parsimonious/trait.BoxableParserOf.js">
                       </script></section>
