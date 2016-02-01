@@ -130,6 +130,16 @@ pub enum ParseResult<P,S> where P: StatefulParserOf<S> {
     Continue(P),
 }
 
+impl<P,S> ParseResult<P,S> where P: StatefulParserOf<S> {
+    /// Apply a function the the `Continue` branch of a parse result.
+    pub fn map<F,Q>(self, f: F) -> ParseResult<Q,S> where Q: StatefulParserOf<S,Output=P::Output>, F: Fn(P) -> Q {
+        match self {
+            Done(rest,result) => Done(rest,result),
+            Continue(parsing) => Continue(f(parsing)),
+        }
+    }
+}
+
 /// A trait for stateless parsers.
 ///
 /// Stateful parsers are typically constructed by calling the methods of the library,
@@ -320,7 +330,210 @@ pub enum GuardedParseResult<P,S> where P: StatefulParserOf<S> {
     Commit(ParseResult<P,S>),
 }
 
+impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
+    /// Apply a function the the Commit branch of a guarded parse result
+    pub fn map<F,Q>(self, f: F) -> GuardedParseResult<Q,S> where Q: StatefulParserOf<S,Output=P::Output>, F: Fn(P) -> Q {
+        match self {
+            Empty => Empty,
+            Abort(s) => Abort(s),
+            Commit(c) => Commit(c.map(f)),
+        }
+    }
+}
+
+
 /// A trait for boxable parsers.
+///
+/// Regular languages can be parsed in constant memory, so do not require any heap allocation (other than
+/// the heap allocation peformed by user code such as creating buffers). Context-free languages require
+/// allocating unbounded memory. In order to support streaming input, the state of the parser must be
+/// saved on the heap, and restored when more input arrives.
+///
+/// In Rust, heap-allocated data is often kept in a `Box<T>`, where `T` is a trait. In the case
+/// of parsers, the library needs to save and restore a stateful parser, for which the obvious
+/// type is `Box<StatefulParserOf<S,Output=T>`. There are two issues with this...
+///
+/// Firstly, the lifetimes mentioned in the type of the parser may change over time.
+/// For example, the program:
+///
+/// ```text
+/// fn check_results (self, rest: &'b str, result: String) {
+///    assert_eq!(rest,"!"); assert_eq!(result,"abc123");
+/// }
+/// let parser = character_guard(char::is_alphanumeric).star(String::new);
+/// let stateful = parser.init();
+/// let boxed: Box<StatefulParserOf<&'a str,Output=String>> = Box::new(stateful);
+/// let stuff: &'b str = "abc123!";
+/// match boxed.parse(stuff) {
+///    Done(rest,result) => self.check_results(rest,result),
+///    _ => println!("can't happen"),
+/// }
+/// ```
+///
+/// does not typecheck, because the type of `boxed` is fixed as containing parsers for input `&'a str`,
+/// but it was fed input of type `&'b str`. To fix this, we change the type of the box to be
+/// polymorphic in the lifetime of the parser:
+///
+/// ```text
+/// fn check_results (self, rest: &'b str, result: String) {
+///    assert_eq!(rest,"!"); assert_eq!(result,"abc123");
+/// }
+/// let parser = character_guard(char::is_alphanumeric).star(String::new);
+/// let stateful = parser.init();
+/// let boxed: Box<for <'a> StatefulParserOf<&'a str,Output=String>> = Box::new(stateful);
+/// let stuff: &'b str = "abc123!";
+/// match boxed.parse(stuff) {
+///    Done(rest,result) => self.check_results(rest,result),
+///    _ => println!("can't happen"),
+/// }
+/// ```
+///
+/// Secondly, the `StatefulParserOf` trait is not
+/// [object-safe](https://doc.rust-lang.org/book/trait-objects.html#object-safety),
+/// so cannot be boxed and unboxed safely. In order to address this, there is a trait
+/// `BoxableParserOf<S,Output=T>`, which represents stateful parsers, but is object-safe
+/// and so can be boxed and unboxed safely:
+///
+/// ```
+/// # struct Foo<'a>(&'a str);
+/// # impl<'b> Foo<'b> {
+/// fn check_results (self, rest: &'b str, result: String) {
+///    assert_eq!(rest,"!"); assert_eq!(result,"abc123");
+/// }
+/// # fn foo(self) {
+/// # use parsimonious::{character_guard,ignore,GuardedParserOf,ParserOf,BoxableParserOf,StatefulParserOf};
+/// # use parsimonious::ParseResult::{Done,Continue};
+/// let parser = character_guard(char::is_alphanumeric).star(String::new);
+/// let stateful = parser.init();
+/// let boxed: Box<for <'a> BoxableParserOf<&'a str,Output=String>> = Box::new(stateful.boxable());
+/// let stuff: &'b str = "abc123!";
+/// match boxed.parse(stuff) {
+///    Done(rest,result) => self.check_results(rest,result),
+///    _ => println!("can't happen"),
+/// }
+/// # } }
+/// ```
+///
+/// The type `Box<BoxableParserOf<S,Output=T>>` implements the trait
+/// `StatefulParserOf<S,Output=T>`, so boxes can be used as parsers,
+/// which allows stateful parsers to heap-allocate their state.
+///
+/// Boxable parsers are usually used in recursive-descent parsing,
+/// for context-free grammars that cannot be parsed as a regular language.
+/// For example, consider a simple type for trees:
+///
+/// ```
+/// struct Tree(Vec<Tree>);
+/// ```
+///
+/// which can be parsed from a well-nested sequence of parentheses, for example
+/// `(()())` can be parsed as `Tree(vec![Tree(vec![]),Tree(vec![])])`.
+/// The desired implementation is:
+///
+/// ```text
+/// fn is_lparen(ch: char) -> bool { ch == '(' }
+/// fn is_rparen(ch: char) -> bool { ch == ')' }
+/// fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree {
+///     Tree((children.0).1)
+/// }
+/// let LPAREN = character_guard(is_lparen);
+/// let RPAREN = character(is_rparen);
+/// let TREE = LPAREN
+///     .and_then(TREE.star(Vec::new))
+///     .and_then(RPAREN)
+///     .map(mk_tree);
+/// ```
+///
+/// but this doesn't work because it gives the definition of `TREE` in terms of itself,
+/// and Rust doesn't allow this kind of cycle.
+///
+/// Instead, the solution is to define a struct `TreeParser`, and then implement `GuardedParserOf<&str>`
+/// for it. The type of the state of a `TreeParser` is a box containing an appropriate
+/// `BoxableParserState` trait:
+///
+/// ```
+/// # use parsimonious::{BoxableParserOf};
+/// # struct Tree(Vec<Tree>);
+/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+/// ```
+///
+/// The implementation of `GuardedParserOf<&str>` for `TreeParser` is mostly straightfoward:
+///
+/// ```
+/// # use parsimonious::{character,character_guard,GuardedParserOf,ParserOf,BoxableParserOf,StatefulParserOf,GuardedParseResult};
+/// # use parsimonious::ParseResult::{Done,Continue};
+/// # use parsimonious::GuardedParseResult::{Commit};
+/// # #[derive(Eq,PartialEq,Clone,Debug)]
+/// struct Tree(Vec<Tree>);
+/// # #[derive(Copy,Clone,Debug)]
+/// struct TreeParser;
+/// let TREE = TreeParser;
+/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+/// impl<'a> GuardedParserOf<&'a str> for TreeParser {
+///     type Output = Tree;
+///     type State = TreeParserState;
+///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
+///         // ... parser goes here...`
+/// #       fn is_lparen(ch: char) -> bool { ch == '(' }
+/// #       fn is_rparen(ch: char) -> bool { ch == ')' }
+/// #       fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree { Tree((children.0).1) }
+/// #       fn mk_box<P>(parser: P) -> TreeParserState where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> { Box::new(parser.boxable())  }
+/// #       let LPAREN = character_guard(is_lparen);
+/// #       let RPAREN = character(is_rparen);
+/// #       let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map(mk_tree);
+/// #       parser.parse(data).map(mk_box)
+///     }
+/// }
+/// ```
+///
+/// The important thing is that the definiton of `parse` can make use of `TREE`, so the parser can call itself
+/// recursively, then box up the result state:
+///
+/// ```
+/// # use parsimonious::{character,character_guard,GuardedParserOf,ParserOf,BoxableParserOf,StatefulParserOf,GuardedParseResult};
+/// # use parsimonious::ParseResult::{Done,Continue};
+/// # use parsimonious::GuardedParseResult::{Commit};
+/// # #[derive(Eq,PartialEq,Clone,Debug)]
+/// struct Tree(Vec<Tree>);
+/// # #[derive(Copy,Clone,Debug)]
+/// struct TreeParser;
+/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+/// impl<'a> GuardedParserOf<&'a str> for TreeParser {
+///     type Output = Tree;
+///     type State = TreeParserState;
+///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
+///         fn is_lparen(ch: char) -> bool { ch == '(' }
+///         fn is_rparen(ch: char) -> bool { ch == ')' }
+///         fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree {
+///             Tree((children.0).1)
+///         }
+///         fn mk_box<P>(parser: P) -> TreeParserState
+///         where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> {
+///             Box::new(parser.boxable())
+///         }
+///         let LPAREN = character_guard(is_lparen);
+///         let RPAREN = character(is_rparen);
+///         let parser = LPAREN
+///             .and_then(TreeParser.star(Vec::new))
+///             .and_then(RPAREN)
+///             .map(mk_tree);
+///         parser.parse(data).map(mk_box)
+///     }
+/// }
+/// let TREE = TreeParser;
+/// match TREE.parse("((") {
+///     Commit(Continue(parsing)) => match parsing.parse(")()))") {
+///         Done(")",result) => assert_eq!(result,Tree(vec![Tree(vec![]),Tree(vec![])])),
+///          _ => panic!("can't happen"),
+///     },
+///     _ => panic!("can't happen"),
+/// }
+/// ```
+///
+/// The reason for making `BoxableParserOf<S>` a different trait from `StatefulParserOf<S>`
+/// is that it provides weaker safety guarantees. `StatefulParserOf<S>` enforces that
+/// clients cannot call `parse` after `done`, but `BoxableParserOf<S>` does not.
+
 pub trait BoxableParserOf<S> {
     type Output;
     fn parse_boxable(&mut self, value: S) -> Option<(S,Self::Output)>;
@@ -1159,31 +1372,27 @@ fn test_boxable() {
     struct Tree(Vec<Tree>);
     
     #[derive(Copy,Clone,Debug)]
-    struct Foo;
-    impl<'a> ParserOf<&'a str> for Foo {
+    struct TreeParser;
+    type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+    impl<'a> GuardedParserOf<&'a str> for TreeParser {
         type Output = Tree;
-        type State = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
-        fn init(&self) -> Self::State {
+        type State = TreeParserState;
+        fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
             fn is_lparen(ch: char) -> bool { ch == '(' }
             fn is_rparen(ch: char) -> bool { ch == ')' }
-            fn mk_empty_tree() -> Tree {
-                Tree(vec![ ])
-            }
-            fn mk_tree(children: ((char, Tree), Option<char>)) -> Tree {
-                Tree(vec![ (children.0).1 ])
-            }
+            fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree { Tree((children.0).1) }
+            fn mk_box<P>(parser: P) -> TreeParserState where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> { Box::new(parser.boxable())  }
             let LPAREN = character_guard(is_lparen);
             let RPAREN = character(is_rparen);
-            let parser = LPAREN.and_then(Foo).and_then(RPAREN).map(mk_tree)
-                .or_emit(mk_empty_tree);
-            Box::new(parser.init().boxable())
-        } 
+            let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map(mk_tree);
+            parser.parse(data).map(mk_box)
+        }
     }
 
-    assert_eq!(Foo.init().parse("!").unDone(),("!",Tree(vec![])));
-    assert_eq!(Foo.init().parse("()!").unDone(),("!",Tree(vec![Tree(vec![])])));
-    assert_eq!(Foo.init().parse("(()))").unDone(),(")",Tree(vec![Tree(vec![Tree(vec![])])])));
-    assert_eq!(Foo.init().parse("(").unContinue().parse(")!").unDone(),("!",Tree(vec![Tree(vec![])])));
-    assert_eq!(Foo.init().parse("((").unContinue().parse("))!").unDone(),("!",Tree(vec![Tree(vec![Tree(vec![])])])));
+    assert_eq!(TreeParser.parse("!").unAbort(),"!");
+    assert_eq!(TreeParser.parse("()!").unCommit().unDone(),("!",Tree(vec![])));
+    assert_eq!(TreeParser.parse("(()))").unCommit().unDone(),(")",Tree(vec![Tree(vec![])])));
+    assert_eq!(TreeParser.parse("(").unCommit().unContinue().parse(")!").unDone(),("!",Tree(vec![])));
+    assert_eq!(TreeParser.parse("((").unCommit().unContinue().parse(")))").unDone(),(")",Tree(vec![Tree(vec![])])));
 
 }
