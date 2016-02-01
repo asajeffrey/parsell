@@ -13,7 +13,8 @@ It is based on:
 * [Nom, eating data byte by byte](https://github.com/Geal/nom) by G. Couprie.
 
 [Rustdoc](http://asajeffrey.github.io/parsimonious) |
-[Crate](https://crates.io/crates/parsimonious)
+[Crate](https://crates.io/crates/parsimonious) |
+[CI](https://travis-ci.org/asajeffrey/parsimonious)
 
 ## Example
 
