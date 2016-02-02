@@ -16,10 +16,6 @@
 //! [Crate](https://crates.io/crates/parsimonious) |
 //! [CI](https://travis-ci.org/asajeffrey/parsimonious)
 
-#![feature(unboxed_closures)]
-
-extern crate core;
-
 use self::GuardedParseResult::{Empty,Abort,Commit};
 use self::ParseResult::{Done,Continue};
 
@@ -1411,7 +1407,6 @@ fn test_different_lifetimes() {
 
 #[test]
 #[allow(non_snake_case)]
-#[allow(private_in_public)]
 fn test_boxable() {
 
     #[derive(Clone,Debug,Eq,PartialEq)]
