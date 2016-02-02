@@ -9,7 +9,6 @@
 
     <title>lib.rs.html -- source</title>
 
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../../main.css">
 
     
@@ -1439,6 +1438,47 @@
 <span id="1396">1396</span>
 <span id="1397">1397</span>
 <span id="1398">1398</span>
+<span id="1399">1399</span>
+<span id="1400">1400</span>
+<span id="1401">1401</span>
+<span id="1402">1402</span>
+<span id="1403">1403</span>
+<span id="1404">1404</span>
+<span id="1405">1405</span>
+<span id="1406">1406</span>
+<span id="1407">1407</span>
+<span id="1408">1408</span>
+<span id="1409">1409</span>
+<span id="1410">1410</span>
+<span id="1411">1411</span>
+<span id="1412">1412</span>
+<span id="1413">1413</span>
+<span id="1414">1414</span>
+<span id="1415">1415</span>
+<span id="1416">1416</span>
+<span id="1417">1417</span>
+<span id="1418">1418</span>
+<span id="1419">1419</span>
+<span id="1420">1420</span>
+<span id="1421">1421</span>
+<span id="1422">1422</span>
+<span id="1423">1423</span>
+<span id="1424">1424</span>
+<span id="1425">1425</span>
+<span id="1426">1426</span>
+<span id="1427">1427</span>
+<span id="1428">1428</span>
+<span id="1429">1429</span>
+<span id="1430">1430</span>
+<span id="1431">1431</span>
+<span id="1432">1432</span>
+<span id="1433">1433</span>
+<span id="1434">1434</span>
+<span id="1435">1435</span>
+<span id="1436">1436</span>
+<span id="1437">1437</span>
+<span id="1438">1438</span>
+<span id="1439">1439</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Parsimonious: a parser combinator library for Rust</span>
 <span class='doccomment'>//!</span>
@@ -1457,10 +1497,6 @@
 <span class='doccomment'>//! [Repo](https://github.com/asajeffrey/parsimonious) |</span>
 <span class='doccomment'>//! [Crate](https://crates.io/crates/parsimonious) |</span>
 <span class='doccomment'>//! [CI](https://travis-ci.org/asajeffrey/parsimonious)</span>
-
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>feature</span>(<span class='ident'>unboxed_closures</span>)]</span>
-
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>core</span>;
 
 <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>GuardedParseResult</span>::{<span class='ident'>Empty</span>,<span class='ident'>Abort</span>,<span class='ident'>Commit</span>};
 <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>ParseResult</span>::{<span class='ident'>Done</span>,<span class='ident'>Continue</span>};
@@ -1574,10 +1610,10 @@
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> {
     <span class='doccomment'>/// Apply a function the the `Continue` branch of a parse result.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>map</span><span class='op'>&lt;</span><span class='ident'>F</span>,<span class='ident'>Q</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Q</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>Q</span>: <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>Q</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>map</span><span class='op'>&lt;</span><span class='ident'>F</span>,<span class='ident'>Q</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Q</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>Q</span>: <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>Q</span><span class='op'>&gt;</span> {
         <span class='kw'>match</span> <span class='self'>self</span> {
             <span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>),
-            <span class='ident'>Continue</span>(<span class='ident'>parsing</span>) <span class='op'>=&gt;</span> <span class='ident'>Continue</span>(<span class='ident'>f</span>(<span class='ident'>parsing</span>)),
+            <span class='ident'>Continue</span>(<span class='ident'>parsing</span>) <span class='op'>=&gt;</span> <span class='ident'>Continue</span>(<span class='ident'>f</span>.<span class='ident'>apply</span>(<span class='ident'>parsing</span>)),
         }
     }
 }
@@ -1731,7 +1767,7 @@
     <span class='kw'>fn</span> <span class='ident'>star</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>factory</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>StarParser</span><span class='op'>&lt;</span><span class='kw'>Self</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='kw'>Self</span>:<span class='ident'>Sized</span> { <span class='ident'>impls</span>::<span class='ident'>StarParser</span>::<span class='ident'>new</span>(<span class='self'>self</span>,<span class='ident'>factory</span>) }
 
     <span class='doccomment'>/// Apply a function to the result (returns a guarded parser).</span>
-    <span class='kw'>fn</span> <span class='ident'>map</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>MapGuardedParser</span><span class='op'>&lt;</span><span class='kw'>Self</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='kw'>Self</span>:<span class='ident'>Sized</span>, { <span class='ident'>impls</span>::<span class='ident'>MapGuardedParser</span>::<span class='ident'>new</span>(<span class='self'>self</span>,<span class='ident'>f</span>) }
+    <span class='kw'>fn</span> <span class='ident'>map</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>MapParser</span><span class='op'>&lt;</span><span class='kw'>Self</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='kw'>Self</span>:<span class='ident'>Sized</span>, { <span class='ident'>impls</span>::<span class='ident'>MapParser</span>::<span class='ident'>new</span>(<span class='self'>self</span>,<span class='ident'>f</span>) }
 
     <span class='doccomment'>/// Replace the result with the input.</span>
     <span class='doccomment'>///</span>
@@ -1774,7 +1810,7 @@
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>GuardedParseResult</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> {
     <span class='doccomment'>/// Apply a function the the Commit branch of a guarded parse result</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>map</span><span class='op'>&lt;</span><span class='ident'>F</span>,<span class='ident'>Q</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>GuardedParseResult</span><span class='op'>&lt;</span><span class='ident'>Q</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>Q</span>: <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>Q</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>map</span><span class='op'>&lt;</span><span class='ident'>F</span>,<span class='ident'>Q</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>GuardedParseResult</span><span class='op'>&lt;</span><span class='ident'>Q</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>Q</span>: <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>Q</span><span class='op'>&gt;</span> {
         <span class='kw'>match</span> <span class='self'>self</span> {
             <span class='ident'>Empty</span> <span class='op'>=&gt;</span> <span class='ident'>Empty</span>,
             <span class='ident'>Abort</span>(<span class='ident'>s</span>) <span class='op'>=&gt;</span> <span class='ident'>Abort</span>(<span class='ident'>s</span>),
@@ -1982,6 +2018,52 @@
     <span class='kw'>fn</span> <span class='ident'>done_boxable</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span>;
 }
 
+<span class='doccomment'>/// A trait for one-argument functions.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// This trait is just the same as `Fn(T) -&gt; U`, but can be implemented by a struct.</span>
+<span class='doccomment'>/// This is useful, as it allows the function type to be named, for example</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>/// # use parsimonious::{Function,character};</span>
+<span class='doccomment'>/// # use parsimonious::impls::{CharacterParser};</span>
+<span class='doccomment'>/// struct AlphaNumeric;</span>
+<span class='doccomment'>/// impl Function&lt;char&gt; for AlphaNumeric {</span>
+<span class='doccomment'>///     type Output = bool;</span>
+<span class='doccomment'>///     fn apply(&amp;self, arg: char) -&gt; bool { arg.is_alphanumeric() }</span>
+<span class='doccomment'>/// }</span>
+<span class='doccomment'>/// let parser: CharacterParser&lt;AlphaNumeric&gt; =</span>
+<span class='doccomment'>///     character(AlphaNumeric);</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// Here, we can name the type of the parser `CharacterParser&lt;AlphaNumeric&gt;`,</span>
+<span class='doccomment'>/// which would not be possible if `character` took its argument as a `Fn(T) -&gt; U`,</span>
+<span class='doccomment'>/// since `typeof` is not implemented in Rust.</span>
+<span class='doccomment'>/// At some point, Rust will probably get abstract return types,</span>
+<span class='doccomment'>/// at which point the main need for this type will go away.</span>
+
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>type</span> <span class='ident'>Output</span>;
+    <span class='kw'>fn</span> <span class='ident'>apply</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>arg</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span>;
+}
+
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>,<span class='ident'>S</span>,<span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>F</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> {
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>T</span>;
+    <span class='kw'>fn</span> <span class='ident'>apply</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>arg</span>: <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> { <span class='self'>self</span>(<span class='ident'>arg</span>) }
+}
+
+<span class='doccomment'>/// A trait for factories.</span>
+
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Factory</span> {
+    <span class='kw'>type</span> <span class='ident'>Output</span>;
+    <span class='kw'>fn</span> <span class='ident'>build</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span>;
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>,<span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Factory</span> <span class='kw'>for</span> <span class='ident'>F</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>() <span class='op'>-&gt;</span> <span class='ident'>T</span> {
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>T</span>;
+    <span class='kw'>fn</span> <span class='ident'>build</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> { <span class='self'>self</span>() }
+}
+
 <span class='doccomment'>/// A trait for consumers of data, typically buffers.</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// # Examples</span>
@@ -2059,11 +2141,11 @@
     <span class='ident'>Owned</span>(<span class='ident'>String</span>),
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>character</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>CharacterParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>character</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>CharacterParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>char</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>bool</span><span class='op'>&gt;</span> {
     <span class='ident'>impls</span>::<span class='ident'>CharacterParser</span>::<span class='ident'>new</span>(<span class='ident'>f</span>)
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>character_guard</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>CharacterGuardedParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>character_guard</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>CharacterGuardedParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>char</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>bool</span><span class='op'>&gt;</span> {
     <span class='ident'>impls</span>::<span class='ident'>CharacterGuardedParser</span>::<span class='ident'>new</span>(<span class='ident'>f</span>)
 }
 
@@ -2071,7 +2153,7 @@
 
     <span class='doccomment'>//! Provide implementations of parser traits.</span>
     
-    <span class='kw'>use</span> <span class='ident'>super</span>::{<span class='ident'>StatefulParserOf</span>,<span class='ident'>GuardedParserOf</span>,<span class='ident'>ParserOf</span>,<span class='ident'>BoxableParserOf</span>,<span class='ident'>ParseResult</span>,<span class='ident'>GuardedParseResult</span>,<span class='ident'>Consumer</span>,<span class='ident'>Str</span>};
+    <span class='kw'>use</span> <span class='ident'>super</span>::{<span class='ident'>StatefulParserOf</span>,<span class='ident'>GuardedParserOf</span>,<span class='ident'>ParserOf</span>,<span class='ident'>BoxableParserOf</span>,<span class='ident'>ParseResult</span>,<span class='ident'>GuardedParseResult</span>,<span class='ident'>Factory</span>,<span class='ident'>Function</span>,<span class='ident'>Consumer</span>,<span class='ident'>Str</span>};
     <span class='kw'>use</span> <span class='ident'>super</span>::<span class='ident'>ParseResult</span>::{<span class='ident'>Continue</span>,<span class='ident'>Done</span>};
     <span class='kw'>use</span> <span class='ident'>super</span>::<span class='ident'>GuardedParseResult</span>::{<span class='ident'>Abort</span>,<span class='ident'>Commit</span>,<span class='ident'>Empty</span>};
     <span class='kw'>use</span> <span class='ident'>super</span>::<span class='ident'>Str</span>::{<span class='ident'>Borrowed</span>,<span class='ident'>Owned</span>};
@@ -2096,47 +2178,47 @@
 
     <span class='comment'>// NOTE(eddyb): a generic over U where F: Fn(T) -&gt; U doesn&#39;t allow HRTB in both T and U.</span>
     <span class='comment'>// See https://github.com/rust-lang/rust/issues/30867 for more details.</span>
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span>,<span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>MapStatefulParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Fn</span><span class='op'>&lt;</span>(<span class='ident'>T</span>,)<span class='op'>&gt;</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span>,<span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>MapStatefulParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
         <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='self'>self</span>, <span class='ident'>value</span>: <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>,<span class='ident'>S</span><span class='op'>&gt;</span> {
             <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>parse</span>(<span class='ident'>value</span>) {
-                <span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='ident'>Done</span>(<span class='ident'>rest</span>,(<span class='self'>self</span>.<span class='number'>1</span>)(<span class='ident'>result</span>)),
+                <span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>apply</span>(<span class='ident'>result</span>)),
                 <span class='ident'>Continue</span>(<span class='ident'>parsing</span>) <span class='op'>=&gt;</span> <span class='ident'>Continue</span>(<span class='ident'>MapStatefulParser</span>(<span class='ident'>parsing</span>,<span class='self'>self</span>.<span class='number'>1</span>)),
             }
         }
         <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span> {
-            (<span class='self'>self</span>.<span class='number'>1</span>)(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>done</span>())
+            <span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>apply</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>done</span>())
         }
     }
 
     <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>MapGuardedParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>P</span>,<span class='ident'>F</span>);
+    <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>MapParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>P</span>,<span class='ident'>F</span>);
 
     <span class='comment'>// A work around for functions implmenting copy but not clone</span>
     <span class='comment'>// https://github.com/rust-lang/rust/issues/28229</span>
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Copy</span> <span class='kw'>for</span> <span class='ident'>MapGuardedParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Copy</span>, <span class='ident'>F</span>: <span class='ident'>Copy</span> {}
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>MapGuardedParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Clone</span>, <span class='ident'>F</span>: <span class='ident'>Copy</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Copy</span> <span class='kw'>for</span> <span class='ident'>MapParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Copy</span>, <span class='ident'>F</span>: <span class='ident'>Copy</span> {}
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>MapParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Clone</span>, <span class='ident'>F</span>: <span class='ident'>Copy</span> {
         <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
-            <span class='ident'>MapGuardedParser</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>clone</span>(),<span class='self'>self</span>.<span class='number'>1</span>)
+            <span class='ident'>MapParser</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>clone</span>(),<span class='self'>self</span>.<span class='number'>1</span>)
         }
     }
 
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>MapGuardedParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>Fn</span><span class='op'>&lt;</span>(<span class='ident'>P</span>::<span class='ident'>Output</span>,)<span class='op'>&gt;</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>MapParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;        
         <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>MapStatefulParser</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>State</span>,<span class='ident'>F</span><span class='op'>&gt;</span>;
         <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>value</span>: <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='ident'>GuardedParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>,<span class='ident'>S</span><span class='op'>&gt;</span> {
             <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>parse</span>(<span class='ident'>value</span>) {
                 <span class='ident'>Empty</span> <span class='op'>=&gt;</span> <span class='ident'>Empty</span>,
-                <span class='ident'>Commit</span>(<span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>)) <span class='op'>=&gt;</span> <span class='ident'>Commit</span>(<span class='ident'>Done</span>(<span class='ident'>rest</span>,(<span class='self'>self</span>.<span class='number'>1</span>)(<span class='ident'>result</span>))),
+                <span class='ident'>Commit</span>(<span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>)) <span class='op'>=&gt;</span> <span class='ident'>Commit</span>(<span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>apply</span>(<span class='ident'>result</span>))),
                 <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='ident'>parsing</span>)) <span class='op'>=&gt;</span> <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='ident'>MapStatefulParser</span>(<span class='ident'>parsing</span>,<span class='self'>self</span>.<span class='number'>1</span>))),
                 <span class='ident'>Abort</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='ident'>Abort</span>(<span class='ident'>value</span>),
             }
         }
     }
 
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>MapGuardedParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>MapParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> {
         <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>parser</span>: <span class='ident'>P</span>, <span class='ident'>function</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
-            <span class='ident'>MapGuardedParser</span>(<span class='ident'>parser</span>,<span class='ident'>function</span>)
+            <span class='ident'>MapParser</span>(<span class='ident'>parser</span>,<span class='ident'>function</span>)
         }
     }
 
@@ -2289,7 +2371,7 @@
         }
     }
 
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>OrEmitStatefulParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>P</span>::<span class='ident'>State</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>:<span class='ident'>Fn</span><span class='op'>&lt;</span>(),<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>OrEmitStatefulParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>P</span>::<span class='ident'>State</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Factory</span><span class='op'>&lt;</span><span class='ident'>Output</span><span class='op'>=</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span>;
         <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='self'>self</span>, <span class='ident'>value</span>: <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>,<span class='ident'>S</span><span class='op'>&gt;</span> {
             <span class='kw'>match</span> <span class='self'>self</span> {
@@ -2298,7 +2380,7 @@
                         <span class='ident'>Empty</span> <span class='op'>=&gt;</span> <span class='ident'>Continue</span>(<span class='ident'>Unresolved</span>(<span class='ident'>parser</span>,<span class='ident'>default</span>)),
                         <span class='ident'>Commit</span>(<span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>)) <span class='op'>=&gt;</span> <span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>),
                         <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='ident'>parsing</span>)) <span class='op'>=&gt;</span> <span class='ident'>Continue</span>(<span class='ident'>Resolved</span>(<span class='ident'>parsing</span>)),
-                        <span class='ident'>Abort</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='ident'>Done</span>(<span class='ident'>value</span>,<span class='ident'>default</span>()),
+                        <span class='ident'>Abort</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='ident'>Done</span>(<span class='ident'>value</span>,<span class='ident'>default</span>.<span class='ident'>build</span>()),
                     }
                 },
                 <span class='ident'>Resolved</span>(<span class='ident'>parser</span>) <span class='op'>=&gt;</span> {
@@ -2311,7 +2393,7 @@
         }
         <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span> {
             <span class='kw'>match</span> <span class='self'>self</span> {
-                <span class='ident'>Unresolved</span>(_,<span class='ident'>default</span>) <span class='op'>=&gt;</span> <span class='ident'>default</span>(),
+                <span class='ident'>Unresolved</span>(_,<span class='ident'>default</span>) <span class='op'>=&gt;</span> <span class='ident'>default</span>.<span class='ident'>build</span>(),
                 <span class='ident'>Resolved</span>(<span class='ident'>parser</span>) <span class='op'>=&gt;</span> <span class='ident'>parser</span>.<span class='ident'>done</span>(),
             }
         }
@@ -2328,7 +2410,7 @@
         }
     }
 
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>ParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>OrEmitParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Clone</span><span class='op'>+</span><span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>Fn</span><span class='op'>&lt;</span>(),<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>ParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>OrEmitParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Clone</span><span class='op'>+</span><span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>Factory</span><span class='op'>&lt;</span><span class='ident'>Output</span><span class='op'>=</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span>;
         <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>OrEmitStatefulParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>P</span>::<span class='ident'>State</span><span class='op'>&gt;</span>;
         <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>State</span> {
@@ -2382,16 +2464,16 @@
         }
     }
 
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>PlusParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Fn</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>, <span class='ident'>F</span>::<span class='ident'>Output</span>: <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>PlusParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Factory</span>, <span class='ident'>F</span>::<span class='ident'>Output</span>: <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
         <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>StarStatefulParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>P</span>::<span class='ident'>State</span>,<span class='ident'>F</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>;
         <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>value</span>: <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='ident'>GuardedParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>,<span class='ident'>S</span><span class='op'>&gt;</span> {
             <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>parse</span>(<span class='ident'>value</span>) {
                 <span class='ident'>Empty</span> <span class='op'>=&gt;</span> <span class='ident'>Empty</span>,
                 <span class='ident'>Abort</span>(<span class='ident'>rest</span>) <span class='op'>=&gt;</span> <span class='ident'>Abort</span>(<span class='ident'>rest</span>),
-                <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='ident'>parsing</span>)) <span class='op'>=&gt;</span> <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='ident'>StarStatefulParser</span>(<span class='self'>self</span>.<span class='number'>0</span>,<span class='prelude-val'>Some</span>(<span class='ident'>parsing</span>),(<span class='self'>self</span>.<span class='number'>1</span>)()))),
+                <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='ident'>parsing</span>)) <span class='op'>=&gt;</span> <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='ident'>StarStatefulParser</span>(<span class='self'>self</span>.<span class='number'>0</span>,<span class='prelude-val'>Some</span>(<span class='ident'>parsing</span>),<span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>build</span>()))),
                 <span class='ident'>Commit</span>(<span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>)) <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>buffer</span> <span class='op'>=</span> (<span class='self'>self</span>.<span class='number'>1</span>)();
+                    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>buffer</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>build</span>();
                     <span class='ident'>buffer</span>.<span class='ident'>accept</span>(<span class='ident'>result</span>);
                     <span class='ident'>Commit</span>(<span class='ident'>StarStatefulParser</span>(<span class='self'>self</span>.<span class='number'>0</span>,<span class='prelude-val'>None</span>,<span class='ident'>buffer</span>).<span class='ident'>parse</span>(<span class='ident'>rest</span>))
                 }
@@ -2417,11 +2499,11 @@
         }
     }
 
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>ParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>StarParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Fn</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>, <span class='ident'>F</span>::<span class='ident'>Output</span>: <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span>,<span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>ParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>StarParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>, <span class='ident'>F</span>: <span class='ident'>Factory</span>, <span class='ident'>F</span>::<span class='ident'>Output</span>: <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
         <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>StarStatefulParser</span><span class='op'>&lt;</span><span class='ident'>P</span>,<span class='ident'>P</span>::<span class='ident'>State</span>,<span class='ident'>F</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>;
         <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>State</span> {
-            <span class='ident'>StarStatefulParser</span>(<span class='self'>self</span>.<span class='number'>0</span>,<span class='prelude-val'>None</span>,(<span class='self'>self</span>.<span class='number'>1</span>)())
+            <span class='ident'>StarStatefulParser</span>(<span class='self'>self</span>.<span class='number'>0</span>,<span class='prelude-val'>None</span>,<span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>build</span>())
         }
     }
     
@@ -2467,12 +2549,12 @@
         }
     }
 
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterStatefulParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterStatefulParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>char</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>bool</span><span class='op'>&gt;</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span>;
         <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='self'>self</span>, <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>,<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> {
             <span class='kw'>match</span> <span class='ident'>value</span>.<span class='ident'>chars</span>().<span class='ident'>next</span>() {
                 <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>Continue</span>(<span class='self'>self</span>),
-                <span class='prelude-val'>Some</span>(<span class='ident'>ch</span>) <span class='kw'>if</span> (<span class='self'>self</span>.<span class='number'>0</span>)(<span class='ident'>ch</span>) <span class='op'>=&gt;</span> {
+                <span class='prelude-val'>Some</span>(<span class='ident'>ch</span>) <span class='kw'>if</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>apply</span>(<span class='ident'>ch</span>) <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='ident'>len</span> <span class='op'>=</span> <span class='ident'>ch</span>.<span class='ident'>len_utf8</span>();
                     <span class='ident'>Done</span>(<span class='kw-2'>&amp;</span><span class='ident'>value</span>[<span class='ident'>len</span>..],<span class='prelude-val'>Some</span>(<span class='ident'>ch</span>))
                 },
@@ -2496,7 +2578,7 @@
         }
     }
 
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>ParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>Fn</span>(<span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>ParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Copy</span><span class='op'>+</span><span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>char</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>bool</span><span class='op'>&gt;</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span>;
         <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>CharacterStatefulParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>;
         <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>State</span> {
@@ -2522,13 +2604,13 @@
         }
     }
 
-    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterGuardedParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+    <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterGuardedParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>char</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>bool</span><span class='op'>&gt;</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>char</span>;
         <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>ImpossibleStatefulParser</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span>;
         <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>GuardedParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>,<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> {
             <span class='kw'>match</span> <span class='ident'>value</span>.<span class='ident'>chars</span>().<span class='ident'>next</span>() {
                 <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>Empty</span>,
-                <span class='prelude-val'>Some</span>(<span class='ident'>ch</span>) <span class='kw'>if</span> (<span class='self'>self</span>.<span class='number'>0</span>)(<span class='ident'>ch</span>) <span class='op'>=&gt;</span> {
+                <span class='prelude-val'>Some</span>(<span class='ident'>ch</span>) <span class='kw'>if</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>apply</span>(<span class='ident'>ch</span>) <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='ident'>len</span> <span class='op'>=</span> <span class='ident'>ch</span>.<span class='ident'>len_utf8</span>();
                     <span class='ident'>Commit</span>(<span class='ident'>Done</span>(<span class='kw-2'>&amp;</span><span class='ident'>value</span>[<span class='ident'>len</span>..],<span class='ident'>ch</span>))
                 },
@@ -2807,7 +2889,6 @@
 
 <span class='attribute'>#[<span class='ident'>test</span>]</span>
 <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>non_snake_case</span>)]</span>
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>private_in_public</span>)]</span>
 <span class='kw'>fn</span> <span class='ident'>test_boxable</span>() {
 
     <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>,<span class='ident'>Debug</span>,<span class='ident'>Eq</span>,<span class='ident'>PartialEq</span>)]</span>
@@ -2898,6 +2979,6 @@
     <script src="../../jquery.js"></script>
     <script src="../../main.js"></script>
     
-    <script defer src="../../search-index.js"></script>
+    <script async src="../../search-index.js"></script>
 </body>
 </html>

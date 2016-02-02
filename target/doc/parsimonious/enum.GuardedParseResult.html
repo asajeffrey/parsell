@@ -9,7 +9,6 @@
 
     <title>parsimonious::GuardedParseResult - Rust</title>
 
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../main.css">
 
     
@@ -46,7 +45,7 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-79' class='srclink' href='../src/parsimonious/lib.rs.html#324-331' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-78' class='srclink' href='../src/parsimonious/lib.rs.html#320-327' title='goto source code'>[src]</a></span></h1>
 <pre class='rust enum'>pub enum GuardedParseResult&lt;P, S&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span> {
     Empty,
     Abort(S),
@@ -56,7 +55,7 @@
 <table><tr><td id='variant.Empty'><code>Empty</code></td><td><div class='docblock'><p>The input was empty.</p>
 </div></td></tr><tr><td id='variant.Abort'><code>Abort</code></td><td><div class='docblock'><p>The parser must backtrack.</p>
 </div></td></tr><tr><td id='variant.Commit'><code>Commit</code></td><td><div class='docblock'><p>The parser has committed to parsing the input.</p>
-</div></td></tr></table><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl&lt;P, S&gt; <a class='enum' href='../parsimonious/enum.GuardedParseResult.html' title='parsimonious::GuardedParseResult'>GuardedParseResult</a>&lt;P, S&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span></code></h3><div class='impl-items'><h4 id='method.map' class='method'><code>fn <a href='#method.map' class='fnname'>map</a>&lt;F, Q&gt;(self, f: F) -&gt; <a class='enum' href='../parsimonious/enum.GuardedParseResult.html' title='parsimonious::GuardedParseResult'>GuardedParseResult</a>&lt;Q, S&gt; <span class='where'>where Q: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S, Output=P::Output&gt;, F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(P) -&gt; Q</span></code></h4>
+</div></td></tr></table><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl&lt;P, S&gt; <a class='enum' href='../parsimonious/enum.GuardedParseResult.html' title='parsimonious::GuardedParseResult'>GuardedParseResult</a>&lt;P, S&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span></code></h3><div class='impl-items'><h4 id='method.map' class='method'><code>fn <a href='#method.map' class='fnname'>map</a>&lt;F, Q&gt;(self, f: F) -&gt; <a class='enum' href='../parsimonious/enum.GuardedParseResult.html' title='parsimonious::GuardedParseResult'>GuardedParseResult</a>&lt;Q, S&gt; <span class='where'>where Q: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S, Output=P::Output&gt;, F: <a class='trait' href='../parsimonious/trait.Function.html' title='parsimonious::Function'>Function</a>&lt;P, Output=Q&gt;</span></code></h4>
 <div class='docblock'><p>Apply a function the the Commit branch of a guarded parse result</p>
 </div></div></section>
     <section id='search' class="content hidden"></section>
@@ -117,6 +116,6 @@
     <script src="../jquery.js"></script>
     <script src="../main.js"></script>
     
-    <script defer src="../search-index.js"></script>
+    <script async src="../search-index.js"></script>
 </body>
 </html>

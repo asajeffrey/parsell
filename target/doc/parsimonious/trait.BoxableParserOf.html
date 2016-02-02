@@ -9,7 +9,6 @@
 
     <title>parsimonious::BoxableParserOf - Rust</title>
 
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../main.css">
 
     
@@ -46,10 +45,10 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-98' class='srclink' href='../src/parsimonious/lib.rs.html#537-541' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-97' class='srclink' href='../src/parsimonious/lib.rs.html#533-537' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait BoxableParserOf&lt;S&gt; {
     type Output;
-    fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;;
+    fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;;
     fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>;
 }</pre><div class='docblock'><p>A trait for boxable parsers.</p>
 
@@ -209,7 +208,7 @@ clients cannot call <code>parse</code> after <code>done</code>, but <code>Boxabl
         <h3 id='associatedtype.Output' class='method stab '><code>type Output</code></h3></div>
             <h2 id='required-methods'>Required Methods</h2>
             <div class='methods'>
-        <h3 id='tymethod.parse_boxable' class='method stab '><code>fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;</code></h3><h3 id='tymethod.done_boxable' class='method stab '><code>fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a></code></h3></div>
+        <h3 id='tymethod.parse_boxable' class='method stab '><code>fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;</code></h3><h3 id='tymethod.done_boxable' class='method stab '><code>fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a></code></h3></div>
         <h2 id='implementors'>Implementors</h2>
         <ul class='item-list' id='implementors-list'>
     <li><code>impl&lt;P, S&gt; <a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>BoxableParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/impls/struct.BoxableParser.html' title='parsimonious::impls::BoxableParser'>BoxableParser</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span></code></li>
@@ -274,6 +273,6 @@ clients cannot call <code>parse</code> after <code>done</code>, but <code>Boxabl
     <script src="../jquery.js"></script>
     <script src="../main.js"></script>
     
-    <script defer src="../search-index.js"></script>
+    <script async src="../search-index.js"></script>
 </body>
 </html>
