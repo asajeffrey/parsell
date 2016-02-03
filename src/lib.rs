@@ -9,7 +9,8 @@
 //!
 //! It is based on:
 //!
-//! * [Monadic Parsing in Haskell](http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf) by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,
+//! * [Monadic Parsing in Haskell](http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf)
+//!   by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,
 //! * [Nom, eating data byte by byte](https://github.com/Geal/nom) by G. Couprie.
 //!
 //! [Repo](https://github.com/asajeffrey/parsimonious) |
