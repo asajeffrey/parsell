@@ -183,6 +183,21 @@ pub trait ParserOf<S> {
     // Sequence this parser with another parser.
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { impls::AndThenParser::new(self,other) }
 
+    /// Apply a function to the result (returns a guarded parser).
+    fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self:Sized, { impls::MapParser::new(self,f) }
+
+    /// Apply a 2-arguent function to the result (returns a guarded parser).
+    fn map2<F>(self, f: F) -> impls::MapParser<Self,impls::Function2<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function2::new(f)) }
+
+    /// Apply a 3-arguent function to the result (returns a guarded parser).
+    fn map3<F>(self, f: F) -> impls::MapParser<Self,impls::Function3<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function3::new(f)) }
+
+    /// Apply a 4-arguent function to the result (returns a guarded parser).
+    fn map4<F>(self, f: F) -> impls::MapParser<Self,impls::Function4<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function4::new(f)) }
+
+    /// Apply a 5-arguent function to the result (returns a guarded parser).
+    fn map5<F>(self, f: F) -> impls::MapParser<Self,impls::Function5<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function5::new(f)) }
+
 }
 
 /// A trait for stateless guarded parsers.
@@ -801,6 +816,14 @@ pub mod impls {
                 Commit(Continue(parsing)) => Commit(Continue(MapStatefulParser(parsing,self.1))),
                 Abort(value) => Abort(value),
             }
+        }
+    }
+
+    impl<P,F,S> ParserOf<S> for MapParser<P,F> where P: ParserOf<S>, F: Copy+Function<P::Output> {
+        type Output = F::Output;
+        type State = MapStatefulParser<P::State,F>;
+        fn init(&self) -> Self::State {
+            MapStatefulParser(self.0.init(),self.1)
         }
     }
 
