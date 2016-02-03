@@ -288,6 +288,18 @@ pub trait GuardedParserOf<S> {
     /// Apply a function to the result (returns a guarded parser).
     fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self:Sized, { impls::MapParser::new(self,f) }
 
+    /// Apply a 2-arguent function to the result (returns a guarded parser).
+    fn map2<F>(self, f: F) -> impls::MapParser<Self,impls::Function2<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function2::new(f)) }
+
+    /// Apply a 3-arguent function to the result (returns a guarded parser).
+    fn map3<F>(self, f: F) -> impls::MapParser<Self,impls::Function3<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function3::new(f)) }
+
+    /// Apply a 4-arguent function to the result (returns a guarded parser).
+    fn map4<F>(self, f: F) -> impls::MapParser<Self,impls::Function4<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function4::new(f)) }
+
+    /// Apply a 5-arguent function to the result (returns a guarded parser).
+    fn map5<F>(self, f: F) -> impls::MapParser<Self,impls::Function5<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function5::new(f)) }
+
     /// Replace the result with the input.
     ///
     /// This does its best to avoid having to buffer the input. The result of a buffered parser
@@ -430,15 +442,15 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 /// ```text
 /// fn is_lparen(ch: char) -> bool { ch == '(' }
 /// fn is_rparen(ch: char) -> bool { ch == ')' }
-/// fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree {
-///     Tree((children.0).1)
+/// fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree {
+///     Tree(children)
 /// }
 /// let LPAREN = character_guard(is_lparen);
 /// let RPAREN = character(is_rparen);
 /// let TREE = LPAREN
 ///     .and_then(TREE.star(Vec::new))
 ///     .and_then(RPAREN)
-///     .map(mk_tree);
+///     .map3(mk_tree);
 /// ```
 ///
 /// but this doesn't work because it gives the definition of `TREE` in terms of itself,
@@ -473,11 +485,11 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 ///         // ... parser goes here...`
 /// #       fn is_lparen(ch: char) -> bool { ch == '(' }
 /// #       fn is_rparen(ch: char) -> bool { ch == ')' }
-/// #       fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree { Tree((children.0).1) }
+/// #       fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree { Tree(children) }
 /// #       fn mk_box<P>(parser: P) -> TreeParserState where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> { Box::new(parser.boxable())  }
 /// #       let LPAREN = character_guard(is_lparen);
 /// #       let RPAREN = character(is_rparen);
-/// #       let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map(mk_tree);
+/// #       let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map3(mk_tree);
 /// #       parser.parse(data).map(mk_box)
 ///     }
 /// }
@@ -501,8 +513,8 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 ///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
 ///         fn is_lparen(ch: char) -> bool { ch == '(' }
 ///         fn is_rparen(ch: char) -> bool { ch == ')' }
-///         fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree {
-///             Tree((children.0).1)
+///         fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree {
+///             Tree(children)
 ///         }
 ///         fn mk_box<P>(parser: P) -> TreeParserState
 ///         where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> {
@@ -513,7 +525,7 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 ///         let parser = LPAREN
 ///             .and_then(TreeParser.star(Vec::new))
 ///             .and_then(RPAREN)
-///             .map(mk_tree);
+///             .map3(mk_tree);
 ///         parser.parse(data).map(mk_box)
 ///     }
 /// }
@@ -564,7 +576,6 @@ pub trait Function<T> {
     type Output;
     fn apply(&self, arg: T) -> Self::Output;
 }
-
 
 impl<F,S,T> Function<S> for F where F: Fn(S) -> T {
     type Output = T;
@@ -681,11 +692,69 @@ pub mod impls {
     use self::OrElseStatefulParser::{Lhs,Rhs};
     use self::OrEmitStatefulParser::{Unresolved,Resolved};
 
+    // ----------- N-argument functions ---------------
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Function2<F>(F);
+
+    impl<F> Function2<F> {
+        pub fn new(f: F) -> Self { Function2(f) }
+    }
+
+    impl<F,S1,S2,T> Function<(S1,S2)> for Function2<F> where F: Fn(S1,S2) -> T {
+        type Output = T;
+        fn apply(&self, args: (S1,S2)) -> T {
+            (self.0)(args.0,args.1)
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Function3<F>(F);
+
+    impl<F> Function3<F> {
+        pub fn new(f: F) -> Self { Function3(f) }
+    }
+
+    impl<F,S1,S2,S3,T> Function<((S1,S2),S3)> for Function3<F> where F: Fn(S1,S2,S3) -> T {
+        type Output = T;
+        fn apply(&self, args: ((S1,S2),S3)) -> T {
+            (self.0)((args.0).0,(args.0).1,args.1)
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Function4<F>(F);
+
+    impl<F> Function4<F> {
+        pub fn new(f: F) -> Self { Function4(f) }
+    }
+
+    impl<F,S1,S2,S3,S4,T> Function<(((S1,S2),S3),S4)> for Function4<F> where F: Fn(S1,S2,S3,S4) -> T {
+        type Output = T;
+        fn apply(&self, args: (((S1,S2),S3),S4)) -> T {
+            (self.0)(((args.0).0).0,((args.0).0).1,(args.0).1,args.1)
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Function5<F>(F);
+
+    impl<F> Function5<F> {
+        pub fn new(f: F) -> Self { Function5(f) }
+    }
+
+    impl<F,S1,S2,S3,S4,S5,T> Function<((((S1,S2),S3),S4),S5)> for Function5<F> where F: Fn(S1,S2,S3,S4,S5) -> T {
+        type Output = T;
+        fn apply(&self, args: ((((S1,S2),S3),S4),S5)) -> T {
+            (self.0)((((args.0).0).0).0,(((args.0).0).0).1,((args.0).0).1,(args.0).1,args.1)
+        }
+    }
+
     // ----------- Map ---------------
 
     #[derive(Debug)]
     pub struct MapStatefulParser<P,F>(P,F);
-    
+
     // A work around for functions implmenting copy but not clone
     // https://github.com/rust-lang/rust/issues/28229
     impl<P,F> Copy for MapStatefulParser<P,F> where P: Copy, F: Copy {}
@@ -1320,6 +1389,68 @@ fn test_map() {
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("989",None));
     assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_map2() {
+    fn f(ch1: char, ch2: Option<char>) -> Option<(char, char)> {
+        ch2.and_then(|ch2| Some((ch1,ch2)))
+    }
+    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).map2(f);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Some(('a','b'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_map3() {
+    fn f(ch1: char, ch2: Option<char>, ch3: Option<char>) -> Option<(char, char, char)> {
+        ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3))))
+    }
+    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map3(f);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abcd").unCommit().unDone(),("d",Some(('a','b','c'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_map4() {
+    fn f(ch1: char, ch2: Option<char>, ch3: Option<char>, ch4: Option<char>) -> Option<(char, char, char, char)> {
+        ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3,ch4)))))
+    }
+    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map4(f);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abc!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abcde").unCommit().unDone(),("e",Some(('a','b','c','d'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_map5() {
+    fn f(ch1: char, ch2: Option<char>, ch3: Option<char>, ch4: Option<char>, ch5: Option<char>) -> Option<(char, char, char, char, char)> {
+        ch5.and_then(|ch5| ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3,ch4,ch5))))))
+    }
+    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map5(f);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abc!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abcd!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abcdef").unCommit().unDone(),("f",Some(('a','b','c','d','e'))));
 }
 
 #[test]
