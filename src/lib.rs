@@ -505,15 +505,18 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 /// ```text
 /// fn is_lparen(ch: char) -> bool { ch == '(' }
 /// fn is_rparen(ch: char) -> bool { ch == ')' }
-/// fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree {
-///     Tree(children)
+/// fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
+/// fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+/// fn mk_err<T>() -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+/// fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
+///     Ok(Tree(children))
 /// }
 /// let LPAREN = character_guard(is_lparen);
-/// let RPAREN = character(is_rparen);
+/// let RPAREN = character_guard(is_rparen).map(mk_ok).or_emit(mk_err);
 /// let TREE = LPAREN
-///     .and_then(TREE.star(Vec::new))
-///     .and_then(RPAREN)
-///     .map3(mk_tree);
+///     .and_then_try(TREE.star(mk_vec))
+///     .try_and_then_try(RPAREN)
+///     .try_map3(mk_tree);
 /// ```
 ///
 /// but this doesn't work because it gives the definition of `TREE` in terms of itself,
@@ -539,20 +542,30 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
-/// let TREE = TreeParser;
-/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Result<Tree,String>>>;
 /// impl<'a> GuardedParserOf<&'a str> for TreeParser {
-///     type Output = Tree;
+///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
 ///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
 ///         // ... parser goes here...`
 /// #       fn is_lparen(ch: char) -> bool { ch == '(' }
 /// #       fn is_rparen(ch: char) -> bool { ch == ')' }
-/// #       fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree { Tree(children) }
-/// #       fn mk_box<P>(parser: P) -> TreeParserState where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> { Box::new(parser.boxable())  }
+/// #       fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
+/// #       fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+/// #       fn mk_err<T>() -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+/// #       fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
+/// #           Ok(Tree(children))
+/// #       }
+/// #       fn mk_box<P>(parser: P) -> TreeParserState
+/// #       where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Result<Tree,String>> {
+/// #           Box::new(parser.boxable())
+/// #       }
 /// #       let LPAREN = character_guard(is_lparen);
-/// #       let RPAREN = character(is_rparen);
-/// #       let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map3(mk_tree);
+/// #       let RPAREN = character_guard(is_rparen).map(mk_ok).or_emit(mk_err);
+/// #       let parser = LPAREN
+/// #           .and_then_try(TreeParser.star(mk_vec))
+/// #           .try_and_then_try(RPAREN)
+/// #           .try_map3(mk_tree);
 /// #       parser.parse(data).map(mk_box)
 ///     }
 /// }
@@ -569,33 +582,36 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
-/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Result<Tree,String>>>;
 /// impl<'a> GuardedParserOf<&'a str> for TreeParser {
-///     type Output = Tree;
+///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
 ///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
 ///         fn is_lparen(ch: char) -> bool { ch == '(' }
 ///         fn is_rparen(ch: char) -> bool { ch == ')' }
-///         fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree {
-///             Tree(children)
+///         fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
+///         fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+///         fn mk_err<T>() -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+///         fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
+///             Ok(Tree(children))
 ///         }
 ///         fn mk_box<P>(parser: P) -> TreeParserState
-///         where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> {
+///         where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Result<Tree,String>> {
 ///             Box::new(parser.boxable())
 ///         }
 ///         let LPAREN = character_guard(is_lparen);
-///         let RPAREN = character(is_rparen);
+///         let RPAREN = character_guard(is_rparen).map(mk_ok).or_emit(mk_err);
 ///         let parser = LPAREN
-///             .and_then(TreeParser.star(Vec::new))
-///             .and_then(RPAREN)
-///             .map3(mk_tree);
+///             .and_then_try(TreeParser.star(mk_vec))
+///             .try_and_then_try(RPAREN)
+///             .try_map3(mk_tree);
 ///         parser.parse(data).map(mk_box)
 ///     }
 /// }
 /// let TREE = TreeParser;
 /// match TREE.parse("((") {
 ///     Commit(Continue(parsing)) => match parsing.parse(")()))") {
-///         Done(")",result) => assert_eq!(result,Tree(vec![Tree(vec![]),Tree(vec![])])),
+///         Done(")",result) => assert_eq!(result,Ok(Tree(vec![Tree(vec![]),Tree(vec![])]))),
 ///          _ => panic!("can't happen"),
 ///     },
 ///     _ => panic!("can't happen"),
