@@ -324,7 +324,7 @@ pub trait GuardedParserOf<S> {
     /// Sequencing with a parser (returns a guarded parser, returns an error when the other parser returns an error).
     fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::ZipTry) }
 
-    /// Sequencing with a parser (returns a guarded parser, returns an error when the other parser returns an error).
+    /// Sequencing with a parser (returns a guarded parser, returns an error when either parser returns an error).
     fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZipTry) }
 
     /// Iterate one or more times (returns a guarded parser).
