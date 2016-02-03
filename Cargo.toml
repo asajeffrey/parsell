@@ -1,7 +1,7 @@
 [package]
 
 name = "parsimonious"
-version = "0.0.5"
+version = "0.0.6-SNAPSHOT"
 authors = [ "Alan Jeffrey <ajeffrey@mozilla.com>" ]
 
 description = "Parsimonious parser combinators"
