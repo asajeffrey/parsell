@@ -41,7 +41,7 @@ pub trait StatefulParserOf<S> {
     type Output;
 
     /// Provides data to the parser.
-    /// 
+    ///
     /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.parse(data)` either:
     ///
     /// * returns `Done(rest, result)` where `rest: S` is any remaining input,
@@ -82,7 +82,7 @@ pub trait StatefulParserOf<S> {
     fn parse(self, value: S) -> ParseResult<Self,S> where Self: Sized;
 
     /// Tells the parser that it will not receive any more data.
-    /// 
+    ///
     /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.done()` returns a result of type `T`
     /// for example:
     ///
@@ -182,7 +182,7 @@ pub trait ParserOf<S> {
 
     // Sequence this parser with another parser.
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { impls::AndThenParser::new(self,other) }
-    
+
 }
 
 /// A trait for stateless guarded parsers.
@@ -229,7 +229,7 @@ pub trait GuardedParserOf<S> {
     type State: StatefulParserOf<S,Output=Self::Output>;
 
     /// Provides data to the parser.
-    /// 
+    ///
     /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.parse(data)` either:
     ///
     /// * returns `Empty` because `data` was empty,
@@ -297,7 +297,7 @@ pub trait GuardedParserOf<S> {
     ///
     /// ```
     /// # use parsimonious::{character_guard,ignore,GuardedParserOf,StatefulParserOf};
-    /// # use parsimonious::GuardedParseResult::{Commit}; 
+    /// # use parsimonious::GuardedParseResult::{Commit};
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// # use parsimonious::Str::{Borrowed,Owned};
     /// let parser = character_guard(char::is_alphabetic).plus(ignore).buffer();
@@ -314,7 +314,7 @@ pub trait GuardedParserOf<S> {
     /// }
     /// ```
     fn buffer(self) -> impls::BufferedGuardedParser<Self> where Self:Sized, { impls::BufferedGuardedParser::new(self) }
-    
+
 }
 
 /// The result of a guarded parse.
@@ -671,7 +671,7 @@ pub fn character_guard<F>(f: F) -> impls::CharacterGuardedParser<F> where F: Fun
 pub mod impls {
 
     //! Provide implementations of parser traits.
-    
+
     use super::{StatefulParserOf,GuardedParserOf,ParserOf,BoxableParserOf,ParseResult,GuardedParseResult,Factory,Function,Consumer,Str};
     use super::ParseResult::{Continue,Done};
     use super::GuardedParseResult::{Abort,Commit,Empty};
@@ -723,7 +723,7 @@ pub mod impls {
     }
 
     impl<P,F,S> GuardedParserOf<S> for MapParser<P,F> where P: GuardedParserOf<S>, F: Copy+Function<P::Output> {
-        type Output = F::Output;        
+        type Output = F::Output;
         type State = MapStatefulParser<P::State,F>;
         fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
             match self.0.parse(value) {
@@ -839,7 +839,7 @@ pub mod impls {
             OrElseGuardedParser(lhs,rhs)
         }
     }
-    
+
     #[derive(Copy, Clone, Debug)]
     pub enum OrElseStatefulParser<P,Q> {
         Lhs(P),
@@ -1005,7 +1005,7 @@ pub mod impls {
             PlusParser(parser,factory)
         }
     }
-    
+
     #[derive(Debug)]
     pub struct StarParser<P,F>(P,F);
 
@@ -1025,7 +1025,7 @@ pub mod impls {
             StarStatefulParser(self.0,None,self.1.build())
         }
     }
-    
+
     impl<P,F> StarParser<P,F> {
         pub fn new(parser: P, factory: F) -> Self {
             StarParser(parser,factory)
@@ -1187,7 +1187,7 @@ pub mod impls {
             BufferedGuardedParser(parser)
         }
     }
-    
+
     #[derive(Clone,Debug)]
     pub struct BufferedStatefulParser<P>(P,String);
 
@@ -1412,7 +1412,7 @@ fn test_boxable() {
 
     #[derive(Clone,Debug,Eq,PartialEq)]
     struct Tree(Vec<Tree>);
-    
+
     #[derive(Copy,Clone,Debug)]
     struct TreeParser;
     type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
