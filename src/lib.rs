@@ -728,6 +728,19 @@ impl<T> Consumer<T> for Vec<T> {
     fn accept(&mut self, x: T) { self.push(x); }
 }
 
+impl<C,T,E> Consumer<Result<T,E>> for Result<C,E> where C: Consumer<T> {
+    fn accept(&mut self, value: Result<T,E>) {
+        let err = match *self {
+            Err(_) => return,
+            Ok(ref mut consumer) => match value {
+                Err(err) => err,
+                Ok(value) => return consumer.accept(value),
+            },
+        };
+        *self = Err(err);
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Str<'a> {
     Borrowed(&'a str),
