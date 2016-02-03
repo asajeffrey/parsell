@@ -180,8 +180,47 @@ pub trait ParserOf<S> {
     /// Create a stateful parser by initializing a stateless parser.
     fn init(&self) -> Self::State;
 
-    // Sequence this parser with another parser.
+    /// Sequencing with a parser (returns a parser).
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { impls::AndThenParser::new(self,other) }
+
+    /// Sequencing with a parser (returns a parser, returns an error when this parser returns an error).
+    fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZip) }
+
+    /// Sequencing with a parser (returns a parser, returns an error when the other parser returns an error).
+    fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::ZipTry) }
+
+    /// Sequencing with a parser (returns a parser, returns an error when the other parser returns an error).
+    fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZipTry) }
+
+    /// Apply a function to the result (returns a parser).
+    fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self:Sized, { impls::MapParser::new(self,f) }
+
+    /// Apply a 2-arguent function to the result (returns a parser).
+    fn map2<F>(self, f: F) -> impls::MapParser<Self,impls::Function2<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function2::new(f)) }
+
+    /// Apply a 3-arguent function to the result (returns a parser).
+    fn map3<F>(self, f: F) -> impls::MapParser<Self,impls::Function3<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function3::new(f)) }
+
+    /// Apply a 4-arguent function to the result (returns a parser).
+    fn map4<F>(self, f: F) -> impls::MapParser<Self,impls::Function4<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function4::new(f)) }
+
+    /// Apply a 5-arguent function to the result (returns a parser).
+    fn map5<F>(self, f: F) -> impls::MapParser<Self,impls::Function5<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function5::new(f)) }
+
+    /// Apply a function to the result (returns a parser, returns an error when this parser returns an error).
+    fn try_map<F>(self, f: F) -> impls::MapParser<Self,impls::Try<F>> where Self:Sized, { self.map(impls::Try::new(f)) }
+
+    /// Apply a 2-argument function to the result (returns a parser, returns an error when this parser returns an error).
+    fn try_map2<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function2<F>>> where Self:Sized, { self.try_map(impls::Function2::new(f)) }
+
+    /// Apply a 3-argument function to the result (returns a parser, returns an error when this parser returns an error).
+    fn try_map3<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function3<F>>> where Self:Sized, { self.try_map(impls::Function3::new(f)) }
+
+    /// Apply a 4-argument function to the result (returns a parser, returns an error when this parser returns an error).
+    fn try_map4<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function4<F>>> where Self:Sized, { self.try_map(impls::Function4::new(f)) }
+
+    /// Apply a 5-argument function to the result (returns a parser, returns an error when this parser returns an error).
+    fn try_map5<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function5<F>>> where Self:Sized, { self.try_map(impls::Function5::new(f)) }
 
 }
 
@@ -279,6 +318,15 @@ pub trait GuardedParserOf<S> {
     /// Sequencing with a parser (returns a guarded parser).
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { impls::AndThenParser::new(self,other) }
 
+    /// Sequencing with a parser (returns a guarded parser, returns an error when this parser returns an error).
+    fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZip) }
+
+    /// Sequencing with a parser (returns a guarded parser, returns an error when the other parser returns an error).
+    fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::ZipTry) }
+
+    /// Sequencing with a parser (returns a guarded parser, returns an error when either parser returns an error).
+    fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZipTry) }
+
     /// Iterate one or more times (returns a guarded parser).
     fn plus<F>(self, factory: F) -> impls::PlusParser<Self,F> where Self:Sized { impls::PlusParser::new(self,factory) }
 
@@ -299,6 +347,21 @@ pub trait GuardedParserOf<S> {
 
     /// Apply a 5-arguent function to the result (returns a guarded parser).
     fn map5<F>(self, f: F) -> impls::MapParser<Self,impls::Function5<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function5::new(f)) }
+
+    /// Apply a function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    fn try_map<F>(self, f: F) -> impls::MapParser<Self,impls::Try<F>> where Self:Sized, { self.map(impls::Try::new(f)) }
+
+    /// Apply a 2-argument function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    fn try_map2<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function2<F>>> where Self:Sized, { self.try_map(impls::Function2::new(f)) }
+
+    /// Apply a 3-argument function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    fn try_map3<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function3<F>>> where Self:Sized, { self.try_map(impls::Function3::new(f)) }
+
+    /// Apply a 4-argument function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    fn try_map4<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function4<F>>> where Self:Sized, { self.try_map(impls::Function4::new(f)) }
+
+    /// Apply a 5-argument function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    fn try_map5<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function5<F>>> where Self:Sized, { self.try_map(impls::Function5::new(f)) }
 
     /// Replace the result with the input.
     ///
@@ -442,15 +505,18 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 /// ```text
 /// fn is_lparen(ch: char) -> bool { ch == '(' }
 /// fn is_rparen(ch: char) -> bool { ch == ')' }
-/// fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree {
-///     Tree(children)
+/// fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
+/// fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+/// fn mk_err<T>() -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+/// fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
+///     Ok(Tree(children))
 /// }
 /// let LPAREN = character_guard(is_lparen);
-/// let RPAREN = character(is_rparen);
+/// let RPAREN = character_guard(is_rparen).map(mk_ok).or_emit(mk_err);
 /// let TREE = LPAREN
-///     .and_then(TREE.star(Vec::new))
-///     .and_then(RPAREN)
-///     .map3(mk_tree);
+///     .and_then_try(TREE.star(mk_vec))
+///     .try_and_then_try(RPAREN)
+///     .try_map3(mk_tree);
 /// ```
 ///
 /// but this doesn't work because it gives the definition of `TREE` in terms of itself,
@@ -476,20 +542,30 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
-/// let TREE = TreeParser;
-/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Result<Tree,String>>>;
 /// impl<'a> GuardedParserOf<&'a str> for TreeParser {
-///     type Output = Tree;
+///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
 ///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
 ///         // ... parser goes here...`
 /// #       fn is_lparen(ch: char) -> bool { ch == '(' }
 /// #       fn is_rparen(ch: char) -> bool { ch == ')' }
-/// #       fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree { Tree(children) }
-/// #       fn mk_box<P>(parser: P) -> TreeParserState where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> { Box::new(parser.boxable())  }
+/// #       fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
+/// #       fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+/// #       fn mk_err<T>() -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+/// #       fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
+/// #           Ok(Tree(children))
+/// #       }
+/// #       fn mk_box<P>(parser: P) -> TreeParserState
+/// #       where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Result<Tree,String>> {
+/// #           Box::new(parser.boxable())
+/// #       }
 /// #       let LPAREN = character_guard(is_lparen);
-/// #       let RPAREN = character(is_rparen);
-/// #       let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map3(mk_tree);
+/// #       let RPAREN = character_guard(is_rparen).map(mk_ok).or_emit(mk_err);
+/// #       let parser = LPAREN
+/// #           .and_then_try(TreeParser.star(mk_vec))
+/// #           .try_and_then_try(RPAREN)
+/// #           .try_map3(mk_tree);
 /// #       parser.parse(data).map(mk_box)
 ///     }
 /// }
@@ -506,33 +582,36 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
-/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Result<Tree,String>>>;
 /// impl<'a> GuardedParserOf<&'a str> for TreeParser {
-///     type Output = Tree;
+///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
 ///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
 ///         fn is_lparen(ch: char) -> bool { ch == '(' }
 ///         fn is_rparen(ch: char) -> bool { ch == ')' }
-///         fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree {
-///             Tree(children)
+///         fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
+///         fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+///         fn mk_err<T>() -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+///         fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
+///             Ok(Tree(children))
 ///         }
 ///         fn mk_box<P>(parser: P) -> TreeParserState
-///         where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> {
+///         where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Result<Tree,String>> {
 ///             Box::new(parser.boxable())
 ///         }
 ///         let LPAREN = character_guard(is_lparen);
-///         let RPAREN = character(is_rparen);
+///         let RPAREN = character_guard(is_rparen).map(mk_ok).or_emit(mk_err);
 ///         let parser = LPAREN
-///             .and_then(TreeParser.star(Vec::new))
-///             .and_then(RPAREN)
-///             .map3(mk_tree);
+///             .and_then_try(TreeParser.star(mk_vec))
+///             .try_and_then_try(RPAREN)
+///             .try_map3(mk_tree);
 ///         parser.parse(data).map(mk_box)
 ///     }
 /// }
 /// let TREE = TreeParser;
 /// match TREE.parse("((") {
 ///     Commit(Continue(parsing)) => match parsing.parse(")()))") {
-///         Done(")",result) => assert_eq!(result,Tree(vec![Tree(vec![]),Tree(vec![])])),
+///         Done(")",result) => assert_eq!(result,Ok(Tree(vec![Tree(vec![]),Tree(vec![])]))),
 ///          _ => panic!("can't happen"),
 ///     },
 ///     _ => panic!("can't happen"),
@@ -665,6 +744,19 @@ impl<T> Consumer<T> for Vec<T> {
     fn accept(&mut self, x: T) { self.push(x); }
 }
 
+impl<C,T,E> Consumer<Result<T,E>> for Result<C,E> where C: Consumer<T> {
+    fn accept(&mut self, value: Result<T,E>) {
+        let err = match *self {
+            Err(_) => return,
+            Ok(ref mut consumer) => match value {
+                Err(err) => err,
+                Ok(value) => return consumer.accept(value),
+            },
+        };
+        *self = Err(err);
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Str<'a> {
     Borrowed(&'a str),
@@ -750,7 +842,40 @@ pub mod impls {
         }
     }
 
-    // ----------- Map ---------------
+    // ----------- Deal with errors ---------------
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Try<F>(F);
+    impl<F,S,T,E> Function<Result<S,E>> for Try<F> where F: Function<S,Output=Result<T,E>> {
+        type Output = Result<T,E>;
+        fn apply(&self, args: Result<S,E>) -> Result<T,E> { self.0.apply(try!(args)) }
+    }
+    impl<F> Try<F> {
+        pub fn new(f: F) -> Try<F> { Try(f) }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct TryZip;
+    impl<S,T,E> Function<(Result<S,E>,T)> for TryZip {
+        type Output = Result<(S,T),E>;
+        fn apply(&self, args: (Result<S,E>,T)) -> Result<(S,T),E> { Ok((try!(args.0),args.1)) }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct ZipTry;
+    impl<S,T,E> Function<(S,Result<T,E>)> for ZipTry {
+        type Output = Result<(S,T),E>;
+        fn apply(&self, args: (S,Result<T,E>)) -> Result<(S,T),E> { Ok((args.0,try!(args.1))) }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct TryZipTry;
+    impl<S,T,E> Function<(Result<S,E>,Result<T,E>)> for TryZipTry {
+        type Output = Result<(S,T),E>;
+        fn apply(&self, args: (Result<S,E>,Result<T,E>)) -> Result<(S,T),E> { Ok((try!(args.0),try!(args.1))) }
+    }
+
+   // ----------- Map ---------------
 
     #[derive(Debug)]
     pub struct MapStatefulParser<P,F>(P,F);
@@ -801,6 +926,14 @@ pub mod impls {
                 Commit(Continue(parsing)) => Commit(Continue(MapStatefulParser(parsing,self.1))),
                 Abort(value) => Abort(value),
             }
+        }
+    }
+
+    impl<P,F,S> ParserOf<S> for MapParser<P,F> where P: ParserOf<S>, F: Copy+Function<P::Output> {
+        type Output = F::Output;
+        type State = MapStatefulParser<P::State,F>;
+        fn init(&self) -> Self::State {
+            MapStatefulParser(self.0.init(),self.1)
         }
     }
 
@@ -1468,6 +1601,45 @@ fn test_and_then() {
     assert_eq!(parser.init().parse("989").unDone(),("89",(None,Some('9'))));
     assert_eq!(parser.init().parse("a!").unDone(),("!",(Some('a'),None)));
     assert_eq!(parser.init().parse("abc").unDone(),("c",(Some('a'),Some('b'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_try_and_then() {
+    fn mk_err<T>() -> Result<T,String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(mk_ok).or_emit(mk_err);
+    let parser = character_guard(char::is_alphabetic).map(mk_ok).try_and_then(ALPHANUMERIC);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Ok(('a',Err(String::from("oh"))))));
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Ok(('a',Ok('b')))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_and_then_try() {
+    fn mk_err<T>() -> Result<T,String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(mk_ok).or_emit(mk_err);
+    let parser = character_guard(char::is_alphabetic).map(mk_ok).and_then_try(ALPHANUMERIC);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Err(String::from("oh"))));
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Ok((Ok('a'),'b'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_try_and_then_try() {
+    fn mk_err<T>() -> Result<T,String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(mk_ok).or_emit(mk_err);
+    let parser = character_guard(char::is_alphabetic).map(mk_ok).try_and_then_try(ALPHANUMERIC);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Err(String::from("oh"))));
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Ok(('a','b'))));
 }
 
 #[test]
