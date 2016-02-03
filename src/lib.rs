@@ -180,8 +180,17 @@ pub trait ParserOf<S> {
     /// Create a stateful parser by initializing a stateless parser.
     fn init(&self) -> Self::State;
 
-    // Sequence this parser with another parser.
+    /// Sequencing with a parser (returns a parser).
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { impls::AndThenParser::new(self,other) }
+
+    /// Sequencing with a parser (returns a parser, returns an error when this parser returns an error).
+    fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZip) }
+
+    /// Sequencing with a parser (returns a parser, returns an error when the other parser returns an error).
+    fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::ZipTry) }
+
+    /// Sequencing with a parser (returns a parser, returns an error when the other parser returns an error).
+    fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZipTry) }
 
     /// Apply a function to the result (returns a guarded parser).
     fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self:Sized, { impls::MapParser::new(self,f) }
@@ -293,6 +302,15 @@ pub trait GuardedParserOf<S> {
 
     /// Sequencing with a parser (returns a guarded parser).
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { impls::AndThenParser::new(self,other) }
+
+    /// Sequencing with a parser (returns a guarded parser, returns an error when this parser returns an error).
+    fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZip) }
+
+    /// Sequencing with a parser (returns a guarded parser, returns an error when the other parser returns an error).
+    fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::ZipTry) }
+
+    /// Sequencing with a parser (returns a guarded parser, returns an error when the other parser returns an error).
+    fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZipTry) }
 
     /// Iterate one or more times (returns a guarded parser).
     fn plus<F>(self, factory: F) -> impls::PlusParser<Self,F> where Self:Sized { impls::PlusParser::new(self,factory) }
@@ -765,7 +783,37 @@ pub mod impls {
         }
     }
 
-    // ----------- Map ---------------
+    // ----------- Zippers ---------------
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Zip;
+    impl<S,T> Function<(S,T)> for Zip {
+        type Output = (S,T);
+        fn apply(&self, args: (S,T)) -> (S,T) { args }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct TryZip;
+    impl<S,T,E> Function<(Result<S,E>,T)> for TryZip {
+        type Output = Result<(S,T),E>;
+        fn apply(&self, args: (Result<S,E>,T)) -> Result<(S,T),E> { Ok((try!(args.0),args.1)) }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct ZipTry;
+    impl<S,T,E> Function<(S,Result<T,E>)> for ZipTry {
+        type Output = Result<(S,T),E>;
+        fn apply(&self, args: (S,Result<T,E>)) -> Result<(S,T),E> { Ok((args.0,try!(args.1))) }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct TryZipTry;
+    impl<S,T,E> Function<(Result<S,E>,Result<T,E>)> for TryZipTry {
+        type Output = Result<(S,T),E>;
+        fn apply(&self, args: (Result<S,E>,Result<T,E>)) -> Result<(S,T),E> { Ok((try!(args.0),try!(args.1))) }
+    }
+
+   // ----------- Map ---------------
 
     #[derive(Debug)]
     pub struct MapStatefulParser<P,F>(P,F);
@@ -1491,6 +1539,45 @@ fn test_and_then() {
     assert_eq!(parser.init().parse("989").unDone(),("89",(None,Some('9'))));
     assert_eq!(parser.init().parse("a!").unDone(),("!",(Some('a'),None)));
     assert_eq!(parser.init().parse("abc").unDone(),("c",(Some('a'),Some('b'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_try_and_then() {
+    fn mk_err<T>() -> Result<T,String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(mk_ok).or_emit(mk_err);
+    let parser = character_guard(char::is_alphabetic).map(mk_ok).try_and_then(ALPHANUMERIC);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Ok(('a',Err(String::from("oh"))))));
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Ok(('a',Ok('b')))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_and_then_try() {
+    fn mk_err<T>() -> Result<T,String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(mk_ok).or_emit(mk_err);
+    let parser = character_guard(char::is_alphabetic).map(mk_ok).and_then_try(ALPHANUMERIC);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Err(String::from("oh"))));
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Ok((Ok('a'),'b'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_try_and_then_try() {
+    fn mk_err<T>() -> Result<T,String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(mk_ok).or_emit(mk_err);
+    let parser = character_guard(char::is_alphabetic).map(mk_ok).try_and_then_try(ALPHANUMERIC);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Err(String::from("oh"))));
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Ok(('a','b'))));
 }
 
 #[test]
