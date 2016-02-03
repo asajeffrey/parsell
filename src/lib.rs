@@ -9,7 +9,8 @@
 //!
 //! It is based on:
 //!
-//! * [Monadic Parsing in Haskell](http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf) by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,
+//! * [Monadic Parsing in Haskell](http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf)
+//!   by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,
 //! * [Nom, eating data byte by byte](https://github.com/Geal/nom) by G. Couprie.
 //!
 //! [Repo](https://github.com/asajeffrey/parsimonious) |
@@ -40,7 +41,7 @@ pub trait StatefulParserOf<S> {
     type Output;
 
     /// Provides data to the parser.
-    /// 
+    ///
     /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.parse(data)` either:
     ///
     /// * returns `Done(rest, result)` where `rest: S` is any remaining input,
@@ -81,7 +82,7 @@ pub trait StatefulParserOf<S> {
     fn parse(self, value: S) -> ParseResult<Self,S> where Self: Sized;
 
     /// Tells the parser that it will not receive any more data.
-    /// 
+    ///
     /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.done()` returns a result of type `T`
     /// for example:
     ///
@@ -181,7 +182,7 @@ pub trait ParserOf<S> {
 
     // Sequence this parser with another parser.
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { impls::AndThenParser::new(self,other) }
-    
+
 }
 
 /// A trait for stateless guarded parsers.
@@ -228,7 +229,7 @@ pub trait GuardedParserOf<S> {
     type State: StatefulParserOf<S,Output=Self::Output>;
 
     /// Provides data to the parser.
-    /// 
+    ///
     /// If `parser: StatefulParserOf<S,Output=T>`, then `parser.parse(data)` either:
     ///
     /// * returns `Empty` because `data` was empty,
@@ -287,6 +288,18 @@ pub trait GuardedParserOf<S> {
     /// Apply a function to the result (returns a guarded parser).
     fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self:Sized, { impls::MapParser::new(self,f) }
 
+    /// Apply a 2-arguent function to the result (returns a guarded parser).
+    fn map2<F>(self, f: F) -> impls::MapParser<Self,impls::Function2<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function2::new(f)) }
+
+    /// Apply a 3-arguent function to the result (returns a guarded parser).
+    fn map3<F>(self, f: F) -> impls::MapParser<Self,impls::Function3<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function3::new(f)) }
+
+    /// Apply a 4-arguent function to the result (returns a guarded parser).
+    fn map4<F>(self, f: F) -> impls::MapParser<Self,impls::Function4<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function4::new(f)) }
+
+    /// Apply a 5-arguent function to the result (returns a guarded parser).
+    fn map5<F>(self, f: F) -> impls::MapParser<Self,impls::Function5<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function5::new(f)) }
+
     /// Replace the result with the input.
     ///
     /// This does its best to avoid having to buffer the input. The result of a buffered parser
@@ -296,7 +309,7 @@ pub trait GuardedParserOf<S> {
     ///
     /// ```
     /// # use parsimonious::{character_guard,ignore,GuardedParserOf,StatefulParserOf};
-    /// # use parsimonious::GuardedParseResult::{Commit}; 
+    /// # use parsimonious::GuardedParseResult::{Commit};
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// # use parsimonious::Str::{Borrowed,Owned};
     /// let parser = character_guard(char::is_alphabetic).plus(ignore).buffer();
@@ -313,7 +326,7 @@ pub trait GuardedParserOf<S> {
     /// }
     /// ```
     fn buffer(self) -> impls::BufferedGuardedParser<Self> where Self:Sized, { impls::BufferedGuardedParser::new(self) }
-    
+
 }
 
 /// The result of a guarded parse.
@@ -429,15 +442,15 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 /// ```text
 /// fn is_lparen(ch: char) -> bool { ch == '(' }
 /// fn is_rparen(ch: char) -> bool { ch == ')' }
-/// fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree {
-///     Tree((children.0).1)
+/// fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree {
+///     Tree(children)
 /// }
 /// let LPAREN = character_guard(is_lparen);
 /// let RPAREN = character(is_rparen);
 /// let TREE = LPAREN
 ///     .and_then(TREE.star(Vec::new))
 ///     .and_then(RPAREN)
-///     .map(mk_tree);
+///     .map3(mk_tree);
 /// ```
 ///
 /// but this doesn't work because it gives the definition of `TREE` in terms of itself,
@@ -472,11 +485,11 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 ///         // ... parser goes here...`
 /// #       fn is_lparen(ch: char) -> bool { ch == '(' }
 /// #       fn is_rparen(ch: char) -> bool { ch == ')' }
-/// #       fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree { Tree((children.0).1) }
+/// #       fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree { Tree(children) }
 /// #       fn mk_box<P>(parser: P) -> TreeParserState where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> { Box::new(parser.boxable())  }
 /// #       let LPAREN = character_guard(is_lparen);
 /// #       let RPAREN = character(is_rparen);
-/// #       let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map(mk_tree);
+/// #       let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map3(mk_tree);
 /// #       parser.parse(data).map(mk_box)
 ///     }
 /// }
@@ -500,8 +513,8 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 ///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
 ///         fn is_lparen(ch: char) -> bool { ch == '(' }
 ///         fn is_rparen(ch: char) -> bool { ch == ')' }
-///         fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree {
-///             Tree((children.0).1)
+///         fn mk_tree(_: char, children: Vec<Tree>, _: Option<char>) -> Tree {
+///             Tree(children)
 ///         }
 ///         fn mk_box<P>(parser: P) -> TreeParserState
 ///         where P: 'static+for<'a> StatefulParserOf<&'a str, Output=Tree> {
@@ -512,7 +525,7 @@ impl<P,S> GuardedParseResult<P,S> where P: StatefulParserOf<S> {
 ///         let parser = LPAREN
 ///             .and_then(TreeParser.star(Vec::new))
 ///             .and_then(RPAREN)
-///             .map(mk_tree);
+///             .map3(mk_tree);
 ///         parser.parse(data).map(mk_box)
 ///     }
 /// }
@@ -563,7 +576,6 @@ pub trait Function<T> {
     type Output;
     fn apply(&self, arg: T) -> Self::Output;
 }
-
 
 impl<F,S,T> Function<S> for F where F: Fn(S) -> T {
     type Output = T;
@@ -670,7 +682,7 @@ pub fn character_guard<F>(f: F) -> impls::CharacterGuardedParser<F> where F: Fun
 pub mod impls {
 
     //! Provide implementations of parser traits.
-    
+
     use super::{StatefulParserOf,GuardedParserOf,ParserOf,BoxableParserOf,ParseResult,GuardedParseResult,Factory,Function,Consumer,Str};
     use super::ParseResult::{Continue,Done};
     use super::GuardedParseResult::{Abort,Commit,Empty};
@@ -680,11 +692,69 @@ pub mod impls {
     use self::OrElseStatefulParser::{Lhs,Rhs};
     use self::OrEmitStatefulParser::{Unresolved,Resolved};
 
+    // ----------- N-argument functions ---------------
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Function2<F>(F);
+
+    impl<F> Function2<F> {
+        pub fn new(f: F) -> Self { Function2(f) }
+    }
+
+    impl<F,S1,S2,T> Function<(S1,S2)> for Function2<F> where F: Fn(S1,S2) -> T {
+        type Output = T;
+        fn apply(&self, args: (S1,S2)) -> T {
+            (self.0)(args.0,args.1)
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Function3<F>(F);
+
+    impl<F> Function3<F> {
+        pub fn new(f: F) -> Self { Function3(f) }
+    }
+
+    impl<F,S1,S2,S3,T> Function<((S1,S2),S3)> for Function3<F> where F: Fn(S1,S2,S3) -> T {
+        type Output = T;
+        fn apply(&self, args: ((S1,S2),S3)) -> T {
+            (self.0)((args.0).0,(args.0).1,args.1)
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Function4<F>(F);
+
+    impl<F> Function4<F> {
+        pub fn new(f: F) -> Self { Function4(f) }
+    }
+
+    impl<F,S1,S2,S3,S4,T> Function<(((S1,S2),S3),S4)> for Function4<F> where F: Fn(S1,S2,S3,S4) -> T {
+        type Output = T;
+        fn apply(&self, args: (((S1,S2),S3),S4)) -> T {
+            (self.0)(((args.0).0).0,((args.0).0).1,(args.0).1,args.1)
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Function5<F>(F);
+
+    impl<F> Function5<F> {
+        pub fn new(f: F) -> Self { Function5(f) }
+    }
+
+    impl<F,S1,S2,S3,S4,S5,T> Function<((((S1,S2),S3),S4),S5)> for Function5<F> where F: Fn(S1,S2,S3,S4,S5) -> T {
+        type Output = T;
+        fn apply(&self, args: ((((S1,S2),S3),S4),S5)) -> T {
+            (self.0)((((args.0).0).0).0,(((args.0).0).0).1,((args.0).0).1,(args.0).1,args.1)
+        }
+    }
+
     // ----------- Map ---------------
 
     #[derive(Debug)]
     pub struct MapStatefulParser<P,F>(P,F);
-    
+
     // A work around for functions implmenting copy but not clone
     // https://github.com/rust-lang/rust/issues/28229
     impl<P,F> Copy for MapStatefulParser<P,F> where P: Copy, F: Copy {}
@@ -722,7 +792,7 @@ pub mod impls {
     }
 
     impl<P,F,S> GuardedParserOf<S> for MapParser<P,F> where P: GuardedParserOf<S>, F: Copy+Function<P::Output> {
-        type Output = F::Output;        
+        type Output = F::Output;
         type State = MapStatefulParser<P::State,F>;
         fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
             match self.0.parse(value) {
@@ -838,7 +908,7 @@ pub mod impls {
             OrElseGuardedParser(lhs,rhs)
         }
     }
-    
+
     #[derive(Copy, Clone, Debug)]
     pub enum OrElseStatefulParser<P,Q> {
         Lhs(P),
@@ -1004,7 +1074,7 @@ pub mod impls {
             PlusParser(parser,factory)
         }
     }
-    
+
     #[derive(Debug)]
     pub struct StarParser<P,F>(P,F);
 
@@ -1024,7 +1094,7 @@ pub mod impls {
             StarStatefulParser(self.0,None,self.1.build())
         }
     }
-    
+
     impl<P,F> StarParser<P,F> {
         pub fn new(parser: P, factory: F) -> Self {
             StarParser(parser,factory)
@@ -1186,7 +1256,7 @@ pub mod impls {
             BufferedGuardedParser(parser)
         }
     }
-    
+
     #[derive(Clone,Debug)]
     pub struct BufferedStatefulParser<P>(P,String);
 
@@ -1323,6 +1393,68 @@ fn test_map() {
 
 #[test]
 #[allow(non_snake_case)]
+fn test_map2() {
+    fn f(ch1: char, ch2: Option<char>) -> Option<(char, char)> {
+        ch2.and_then(|ch2| Some((ch1,ch2)))
+    }
+    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).map2(f);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Some(('a','b'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_map3() {
+    fn f(ch1: char, ch2: Option<char>, ch3: Option<char>) -> Option<(char, char, char)> {
+        ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3))))
+    }
+    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map3(f);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abcd").unCommit().unDone(),("d",Some(('a','b','c'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_map4() {
+    fn f(ch1: char, ch2: Option<char>, ch3: Option<char>, ch4: Option<char>) -> Option<(char, char, char, char)> {
+        ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3,ch4)))))
+    }
+    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map4(f);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abc!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abcde").unCommit().unDone(),("e",Some(('a','b','c','d'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_map5() {
+    fn f(ch1: char, ch2: Option<char>, ch3: Option<char>, ch4: Option<char>, ch5: Option<char>) -> Option<(char, char, char, char, char)> {
+        ch5.and_then(|ch5| ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3,ch4,ch5))))))
+    }
+    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map5(f);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abc!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abcd!!").unCommit().unDone(),("!!",None));
+    assert_eq!(parser.parse("abcdef").unCommit().unDone(),("f",Some(('a','b','c','d','e'))));
+}
+
+#[test]
+#[allow(non_snake_case)]
 fn test_and_then() {
     fn mk_none<T>() -> Option<T> { None }
     let ALPHANUMERIC = character(char::is_alphanumeric);
@@ -1411,7 +1543,7 @@ fn test_boxable() {
 
     #[derive(Clone,Debug,Eq,PartialEq)]
     struct Tree(Vec<Tree>);
-    
+
     #[derive(Copy,Clone,Debug)]
     struct TreeParser;
     type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
