@@ -9,6 +9,7 @@
 
     <title>parsimonious::ParserOf - Rust</title>
 
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../main.css">
 
     
@@ -45,7 +46,7 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-35' class='srclink' href='../src/parsimonious/lib.rs.html#171-185' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-35' class='srclink' href='../src/parsimonious/lib.rs.html#172-186' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait ParserOf&lt;S&gt; {
     type Output;
     type State: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S, Output=Self::<a class='trait' href='../parsimonious/trait.ParserOf.html' title='parsimonious::ParserOf'>Output</a>&gt;;
@@ -94,7 +95,7 @@ and non-empty.</p>
     <li><code>impl&lt;P, Q, S&gt; <a class='trait' href='../parsimonious/trait.ParserOf.html' title='parsimonious::ParserOf'>ParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/impls/struct.AndThenParser.html' title='parsimonious::impls::AndThenParser'>AndThenParser</a>&lt;P, Q&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.ParserOf.html' title='parsimonious::ParserOf'>ParserOf</a>&lt;S&gt;, Q: <a class='trait' href='../parsimonious/trait.ParserOf.html' title='parsimonious::ParserOf'>ParserOf</a>&lt;S&gt;</span></code></li>
 <li><code>impl&lt;P, F, S&gt; <a class='trait' href='../parsimonious/trait.ParserOf.html' title='parsimonious::ParserOf'>ParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/impls/struct.OrEmitParser.html' title='parsimonious::impls::OrEmitParser'>OrEmitParser</a>&lt;P, F&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> + <a class='trait' href='../parsimonious/trait.GuardedParserOf.html' title='parsimonious::GuardedParserOf'>GuardedParserOf</a>&lt;S&gt;, F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> + <a class='trait' href='../parsimonious/trait.Factory.html' title='parsimonious::Factory'>Factory</a>&lt;Output=P::Output&gt;</span></code></li>
 <li><code>impl&lt;P, F, S&gt; <a class='trait' href='../parsimonious/trait.ParserOf.html' title='parsimonious::ParserOf'>ParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/impls/struct.StarParser.html' title='parsimonious::impls::StarParser'>StarParser</a>&lt;P, F&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> + <a class='trait' href='../parsimonious/trait.GuardedParserOf.html' title='parsimonious::GuardedParserOf'>GuardedParserOf</a>&lt;S&gt;, F: <a class='trait' href='../parsimonious/trait.Factory.html' title='parsimonious::Factory'>Factory</a>, F::Output: <a class='trait' href='../parsimonious/trait.Consumer.html' title='parsimonious::Consumer'>Consumer</a>&lt;P::Output&gt;</span></code></li>
-<li><code>impl&lt;'a, F&gt; <a class='trait' href='../parsimonious/trait.ParserOf.html' title='parsimonious::ParserOf'>ParserOf</a>&lt;&amp;'a <a href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt; for <a class='struct' href='../parsimonious/impls/struct.CharacterParser.html' title='parsimonious::impls::CharacterParser'>CharacterParser</a>&lt;F&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> + <a class='trait' href='../parsimonious/trait.Function.html' title='parsimonious::Function'>Function</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>, Output=<a href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;</span></code></li>
+<li><code>impl&lt;'a, F&gt; <a class='trait' href='../parsimonious/trait.ParserOf.html' title='parsimonious::ParserOf'>ParserOf</a>&lt;&amp;'a <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt; for <a class='struct' href='../parsimonious/impls/struct.CharacterParser.html' title='parsimonious::impls::CharacterParser'>CharacterParser</a>&lt;F&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> + <a class='trait' href='../parsimonious/trait.Function.html' title='parsimonious::Function'>Function</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>, Output=<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;</span></code></li>
 </ul><script type="text/javascript" async
                               src="../implementors/parsimonious/trait.ParserOf.js">
                       </script></section>
@@ -156,6 +157,6 @@ and non-empty.</p>
     <script src="../jquery.js"></script>
     <script src="../main.js"></script>
     
-    <script async src="../search-index.js"></script>
+    <script defer src="../search-index.js"></script>
 </body>
 </html>
