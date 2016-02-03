@@ -9,7 +9,6 @@
 
     <title>parsimonious::BoxableParserOf - Rust</title>
 
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../main.css">
 
     
@@ -46,10 +45,10 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-113' class='srclink' href='../src/parsimonious/lib.rs.html#546-550' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-197' class='srclink' href='../src/parsimonious/lib.rs.html#625-629' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait BoxableParserOf&lt;S&gt; {
     type Output;
-    fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;;
+    fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;;
     fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>;
 }</pre><div class='docblock'><p>A trait for boxable parsers.</p>
 
@@ -129,15 +128,18 @@ The desired implementation is:</p>
 
 <pre><code class="language-text">fn is_lparen(ch: char) -&gt; bool { ch == &#39;(&#39; }
 fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }
-fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: Option&lt;char&gt;) -&gt; Tree {
-    Tree(children)
+fn mk_vec() -&gt; Result&lt;Vec&lt;Tree&gt;,String&gt; { Ok(Vec::new()) }
+fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T,String&gt; { Ok(ok) }
+fn mk_err&lt;T&gt;() -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }
+fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Result&lt;Tree,String&gt; {
+    Ok(Tree(children))
 }
 let LPAREN = character_guard(is_lparen);
-let RPAREN = character(is_rparen);
+let RPAREN = character_guard(is_rparen).map(mk_ok).or_emit(mk_err);
 let TREE = LPAREN
-    .and_then(TREE.star(Vec::new))
-    .and_then(RPAREN)
-    .map3(mk_tree);
+    .and_then_try(TREE.star(mk_vec))
+    .try_and_then_try(RPAREN)
+    .try_map3(mk_tree);
 </code></pre>
 
 <p>but this doesn&#39;t work because it gives the definition of <code>TREE</code> in terms of itself,
@@ -153,10 +155,9 @@ for it. The type of the state of a <code>TreeParser</code> is a box containing a
 <pre class='rust rust-example-rendered'>
 <span class='kw'>struct</span> <span class='ident'>Tree</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>);
 <span class='kw'>struct</span> <span class='ident'>TreeParser</span>;
-<span class='kw'>let</span> <span class='ident'>TREE</span> <span class='op'>=</span> <span class='ident'>TreeParser</span>;
-<span class='kw'>type</span> <span class='ident'>TreeParserState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>BoxableParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='ident'>Tree</span><span class='op'>&gt;&gt;</span>;
+<span class='kw'>type</span> <span class='ident'>TreeParserState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>BoxableParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>TreeParser</span> {
-    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Tree</span>;
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;</span>;
     <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>TreeParserState</span>;
     <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>GuardedParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>,<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> {
         <span class='comment'>// ... parser goes here...`</span>
@@ -168,33 +169,36 @@ recursively, then box up the result state:</p>
 <pre class='rust rust-example-rendered'>
 <span class='kw'>struct</span> <span class='ident'>Tree</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>);
 <span class='kw'>struct</span> <span class='ident'>TreeParser</span>;
-<span class='kw'>type</span> <span class='ident'>TreeParserState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>BoxableParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='ident'>Tree</span><span class='op'>&gt;&gt;</span>;
+<span class='kw'>type</span> <span class='ident'>TreeParserState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>BoxableParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>GuardedParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>TreeParser</span> {
-    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Tree</span>;
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;</span>;
     <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>TreeParserState</span>;
     <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>GuardedParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>,<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> {
         <span class='kw'>fn</span> <span class='ident'>is_lparen</span>(<span class='ident'>ch</span>: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='ident'>ch</span> <span class='op'>==</span> <span class='string'>&#39;(&#39;</span> }
         <span class='kw'>fn</span> <span class='ident'>is_rparen</span>(<span class='ident'>ch</span>: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='ident'>ch</span> <span class='op'>==</span> <span class='string'>&#39;)&#39;</span> }
-        <span class='kw'>fn</span> <span class='ident'>mk_tree</span>(_: <span class='ident'>char</span>, <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>, _: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>Tree</span> {
-            <span class='ident'>Tree</span>(<span class='ident'>children</span>)
+        <span class='kw'>fn</span> <span class='ident'>mk_vec</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Ok</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>()) }
+        <span class='kw'>fn</span> <span class='ident'>mk_ok</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>ok</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Ok</span>(<span class='ident'>ok</span>) }
+        <span class='kw'>fn</span> <span class='ident'>mk_err</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Err</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;Expected a ( or ).&quot;</span>)) }
+        <span class='kw'>fn</span> <span class='ident'>mk_tree</span>(_: <span class='ident'>char</span>, <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>, _: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;</span> {
+            <span class='prelude-val'>Ok</span>(<span class='ident'>Tree</span>(<span class='ident'>children</span>))
         }
         <span class='kw'>fn</span> <span class='ident'>mk_box</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='ident'>parser</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>TreeParserState</span>
-        <span class='kw'>where</span> <span class='ident'>P</span>: <span class='lifetime'>&#39;static</span><span class='op'>+</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='ident'>Tree</span><span class='op'>&gt;</span> {
+        <span class='kw'>where</span> <span class='ident'>P</span>: <span class='lifetime'>&#39;static</span><span class='op'>+</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>StatefulParserOf</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;&gt;</span> {
             <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>parser</span>.<span class='ident'>boxable</span>())
         }
         <span class='kw'>let</span> <span class='ident'>LPAREN</span> <span class='op'>=</span> <span class='ident'>character_guard</span>(<span class='ident'>is_lparen</span>);
-        <span class='kw'>let</span> <span class='ident'>RPAREN</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>is_rparen</span>);
+        <span class='kw'>let</span> <span class='ident'>RPAREN</span> <span class='op'>=</span> <span class='ident'>character_guard</span>(<span class='ident'>is_rparen</span>).<span class='ident'>map</span>(<span class='ident'>mk_ok</span>).<span class='ident'>or_emit</span>(<span class='ident'>mk_err</span>);
         <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>LPAREN</span>
-            .<span class='ident'>and_then</span>(<span class='ident'>TreeParser</span>.<span class='ident'>star</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>))
-            .<span class='ident'>and_then</span>(<span class='ident'>RPAREN</span>)
-            .<span class='ident'>map3</span>(<span class='ident'>mk_tree</span>);
+            .<span class='ident'>and_then_try</span>(<span class='ident'>TreeParser</span>.<span class='ident'>star</span>(<span class='ident'>mk_vec</span>))
+            .<span class='ident'>try_and_then_try</span>(<span class='ident'>RPAREN</span>)
+            .<span class='ident'>try_map3</span>(<span class='ident'>mk_tree</span>);
         <span class='ident'>parser</span>.<span class='ident'>parse</span>(<span class='ident'>data</span>).<span class='ident'>map</span>(<span class='ident'>mk_box</span>)
     }
 }
 <span class='kw'>let</span> <span class='ident'>TREE</span> <span class='op'>=</span> <span class='ident'>TreeParser</span>;
 <span class='kw'>match</span> <span class='ident'>TREE</span>.<span class='ident'>parse</span>(<span class='string'>&quot;((&quot;</span>) {
     <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='ident'>parsing</span>)) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>parsing</span>.<span class='ident'>parse</span>(<span class='string'>&quot;)()))&quot;</span>) {
-        <span class='ident'>Done</span>(<span class='string'>&quot;)&quot;</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='ident'>Tree</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>Tree</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]),<span class='ident'>Tree</span>(<span class='macro'>vec</span><span class='macro'>!</span>[])])),
+        <span class='ident'>Done</span>(<span class='string'>&quot;)&quot;</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='prelude-val'>Ok</span>(<span class='ident'>Tree</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>Tree</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]),<span class='ident'>Tree</span>(<span class='macro'>vec</span><span class='macro'>!</span>[])]))),
          _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
     },
     _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
@@ -209,7 +213,7 @@ clients cannot call <code>parse</code> after <code>done</code>, but <code>Boxabl
         <h3 id='associatedtype.Output' class='method stab '><code>type Output</code></h3></div>
             <h2 id='required-methods'>Required Methods</h2>
             <div class='methods'>
-        <h3 id='tymethod.parse_boxable' class='method stab '><code>fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;</code></h3><h3 id='tymethod.done_boxable' class='method stab '><code>fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a></code></h3></div>
+        <h3 id='tymethod.parse_boxable' class='method stab '><code>fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a>)</a>&gt;</code></h3><h3 id='tymethod.done_boxable' class='method stab '><code>fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>Output</a></code></h3></div>
         <h2 id='implementors'>Implementors</h2>
         <ul class='item-list' id='implementors-list'>
     <li><code>impl&lt;P, S&gt; <a class='trait' href='../parsimonious/trait.BoxableParserOf.html' title='parsimonious::BoxableParserOf'>BoxableParserOf</a>&lt;S&gt; for <a class='struct' href='../parsimonious/impls/struct.BoxableParser.html' title='parsimonious::impls::BoxableParser'>BoxableParser</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span></code></li>
@@ -274,6 +278,6 @@ clients cannot call <code>parse</code> after <code>done</code>, but <code>Boxabl
     <script src="../jquery.js"></script>
     <script src="../main.js"></script>
     
-    <script defer src="../search-index.js"></script>
+    <script async src="../search-index.js"></script>
 </body>
 </html>

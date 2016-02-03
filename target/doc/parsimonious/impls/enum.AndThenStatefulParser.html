@@ -9,7 +9,6 @@
 
     <title>parsimonious::impls::AndThenStatefulParser - Rust</title>
 
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../../main.css">
 
     
@@ -46,12 +45,12 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-571' class='srclink' href='../../src/parsimonious/lib.rs.html#843-846' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-759' class='srclink' href='../../src/parsimonious/lib.rs.html#976-979' title='goto source code'>[src]</a></span></h1>
 <pre class='rust enum'>pub enum AndThenStatefulParser&lt;P, Q, T&gt; {
     InLhs(P, Q),
     InRhs(T, Q),
 }</pre><h2 class='variants'>Variants</h2>
-<table><tr><td id='variant.InLhs'><code>InLhs</code></td><td></td></tr><tr><td id='variant.InRhs'><code>InRhs</code></td><td></td></tr></table><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl&lt;P, Q, S&gt; <a class='trait' href='../../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt; for <a class='enum' href='../../parsimonious/impls/enum.AndThenStatefulParser.html' title='parsimonious::impls::AndThenStatefulParser'>AndThenStatefulParser</a>&lt;P, Q, P::Output&gt; <span class='where'>where P: <a class='trait' href='../../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;, Q: <a class='trait' href='../../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span></code></h3><div class='impl-items'><h4 id='assoc_type.Output' class='type'><code>type Output = <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(P::Output, Q::Output)</a></code></h4>
+<table><tr><td id='variant.InLhs'><code>InLhs</code></td><td></td></tr><tr><td id='variant.InRhs'><code>InRhs</code></td><td></td></tr></table><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl&lt;P, Q, S&gt; <a class='trait' href='../../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt; for <a class='enum' href='../../parsimonious/impls/enum.AndThenStatefulParser.html' title='parsimonious::impls::AndThenStatefulParser'>AndThenStatefulParser</a>&lt;P, Q, P::Output&gt; <span class='where'>where P: <a class='trait' href='../../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;, Q: <a class='trait' href='../../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>StatefulParserOf</a>&lt;S&gt;</span></code></h3><div class='impl-items'><h4 id='assoc_type.Output' class='type'><code>type Output = <a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(P::Output, Q::Output)</a></code></h4>
 <h4 id='method.parse' class='method'><code>fn <a href='../../parsimonious/trait.StatefulParserOf.html#method.parse' class='fnname'>parse</a>(self, value: S) -&gt; <a class='enum' href='../../parsimonious/enum.ParseResult.html' title='parsimonious::ParseResult'>ParseResult</a>&lt;Self, S&gt;</code></h4>
 <h4 id='method.done' class='method'><code>fn <a href='../../parsimonious/trait.StatefulParserOf.html#method.done' class='fnname'>done</a>(self) -&gt; Self::<a class='trait' href='../../parsimonious/trait.StatefulParserOf.html' title='parsimonious::StatefulParserOf'>Output</a></code></h4>
 <h4 id='method.boxable' class='method'><code>fn <a href='../../parsimonious/trait.StatefulParserOf.html#method.boxable' class='fnname'>boxable</a>(self) -&gt; <a class='struct' href='../../parsimonious/impls/struct.BoxableParser.html' title='parsimonious::impls::BoxableParser'>BoxableParser</a>&lt;Self&gt; <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span></code></h4>
@@ -117,6 +116,6 @@
     <script src="../../jquery.js"></script>
     <script src="../../main.js"></script>
     
-    <script defer src="../../search-index.js"></script>
+    <script async src="../../search-index.js"></script>
 </body>
 </html>
