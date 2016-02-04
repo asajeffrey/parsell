@@ -28,7 +28,7 @@ use self::ParseResult::{Done,Continue};
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character_guard,GuardedParserOf,Committed};
+/// # use parsimonious::{character_guard,Parser,Committed};
 /// let stateless = character_guard(char::is_alphanumeric).star(String::new);
 /// let stateful = stateless.init();
 /// ```
@@ -51,7 +51,7 @@ pub trait Stateful<S> {
     /// For example:
     ///
     /// ```
-    /// # use parsimonious::{character_guard,GuardedParserOf,Committed,Stateful};
+    /// # use parsimonious::{character_guard,Parser,Committed,Stateful};
     /// # use parsimonious::ParseResult::{Continue,Done};
     /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
@@ -87,7 +87,7 @@ pub trait Stateful<S> {
     /// for example:
     ///
     /// ```
-    /// # use parsimonious::{character_guard,GuardedParserOf,Committed,Stateful};
+    /// # use parsimonious::{character_guard,Parser,Committed,Stateful};
     /// # use parsimonious::ParseResult::{Continue,Done};
     /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
@@ -143,7 +143,7 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character_guard,GuardedParserOf};
+/// # use parsimonious::{character_guard,Parser};
 /// let stateless = character_guard(char::is_alphanumeric).star(String::new);
 /// ```
 ///
@@ -155,7 +155,7 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 /// Copying parsers is quite common, for example:
 ///
 /// ```
-/// # use parsimonious::{character,GuardedParserOf,Committed,Stateful};
+/// # use parsimonious::{character,Parser,Committed,Stateful};
 /// # use parsimonious::ParseResult::Done;
 /// let DIGIT = character(char::is_numeric);
 /// let TWO_DIGITS = DIGIT.and_then(DIGIT);
@@ -235,7 +235,7 @@ pub trait Committed<S> {
 /// but if it backtracks will stop parsing and return `f()`. For example:
 ///
 /// ```
-/// # use parsimonious::{character_guard,GuardedParserOf,Committed,Stateful};
+/// # use parsimonious::{character_guard,Parser,Committed,Stateful};
 /// # use parsimonious::ParseResult::Done;
 /// fn default_char() -> char { '?' }
 /// let parser =
@@ -259,7 +259,7 @@ pub trait Committed<S> {
 /// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
-pub trait GuardedParserOf<S> {
+pub trait Parser<S> {
 
     /// The type of the data being produced by the parser.
     type Output;
@@ -278,7 +278,7 @@ pub trait GuardedParserOf<S> {
     /// For example:
     ///
     /// ```
-    /// # use parsimonious::{character_guard,GuardedParserOf,Stateful};
+    /// # use parsimonious::{character_guard,Parser,Stateful};
     /// # use parsimonious::GuardedParseResult::{Empty,Commit,Abort};
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// let parser = character_guard(char::is_alphabetic).plus(String::new);
@@ -310,7 +310,7 @@ pub trait GuardedParserOf<S> {
     fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> where Self: Sized;
 
     /// Choice between guarded parsers (returns a guarded parser).
-    fn or_else<P>(self, other: P) -> impls::OrElseGuardedParser<Self,P> where Self:Sized, P: GuardedParserOf<S> { impls::OrElseGuardedParser::new(self,other) }
+    fn or_else<P>(self, other: P) -> impls::OrElseGuardedParser<Self,P> where Self:Sized, P: Parser<S> { impls::OrElseGuardedParser::new(self,other) }
 
     /// Gives a guarded parser a default value (returns a parser).
     fn or_emit<F>(self, factory: F) -> impls::OrEmitParser<Self,F> where Self:Sized { impls::OrEmitParser::new(self,factory) }
@@ -371,7 +371,7 @@ pub trait GuardedParserOf<S> {
     /// contiguously. For example:
     ///
     /// ```
-    /// # use parsimonious::{character_guard,ignore,GuardedParserOf,Stateful};
+    /// # use parsimonious::{character_guard,ignore,Parser,Stateful};
     /// # use parsimonious::GuardedParseResult::{Commit};
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// # use std::borrow::Cow::{Borrowed,Owned};
@@ -473,7 +473,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 ///    assert_eq!(rest,"!"); assert_eq!(result,"abc123");
 /// }
 /// # fn foo(self) {
-/// # use parsimonious::{character_guard,ignore,GuardedParserOf,Committed,BoxableParserOf,Stateful};
+/// # use parsimonious::{character_guard,ignore,Parser,Committed,BoxableParserOf,Stateful};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// let parser = character_guard(char::is_alphanumeric).star(String::new);
 /// let stateful = parser.init();
@@ -522,7 +522,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// but this doesn't work because it gives the definition of `TREE` in terms of itself,
 /// and Rust doesn't allow this kind of cycle.
 ///
-/// Instead, the solution is to define a struct `TreeParser`, and then implement `GuardedParserOf<&str>`
+/// Instead, the solution is to define a struct `TreeParser`, and then implement `Parser<&str>`
 /// for it. The type of the state of a `TreeParser` is a box containing an appropriate
 /// `BoxableParserState` trait:
 ///
@@ -532,10 +532,10 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
 /// ```
 ///
-/// The implementation of `GuardedParserOf<&str>` for `TreeParser` is mostly straightfoward:
+/// The implementation of `Parser<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsimonious::{character,character_guard,GuardedParserOf,Committed,BoxableParserOf,Stateful,GuardedParseResult};
+/// # use parsimonious::{character,character_guard,Parser,Committed,BoxableParserOf,Stateful,GuardedParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::GuardedParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -543,7 +543,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Result<Tree,String>>>;
-/// impl<'a> GuardedParserOf<&'a str> for TreeParser {
+/// impl<'a> Parser<&'a str> for TreeParser {
 ///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
 ///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
@@ -575,7 +575,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsimonious::{character,character_guard,GuardedParserOf,Committed,BoxableParserOf,Stateful,GuardedParseResult};
+/// # use parsimonious::{character,character_guard,Parser,Committed,BoxableParserOf,Stateful,GuardedParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::GuardedParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -583,7 +583,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Result<Tree,String>>>;
-/// impl<'a> GuardedParserOf<&'a str> for TreeParser {
+/// impl<'a> Parser<&'a str> for TreeParser {
 ///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
 ///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
@@ -769,7 +769,7 @@ pub mod impls {
 
     //! Provide implementations of parser traits.
 
-    use super::{Stateful,GuardedParserOf,Committed,BoxableParserOf,ParseResult,GuardedParseResult,Factory,Function,Consumer};
+    use super::{Stateful,Parser,Committed,BoxableParserOf,ParseResult,GuardedParseResult,Factory,Function,Consumer};
     use super::ParseResult::{Continue,Done};
     use super::GuardedParseResult::{Abort,Commit,Empty};
 
@@ -912,7 +912,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F,S> GuardedParserOf<S> for MapParser<P,F> where P: GuardedParserOf<S>, F: Copy+Function<P::Output> {
+    impl<P,F,S> Parser<S> for MapParser<P,F> where P: Parser<S>, F: Copy+Function<P::Output> {
         type Output = F::Output;
         type State = MapStatefulParser<P::State,F>;
         fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
@@ -952,7 +952,7 @@ pub mod impls {
         }
     }
 
-    impl<P,Q,S> GuardedParserOf<S> for AndThenParser<P,Q> where P: GuardedParserOf<S>, Q: Committed<S> {
+    impl<P,Q,S> Parser<S> for AndThenParser<P,Q> where P: Parser<S>, Q: Committed<S> {
         type Output = (P::Output,Q::Output);
         type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
         fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
@@ -1014,7 +1014,7 @@ pub mod impls {
     #[derive(Copy, Clone, Debug)]
     pub struct OrElseGuardedParser<P,Q>(P,Q);
 
-    impl<P,Q,S> GuardedParserOf<S> for OrElseGuardedParser<P,Q> where P: GuardedParserOf<S>, Q: GuardedParserOf<S,Output=P::Output> {
+    impl<P,Q,S> Parser<S> for OrElseGuardedParser<P,Q> where P: Parser<S>, Q: Parser<S,Output=P::Output> {
         type Output = P::Output;
         type State = OrElseStatefulParser<P::State,Q::State>;
         fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
@@ -1088,7 +1088,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F,S> Stateful<S> for OrEmitStatefulParser<P,F,P::State> where P: GuardedParserOf<S>, F: Factory<Output=P::Output> {
+    impl<P,F,S> Stateful<S> for OrEmitStatefulParser<P,F,P::State> where P: Parser<S>, F: Factory<Output=P::Output> {
         type Output = P::Output;
         fn parse(self, value: S) -> ParseResult<Self,S> {
             match self {
@@ -1127,7 +1127,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F,S> Committed<S> for OrEmitParser<P,F> where P: Clone+GuardedParserOf<S>, F: Copy+Factory<Output=P::Output> {
+    impl<P,F,S> Committed<S> for OrEmitParser<P,F> where P: Clone+Parser<S>, F: Copy+Factory<Output=P::Output> {
         type Output = P::Output;
         type State = OrEmitStatefulParser<P,F,P::State>;
         fn init(&self) -> Self::State {
@@ -1146,7 +1146,7 @@ pub mod impls {
     #[derive(Clone,Debug)]
     pub struct StarStatefulParser<P,Q,T>(P,Option<Q>,T);
 
-    impl<P,T,S> Stateful<S> for StarStatefulParser<P,P::State,T> where P: Copy+GuardedParserOf<S>, T: Consumer<P::Output> {
+    impl<P,T,S> Stateful<S> for StarStatefulParser<P,P::State,T> where P: Copy+Parser<S>, T: Consumer<P::Output> {
         type Output = T;
         fn parse(mut self, mut value: S) -> ParseResult<Self,S> {
             loop {
@@ -1181,7 +1181,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F,S> GuardedParserOf<S> for PlusParser<P,F> where P: Copy+GuardedParserOf<S>, F: Factory, F::Output: Consumer<P::Output> {
+    impl<P,F,S> Parser<S> for PlusParser<P,F> where P: Copy+Parser<S>, F: Factory, F::Output: Consumer<P::Output> {
         type Output = F::Output;
         type State = StarStatefulParser<P,P::State,F::Output>;
         fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
@@ -1216,7 +1216,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F,S> Committed<S> for StarParser<P,F> where P: Copy+GuardedParserOf<S>, F: Factory, F::Output: Consumer<P::Output> {
+    impl<P,F,S> Committed<S> for StarParser<P,F> where P: Copy+Parser<S>, F: Factory, F::Output: Consumer<P::Output> {
         type Output = F::Output;
         type State = StarStatefulParser<P,P::State,F::Output>;
         fn init(&self) -> Self::State {
@@ -1321,7 +1321,7 @@ pub mod impls {
         }
     }
 
-    impl<'a,F> GuardedParserOf<&'a str> for CharacterGuardedParser<F> where F: Function<char,Output=bool> {
+    impl<'a,F> Parser<&'a str> for CharacterGuardedParser<F> where F: Function<char,Output=bool> {
         type Output = char;
         type State = ImpossibleStatefulParser<char>;
         fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
@@ -1344,8 +1344,8 @@ pub mod impls {
 
     // ----------- Buffering -------------
 
-    // If m is a GuardedParserOf<&'a str>, then
-    // m.buffer() is a GuardedParserOf<&'a str> with Output Cow<'a,str>.
+    // If m is a Parser<&'a str>, then
+    // m.buffer() is a Parser<&'a str> with Output Cow<'a,str>.
     // It does as little buffering as it can, but it does allocate as buffer for the case
     // where the boundary marker of the input is misaligned with that of the parser.
     // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
@@ -1356,7 +1356,7 @@ pub mod impls {
     #[derive(Copy, Clone, Debug)]
     pub struct BufferedGuardedParser<P>(P);
 
-    impl<'a,P> GuardedParserOf<&'a str> for BufferedGuardedParser<P> where P: GuardedParserOf<&'a str> {
+    impl<'a,P> Parser<&'a str> for BufferedGuardedParser<P> where P: Parser<&'a str> {
         type Output = Cow<'a,str>;
         type State = BufferedStatefulParser<P::State>;
         fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
@@ -1705,7 +1705,7 @@ fn test_boxable() {
     #[derive(Copy,Clone,Debug)]
     struct TreeParser;
     type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
-    impl<'a> GuardedParserOf<&'a str> for TreeParser {
+    impl<'a> Parser<&'a str> for TreeParser {
         type Output = Tree;
         type State = TreeParserState;
         fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
