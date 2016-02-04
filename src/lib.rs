@@ -28,12 +28,12 @@ use self::ParseResult::{Done,Continue};
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character_guard,GuardedParserOf,ParserOf};
+/// # use parsimonious::{character_guard,GuardedParserOf,Committed};
 /// let stateless = character_guard(char::is_alphanumeric).star(String::new);
 /// let stateful = stateless.init();
 /// ```
 ///
-/// Here, `stateless` is a `ParserOf<&str,Output=String>`, and `stateful` is a `Stateful<&str,Output=String>`.
+/// Here, `stateless` is a `Committed<&str,Output=String>`, and `stateful` is a `Stateful<&str,Output=String>`.
 
 pub trait Stateful<S> {
 
@@ -51,7 +51,7 @@ pub trait Stateful<S> {
     /// For example:
     ///
     /// ```
-    /// # use parsimonious::{character_guard,GuardedParserOf,ParserOf,Stateful};
+    /// # use parsimonious::{character_guard,GuardedParserOf,Committed,Stateful};
     /// # use parsimonious::ParseResult::{Continue,Done};
     /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
@@ -87,7 +87,7 @@ pub trait Stateful<S> {
     /// for example:
     ///
     /// ```
-    /// # use parsimonious::{character_guard,GuardedParserOf,ParserOf,Stateful};
+    /// # use parsimonious::{character_guard,GuardedParserOf,Committed,Stateful};
     /// # use parsimonious::ParseResult::{Continue,Done};
     /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
@@ -147,7 +147,7 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 /// let stateless = character_guard(char::is_alphanumeric).star(String::new);
 /// ```
 ///
-/// Here, `stateless` is a `ParserOf<&str,Output=String>`.
+/// Here, `stateless` is a `Committed<&str,Output=String>`.
 ///
 /// The reason for distinguishing between stateful and stateless parsers is that
 /// stateless parsers are usually copyable, whereas stateful parsers are not
@@ -155,7 +155,7 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 /// Copying parsers is quite common, for example:
 ///
 /// ```
-/// # use parsimonious::{character,GuardedParserOf,ParserOf,Stateful};
+/// # use parsimonious::{character,GuardedParserOf,Committed,Stateful};
 /// # use parsimonious::ParseResult::Done;
 /// let DIGIT = character(char::is_numeric);
 /// let TWO_DIGITS = DIGIT.and_then(DIGIT);
@@ -169,7 +169,7 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
 /// and non-empty.
 
-pub trait ParserOf<S> {
+pub trait Committed<S> {
 
     /// The type of the data being produced by the parser.
     type Output;
@@ -181,16 +181,16 @@ pub trait ParserOf<S> {
     fn init(&self) -> Self::State;
 
     /// Sequencing with a parser (returns a parser).
-    fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { impls::AndThenParser::new(self,other) }
+    fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: Committed<S> { impls::AndThenParser::new(self,other) }
 
     /// Sequencing with a parser (returns a parser, returns an error when this parser returns an error).
-    fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZip) }
+    fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::TryZip) }
 
     /// Sequencing with a parser (returns a parser, returns an error when the other parser returns an error).
-    fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::ZipTry) }
+    fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::ZipTry) }
 
     /// Sequencing with a parser (returns a parser, returns an error when the other parser returns an error).
-    fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZipTry) }
+    fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::TryZipTry) }
 
     /// Apply a function to the result (returns a parser).
     fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self:Sized, { impls::MapParser::new(self,f) }
@@ -235,7 +235,7 @@ pub trait ParserOf<S> {
 /// but if it backtracks will stop parsing and return `f()`. For example:
 ///
 /// ```
-/// # use parsimonious::{character_guard,GuardedParserOf,ParserOf,Stateful};
+/// # use parsimonious::{character_guard,GuardedParserOf,Committed,Stateful};
 /// # use parsimonious::ParseResult::Done;
 /// fn default_char() -> char { '?' }
 /// let parser =
@@ -316,16 +316,16 @@ pub trait GuardedParserOf<S> {
     fn or_emit<F>(self, factory: F) -> impls::OrEmitParser<Self,F> where Self:Sized { impls::OrEmitParser::new(self,factory) }
 
     /// Sequencing with a parser (returns a guarded parser).
-    fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: ParserOf<S> { impls::AndThenParser::new(self,other) }
+    fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: Committed<S> { impls::AndThenParser::new(self,other) }
 
     /// Sequencing with a parser (returns a guarded parser, returns an error when this parser returns an error).
-    fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZip) }
+    fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::TryZip) }
 
     /// Sequencing with a parser (returns a guarded parser, returns an error when the other parser returns an error).
-    fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::ZipTry) }
+    fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::ZipTry) }
 
     /// Sequencing with a parser (returns a guarded parser, returns an error when either parser returns an error).
-    fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: ParserOf<S> { self.and_then(other).map(impls::TryZipTry) }
+    fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::TryZipTry) }
 
     /// Iterate one or more times (returns a guarded parser).
     fn plus<F>(self, factory: F) -> impls::PlusParser<Self,F> where Self:Sized { impls::PlusParser::new(self,factory) }
@@ -473,7 +473,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 ///    assert_eq!(rest,"!"); assert_eq!(result,"abc123");
 /// }
 /// # fn foo(self) {
-/// # use parsimonious::{character_guard,ignore,GuardedParserOf,ParserOf,BoxableParserOf,Stateful};
+/// # use parsimonious::{character_guard,ignore,GuardedParserOf,Committed,BoxableParserOf,Stateful};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// let parser = character_guard(char::is_alphanumeric).star(String::new);
 /// let stateful = parser.init();
@@ -535,7 +535,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// The implementation of `GuardedParserOf<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsimonious::{character,character_guard,GuardedParserOf,ParserOf,BoxableParserOf,Stateful,GuardedParseResult};
+/// # use parsimonious::{character,character_guard,GuardedParserOf,Committed,BoxableParserOf,Stateful,GuardedParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::GuardedParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -575,7 +575,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsimonious::{character,character_guard,GuardedParserOf,ParserOf,BoxableParserOf,Stateful,GuardedParseResult};
+/// # use parsimonious::{character,character_guard,GuardedParserOf,Committed,BoxableParserOf,Stateful,GuardedParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::GuardedParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -769,7 +769,7 @@ pub mod impls {
 
     //! Provide implementations of parser traits.
 
-    use super::{Stateful,GuardedParserOf,ParserOf,BoxableParserOf,ParseResult,GuardedParseResult,Factory,Function,Consumer};
+    use super::{Stateful,GuardedParserOf,Committed,BoxableParserOf,ParseResult,GuardedParseResult,Factory,Function,Consumer};
     use super::ParseResult::{Continue,Done};
     use super::GuardedParseResult::{Abort,Commit,Empty};
 
@@ -925,7 +925,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F,S> ParserOf<S> for MapParser<P,F> where P: ParserOf<S>, F: Copy+Function<P::Output> {
+    impl<P,F,S> Committed<S> for MapParser<P,F> where P: Committed<S>, F: Copy+Function<P::Output> {
         type Output = F::Output;
         type State = MapStatefulParser<P::State,F>;
         fn init(&self) -> Self::State {
@@ -944,7 +944,7 @@ pub mod impls {
     #[derive(Copy, Clone, Debug)]
     pub struct AndThenParser<P,Q>(P,Q);
 
-    impl<P,Q,S> ParserOf<S> for AndThenParser<P,Q> where P: ParserOf<S>, Q: ParserOf<S> {
+    impl<P,Q,S> Committed<S> for AndThenParser<P,Q> where P: Committed<S>, Q: Committed<S> {
         type Output = (P::Output,Q::Output);
         type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
         fn init(&self) -> Self::State {
@@ -952,7 +952,7 @@ pub mod impls {
         }
     }
 
-    impl<P,Q,S> GuardedParserOf<S> for AndThenParser<P,Q> where P: GuardedParserOf<S>, Q: ParserOf<S> {
+    impl<P,Q,S> GuardedParserOf<S> for AndThenParser<P,Q> where P: GuardedParserOf<S>, Q: Committed<S> {
         type Output = (P::Output,Q::Output);
         type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
         fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
@@ -1127,7 +1127,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F,S> ParserOf<S> for OrEmitParser<P,F> where P: Clone+GuardedParserOf<S>, F: Copy+Factory<Output=P::Output> {
+    impl<P,F,S> Committed<S> for OrEmitParser<P,F> where P: Clone+GuardedParserOf<S>, F: Copy+Factory<Output=P::Output> {
         type Output = P::Output;
         type State = OrEmitStatefulParser<P,F,P::State>;
         fn init(&self) -> Self::State {
@@ -1216,7 +1216,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F,S> ParserOf<S> for StarParser<P,F> where P: Copy+GuardedParserOf<S>, F: Factory, F::Output: Consumer<P::Output> {
+    impl<P,F,S> Committed<S> for StarParser<P,F> where P: Copy+GuardedParserOf<S>, F: Factory, F::Output: Consumer<P::Output> {
         type Output = F::Output;
         type State = StarStatefulParser<P,P::State,F::Output>;
         fn init(&self) -> Self::State {
@@ -1295,7 +1295,7 @@ pub mod impls {
         }
     }
 
-    impl<'a,F> ParserOf<&'a str> for CharacterParser<F> where F: Copy+Function<char,Output=bool> {
+    impl<'a,F> Committed<&'a str> for CharacterParser<F> where F: Copy+Function<char,Output=bool> {
         type Output = Option<char>;
         type State = CharacterStatefulParser<F>;
         fn init(&self) -> Self::State {
@@ -1683,7 +1683,7 @@ fn test_buffer() {
 #[test]
 #[allow(non_snake_case)]
 fn test_different_lifetimes() {
-    fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Copy+for<'c> ParserOf<&'c str,Output=Option<(char,Option<char>)>> {
+    fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Copy+for<'c> Committed<&'c str,Output=Option<(char,Option<char>)>> {
         let _: &'a str = parser.init().parse(ab).unDone().0;
         let _: &'b str = parser.init().parse(cd).unDone().0;
         assert_eq!(parser.init().parse(ab).unDone(),("",Some(('a',Some('b')))));
