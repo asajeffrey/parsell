@@ -758,6 +758,12 @@ impl<C,T,E> Consumer<Result<T,E>> for Result<C,E> where C: Consumer<T> {
     }
 }
 
+/// A parser that reads one character.
+///
+/// The parser `character(f)` reads one character `ch` from the input,
+/// if `f(ch)` is `true` then it commits and the result is `ch`,
+/// otherwise it backtracks.
+
 pub fn character<F>(f: F) -> impls::CharacterParser<F> where F: Function<char,Output=bool> {
     impls::CharacterParser::new(f)
 }
