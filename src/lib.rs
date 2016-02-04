@@ -463,7 +463,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// Secondly, the `Stateful` trait is not
 /// [object-safe](https://doc.rust-lang.org/book/trait-objects.html#object-safety),
 /// so cannot be boxed and unboxed safely. In order to address this, there is a trait
-/// `BoxableParserOf<S,Output=T>`, which represents stateful parsers, but is object-safe
+/// `Boxable<S,Output=T>`, which represents stateful parsers, but is object-safe
 /// and so can be boxed and unboxed safely:
 ///
 /// ```
@@ -473,11 +473,11 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 ///    assert_eq!(rest,"!"); assert_eq!(result,"abc123");
 /// }
 /// # fn foo(self) {
-/// # use parsimonious::{character_guard,ignore,Parser,Committed,BoxableParserOf,Stateful};
+/// # use parsimonious::{character_guard,ignore,Parser,Committed,Boxable,Stateful};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// let parser = character_guard(char::is_alphanumeric).star(String::new);
 /// let stateful = parser.init();
-/// let boxed: Box<for <'a> BoxableParserOf<&'a str,Output=String>> = Box::new(stateful.boxable());
+/// let boxed: Box<for <'a> Boxable<&'a str,Output=String>> = Box::new(stateful.boxable());
 /// let stuff: &'b str = "abc123!";
 /// match boxed.parse(stuff) {
 ///    Done(rest,result) => self.check_results(rest,result),
@@ -486,7 +486,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// # } }
 /// ```
 ///
-/// The type `Box<BoxableParserOf<S,Output=T>>` implements the trait
+/// The type `Box<Boxable<S,Output=T>>` implements the trait
 /// `Stateful<S,Output=T>`, so boxes can be used as parsers,
 /// which allows stateful parsers to heap-allocate their state.
 ///
@@ -527,22 +527,22 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// `BoxableParserState` trait:
 ///
 /// ```
-/// # use parsimonious::{BoxableParserOf};
+/// # use parsimonious::{Boxable};
 /// # struct Tree(Vec<Tree>);
-/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+/// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Tree>>;
 /// ```
 ///
 /// The implementation of `Parser<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsimonious::{character,character_guard,Parser,Committed,BoxableParserOf,Stateful,GuardedParseResult};
+/// # use parsimonious::{character,character_guard,Parser,Committed,Boxable,Stateful,GuardedParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::GuardedParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
-/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Result<Tree,String>>>;
+/// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
 /// impl<'a> Parser<&'a str> for TreeParser {
 ///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
@@ -575,14 +575,14 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsimonious::{character,character_guard,Parser,Committed,BoxableParserOf,Stateful,GuardedParseResult};
+/// # use parsimonious::{character,character_guard,Parser,Committed,Boxable,Stateful,GuardedParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::GuardedParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
-/// type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Result<Tree,String>>>;
+/// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
 /// impl<'a> Parser<&'a str> for TreeParser {
 ///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
@@ -618,11 +618,11 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// }
 /// ```
 ///
-/// The reason for making `BoxableParserOf<S>` a different trait from `Stateful<S>`
+/// The reason for making `Boxable<S>` a different trait from `Stateful<S>`
 /// is that it provides weaker safety guarantees. `Stateful<S>` enforces that
-/// clients cannot call `parse` after `done`, but `BoxableParserOf<S>` does not.
+/// clients cannot call `parse` after `done`, but `Boxable<S>` does not.
 
-pub trait BoxableParserOf<S> {
+pub trait Boxable<S> {
     type Output;
     fn parse_boxable(&mut self, value: S) -> Option<(S,Self::Output)>;
     fn done_boxable(&mut self) -> Self::Output;
@@ -769,7 +769,7 @@ pub mod impls {
 
     //! Provide implementations of parser traits.
 
-    use super::{Stateful,Parser,Committed,BoxableParserOf,ParseResult,GuardedParseResult,Factory,Function,Consumer};
+    use super::{Stateful,Parser,Committed,Boxable,ParseResult,GuardedParseResult,Factory,Function,Consumer};
     use super::ParseResult::{Continue,Done};
     use super::GuardedParseResult::{Abort,Commit,Empty};
 
@@ -1394,7 +1394,7 @@ pub mod impls {
     // ----------- Parsers which are boxable -------------
 
     pub struct BoxableParser<P> (Option<P>);
-    impl<P,S> BoxableParserOf<S> for BoxableParser<P> where P: Stateful<S> {
+    impl<P,S> Boxable<S> for BoxableParser<P> where P: Stateful<S> {
         type Output = P::Output;
         fn parse_boxable(&mut self, value: S) -> Option<(S,Self::Output)> {
             match self.0.take().unwrap().parse(value) {
@@ -1407,7 +1407,7 @@ pub mod impls {
         }
     }
 
-    impl<P:?Sized,S> Stateful<S> for Box<P> where P: BoxableParserOf<S> {
+    impl<P:?Sized,S> Stateful<S> for Box<P> where P: Boxable<S> {
         type Output = P::Output;
         fn parse(mut self, value: S) -> ParseResult<Self,S> {
             match self.parse_boxable(value) {
@@ -1704,7 +1704,7 @@ fn test_boxable() {
 
     #[derive(Copy,Clone,Debug)]
     struct TreeParser;
-    type TreeParserState = Box<for<'b> BoxableParserOf<&'b str, Output=Tree>>;
+    type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Tree>>;
     impl<'a> Parser<&'a str> for TreeParser {
         type Output = Tree;
         type State = TreeParserState;
