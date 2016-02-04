@@ -45,7 +45,7 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-0' class='srclink' href='../src/parsimonious/lib.rs.html#1-1743' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-0' class='srclink' href='../src/parsimonious/lib.rs.html#1-1707' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Parsimonious: a parser combinator library for Rust</p>
 
 <p>The goal of this library is to provide parser combinators that:</p>
@@ -81,10 +81,10 @@ by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,</li>
                 </table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
                     <tr class=' module-item'>
-                        <td><a class='enum' href='enum.GuardedParseResult.html'
-                               title='parsimonious::GuardedParseResult'>GuardedParseResult</a></td>
+                        <td><a class='enum' href='enum.MaybeParseResult.html'
+                               title='parsimonious::MaybeParseResult'>MaybeParseResult</a></td>
                         <td class='docblock short'>
-                             <p>The result of a guarded parse.</p>
+                             <p>The result of a parse.</p>
 
                         </td>
                     </tr>
@@ -97,21 +97,22 @@ by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,</li>
 
                         </td>
                     </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='enum' href='enum.Str.html'
-                               title='parsimonious::Str'>Str</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
                 </table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
 <table>
                     <tr class=' module-item'>
-                        <td><a class='trait' href='trait.BoxableParserOf.html'
-                               title='parsimonious::BoxableParserOf'>BoxableParserOf</a></td>
+                        <td><a class='trait' href='trait.Boxable.html'
+                               title='parsimonious::Boxable'>Boxable</a></td>
                         <td class='docblock short'>
                              <p>A trait for boxable parsers.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Committed.html'
+                               title='parsimonious::Committed'>Committed</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for committed parsers.</p>
 
                         </td>
                     </tr>
@@ -144,17 +145,8 @@ by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,</li>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='trait' href='trait.GuardedParserOf.html'
-                               title='parsimonious::GuardedParserOf'>GuardedParserOf</a></td>
-                        <td class='docblock short'>
-                             <p>A trait for stateless guarded parsers.</p>
-
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='trait' href='trait.ParserOf.html'
-                               title='parsimonious::ParserOf'>ParserOf</a></td>
+                        <td><a class='trait' href='trait.Parser.html'
+                               title='parsimonious::Parser'>Parser</a></td>
                         <td class='docblock short'>
                              <p>A trait for stateless parsers.</p>
 
@@ -162,8 +154,8 @@ by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,</li>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='trait' href='trait.StatefulParserOf.html'
-                               title='parsimonious::StatefulParserOf'>StatefulParserOf</a></td>
+                        <td><a class='trait' href='trait.Stateful.html'
+                               title='parsimonious::Stateful'>Stateful</a></td>
                         <td class='docblock short'>
                              <p>A trait for stateful parsers.</p>
 
@@ -175,23 +167,8 @@ by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,</li>
                         <td><a class='fn' href='fn.character.html'
                                title='parsimonious::character'>character</a></td>
                         <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='fn' href='fn.character_guard.html'
-                               title='parsimonious::character_guard'>character_guard</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='fn' href='fn.ignore.html'
-                               title='parsimonious::ignore'>ignore</a></td>
-                        <td class='docblock short'>
-                             
+                             <p>A parser that reads one character.</p>
+
                         </td>
                     </tr>
                 </table></section>
