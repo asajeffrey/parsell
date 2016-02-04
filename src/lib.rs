@@ -418,7 +418,6 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
     }
 }
 
-
 /// A trait for boxable parsers.
 ///
 /// Regular languages can be parsed in constant memory, so do not require any heap allocation (other than
@@ -770,6 +769,16 @@ pub fn character<F>(f: F) -> impls::CharacterParser<F> where F: Function<char,Ou
     impls::CharacterParser::new(f)
 }
 
+/// A parser that reads one token.
+///
+/// The parser `token(f)` reads one token `tok` from the input,
+/// if `f(tok)` is `true` then it commits and the result is `tok`,
+/// otherwise it backtracks.
+
+pub fn token<F>(f: F) -> impls::TokenParser<F> {
+    impls::TokenParser::new(f)
+}
+
 pub mod impls {
 
     //! Provide implementations of parser traits.
@@ -784,8 +793,9 @@ pub mod impls {
  
     use std::borrow::Cow;
     use std::borrow::Cow::{Borrowed,Owned};
-    
-   // ----------- N-argument functions ---------------
+    use std::iter::Peekable;
+
+    // ----------- N-argument functions ---------------
 
     #[derive(Copy, Clone, Debug)]
     pub struct Function2<F>(F);
@@ -1235,7 +1245,7 @@ pub mod impls {
         }
     }
 
-    // ----------- Character parsers -------------
+    // ----------- A type for empty parsers -------------
 
     #[derive(Copy, Clone, Debug)]
     enum Impossible{}
@@ -1258,6 +1268,8 @@ pub mod impls {
             self.0.cant_happen()
         }
     }
+
+    // ----------- Character parsers -------------
 
     #[derive(Debug)]
     pub struct CharacterParser<F>(F);
@@ -1289,6 +1301,48 @@ pub mod impls {
     impl<F> CharacterParser<F> {
         pub fn new(function: F) -> Self {
             CharacterParser(function)
+        }
+    }
+
+    // ----------- Token parsers -------------
+
+    #[derive(Debug)]
+    pub struct TokenParser<F>(F);
+
+    // A work around for functions implmenting copy but not clone
+    // https://github.com/rust-lang/rust/issues/28229
+    impl<F> Copy for TokenParser<F> where F: Copy {}
+    impl<F> Clone for TokenParser<F> where F: Copy {
+        fn clone(&self) -> Self {
+            TokenParser(self.0)
+        }
+    }
+
+    impl<F,I> Parser<Peekable<I>> for TokenParser<F> where
+        F: for<'a> Function<&'a I::Item,Output=bool>,
+        I: Iterator,
+    {
+        type Output = I::Item;
+        type State = ImpossibleStatefulParser<I::Item>;
+        fn parse(&self, mut iterator: Peekable<I>) -> MaybeParseResult<Self::State,Peekable<I>> {
+            let matched = match iterator.peek() {
+                None => None,
+                Some(tok) => Some(self.0.apply(tok)),
+            };
+            match matched {
+                None => Empty(iterator),
+                Some(true) => {
+                    let tok = iterator.next().unwrap();
+                    Commit(Done(iterator,tok))
+                },
+                Some(false) => Abort(iterator),
+            }
+        }
+    }
+
+    impl<F> TokenParser<F> {
+        pub fn new(function: F) -> Self {
+            TokenParser(function)
         }
     }
 
@@ -1431,6 +1485,21 @@ fn test_character() {
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("abc").unCommit().unDone(),("bc",'a'));
+}
+
+#[test]
+fn test_token() {
+    fn is_zero(num: &usize) -> bool { *num == 0 }
+    let parser = token(is_zero);
+    let mut iter = parser.parse((1..3).peekable()).unAbort();
+    assert_eq!(iter.next(),Some(1));
+    assert_eq!(iter.next(),Some(2));
+    assert_eq!(iter.next(),None);
+    let (mut iter, result) = parser.parse((0..3).peekable()).unCommit().unDone();
+    assert_eq!(iter.next(),Some(1));
+    assert_eq!(iter.next(),Some(2));
+    assert_eq!(iter.next(),None);
+    assert_eq!(result,0);
 }
 
 #[test]
