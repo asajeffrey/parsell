@@ -1235,7 +1235,7 @@ pub mod impls {
         }
     }
 
-    // ----------- Constant parsers -------------
+    // ----------- Character parsers -------------
 
     #[derive(Copy, Clone, Debug)]
     enum Impossible{}
