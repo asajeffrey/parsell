@@ -34,6 +34,23 @@ use self::ParseResult::{Done,Continue};
 /// ```
 ///
 /// Here, `stateless` is a `Committed<&str,Output=String>`, and `stateful` is a `Stateful<&str,Output=String>`.
+///
+/// The reason for distinguishing between stateful and stateless parsers is that
+/// stateless parsers are usually copyable, whereas stateful parsers are usually not
+/// (they may, for example, have created and partially filled some buffers).
+/// Copying parsers is quite common, for example:
+///
+/// ```
+/// # use parsimonious::{character,Parser,Committed,Stateful};
+/// # use parsimonious::ParseResult::Done;
+/// fn mk_err() -> Result<char,String> { Err(String::from("Expecting a digit")) }
+/// let DIGIT = character(char::is_numeric).map(Ok).or_emit(mk_err);
+/// let TWO_DIGITS = DIGIT.try_and_then_try(DIGIT);
+/// match TWO_DIGITS.init().parse("123") {
+///    Done("3",result) => assert_eq!(result,Ok(('1','2'))),
+///    _ => panic!("Can't happen"),
+/// }
+/// ```
 
 pub trait Stateful<S> {
 
@@ -56,14 +73,11 @@ pub trait Stateful<S> {
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
-    ///     Done(_,_) => panic!("can't happen"),
     ///     Continue(parsing) => match parsing.parse("def!") {
-    ///         Continue(_) => panic!("can't happen"),
-    ///         Done(rest,result) => {
-    ///             assert_eq!(rest,"!");
-    ///             assert_eq!(result,"abcdef");
-    ///         }
-    ///     }
+    ///         Done("!",result) => assert_eq!(result,"abcdef"),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
     /// }
     /// ```
     ///
@@ -92,11 +106,11 @@ pub trait Stateful<S> {
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
-    ///     Done(_,_) => panic!("can't happen"),
     ///     Continue(parsing) => match parsing.parse("def") {
-    ///         Done(_,_) => panic!("can't happen"),
     ///         Continue(parsing) => assert_eq!(parsing.done(),"abcdef"),
-    ///     }
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
     /// }
     /// ```
     ///
@@ -137,34 +151,24 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
     }
 }
 
-/// A trait for stateless parsers.
+/// A trait for committed parsers.
 ///
-/// Stateful parsers are typically constructed by calling the methods of the library,
+/// A parser is committed if it is guaranteed not to backtrack.
+/// Committed parsers are typically constructed by calling the methods of the library,
 /// for example:
 ///
 /// ```
 /// # use parsimonious::{character,Parser};
-/// let stateless = character(char::is_alphanumeric).star(String::new);
+/// let parser = character(char::is_alphanumeric).star(String::new);
 /// ```
 ///
-/// Here, `stateless` is a `Committed<&str,Output=String>`.
+/// Here, `parser` is a `Committed<&str,Output=String>`.
 ///
-/// The reason for distinguishing between stateful and stateless parsers is that
-/// stateless parsers are usually copyable, whereas stateful parsers are not
-/// (they may, for example, have created and partially filled some buffers).
-/// Copying parsers is quite common, for example:
-///
-/// ```
-/// # use parsimonious::{character,Parser,Committed,Stateful};
-/// # use parsimonious::ParseResult::Done;
-/// fn mk_err() -> Result<char,String> { Err(String::from("Expecting a digit")) }
-/// let DIGIT = character(char::is_numeric).map(Ok).or_emit(mk_err);
-/// let TWO_DIGITS = DIGIT.try_and_then_try(DIGIT);
-/// match TWO_DIGITS.init().parse("123") {
-///    Done(_,result) => assert_eq!(result,Ok(('1','2'))),
-///    _ => panic!("Can't happen"),
-/// }
-/// ```
+/// The reason for distinguishing between committed and uncommitted parsers
+/// is that the library is designed for LL(1) grammars, that only use one token
+/// of lookahead. This means that the sequence of two parsers
+/// `p.and_then(q)` is only well-defined when `q` is committed,
+/// since if `p` commits, then `q` cannot backtrack.
 ///
 /// Semantically, a parser with input *S* and output *T* is a partial function *S\* → T*
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
@@ -181,59 +185,58 @@ pub trait Committed<S> {
     /// Create a stateful parser by initializing a stateless parser.
     fn init(&self) -> Self::State;
 
-    /// Sequencing with a parser (returns a parser).
+    /// Sequencing with a committed parser (returns a committed parser).
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: Committed<S> { impls::AndThenParser::new(self,other) }
 
-    /// Sequencing with a parser (returns a parser, returns an error when this parser returns an error).
+    /// Sequencing with a committed parser (returns a committed parser which produces an error when this parser returns an error).
     fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::TryZip) }
 
-    /// Sequencing with a parser (returns a parser, returns an error when the other parser returns an error).
+    /// Sequencing with a committed parser (returns a committed parser which produces an error when the other parser returns an error).
     fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::ZipTry) }
 
-    /// Sequencing with a parser (returns a parser, returns an error when the other parser returns an error).
+    /// Sequencing with a committed parser (returns a committed parser which produces an error when the other parser returns an error).
     fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::TryZipTry) }
 
-    /// Apply a function to the result (returns a parser).
+    /// Apply a function to the result (returns a committed parser).
     fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self:Sized, { impls::MapParser::new(self,f) }
 
-    /// Apply a 2-arguent function to the result (returns a parser).
+    /// Apply a 2-arguent function to the result (returns a committed parser).
     fn map2<F>(self, f: F) -> impls::MapParser<Self,impls::Function2<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function2::new(f)) }
 
-    /// Apply a 3-arguent function to the result (returns a parser).
+    /// Apply a 3-arguent function to the result (returns a committed parser).
     fn map3<F>(self, f: F) -> impls::MapParser<Self,impls::Function3<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function3::new(f)) }
 
-    /// Apply a 4-arguent function to the result (returns a parser).
+    /// Apply a 4-arguent function to the result (returns a committed parser).
     fn map4<F>(self, f: F) -> impls::MapParser<Self,impls::Function4<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function4::new(f)) }
 
-    /// Apply a 5-arguent function to the result (returns a parser).
+    /// Apply a 5-arguent function to the result (returns a committed parser).
     fn map5<F>(self, f: F) -> impls::MapParser<Self,impls::Function5<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function5::new(f)) }
 
-    /// Apply a function to the result (returns a parser, returns an error when this parser returns an error).
+    /// Apply a function to the result (returns a committed parser which produces an error when this parser returns an error).
     fn try_map<F>(self, f: F) -> impls::MapParser<Self,impls::Try<F>> where Self:Sized, { self.map(impls::Try::new(f)) }
 
-    /// Apply a 2-argument function to the result (returns a parser, returns an error when this parser returns an error).
+    /// Apply a 2-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
     fn try_map2<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function2<F>>> where Self:Sized, { self.try_map(impls::Function2::new(f)) }
 
-    /// Apply a 3-argument function to the result (returns a parser, returns an error when this parser returns an error).
+    /// Apply a 3-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
     fn try_map3<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function3<F>>> where Self:Sized, { self.try_map(impls::Function3::new(f)) }
 
-    /// Apply a 4-argument function to the result (returns a parser, returns an error when this parser returns an error).
+    /// Apply a 4-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
     fn try_map4<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function4<F>>> where Self:Sized, { self.try_map(impls::Function4::new(f)) }
 
-    /// Apply a 5-argument function to the result (returns a parser, returns an error when this parser returns an error).
+    /// Apply a 5-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
     fn try_map5<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function5<F>>> where Self:Sized, { self.try_map(impls::Function5::new(f)) }
 
 }
 
-/// A trait for stateless guarded parsers.
+/// A trait for stateless parsers.
 ///
-/// A guarded parser can decide based on the first token of input whether
+/// A parser can decide based on the first token of input whether
 /// it will commit to parsing, or immediately backtrack and try another option.
 ///
-/// The advantage of guarded parsers over parsers is they support choice:
+/// The advantage of parsers over committed parsers is they support choice:
 /// `p.or_else(q)` will try `p`, and commit if it commits, but if it backtracks
-/// will then try `q`; and `p.or_emit(f)` will try `p` and commit if it commits,
-/// but if it backtracks will stop parsing and return `f()`. For example:
+/// will then try `q`. For example:
 ///
 /// ```
 /// # use parsimonious::{character,Parser,Committed,Stateful};
@@ -270,7 +273,7 @@ pub trait Parser<S> {
 
     /// Provides data to the parser.
     ///
-    /// If `parser: Stateful<S,Output=T>`, then `parser.parse(data)` either:
+    /// If `parser: Parser<S,Output=T>`, then `parser.parse(data)` either:
     ///
     /// * returns `Empty` because `data` was empty,
     /// * returns `Abort(data)` because the parser should backtrack, or
@@ -280,7 +283,7 @@ pub trait Parser<S> {
     ///
     /// ```
     /// # use parsimonious::{character,Parser,Stateful};
-    /// # use parsimonious::GuardedParseResult::{Empty,Commit,Abort};
+    /// # use parsimonious::MaybeParseResult::{Empty,Commit,Abort};
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// let parser = character(char::is_alphabetic).plus(String::new);
     /// match parser.parse("") {
@@ -308,63 +311,63 @@ pub trait Parser<S> {
     /// token of data (since the parser only retries on empty input)
     /// so this is appropriate for LL(1) grammars that only perform one token
     /// of lookahead.
-    fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> where Self: Sized;
+    fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> where Self: Sized;
 
-    /// Choice between guarded parsers (returns a guarded parser).
+    /// Choice between parsers (returns a parser).
     fn or_else<P>(self, other: P) -> impls::OrElseGuardedParser<Self,P> where Self:Sized, P: Parser<S> { impls::OrElseGuardedParser::new(self,other) }
 
-    /// Gives a guarded parser a default value (returns a parser).
+    /// Gives a parser a default value (returns a committed parser).
     fn or_emit<F>(self, factory: F) -> impls::OrEmitParser<Self,F> where Self:Sized { impls::OrEmitParser::new(self,factory) }
 
-    /// Sequencing with a parser (returns a guarded parser).
+    /// Sequencing with a parser (returns a parser).
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self:Sized, P: Committed<S> { impls::AndThenParser::new(self,other) }
 
-    /// Sequencing with a parser (returns a guarded parser, returns an error when this parser returns an error).
+    /// Sequencing with a committed parser (returns a parser which produces an error when this parser produces an error).
     fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::TryZip) }
 
-    /// Sequencing with a parser (returns a guarded parser, returns an error when the other parser returns an error).
+    /// Sequencing with a committed parser (returns a parser which produces an error when the other parser produces an error).
     fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::ZipTry) }
 
-    /// Sequencing with a parser (returns a guarded parser, returns an error when either parser returns an error).
+    /// Sequencing with a committed parser (returns a parser which produces an error when either parser produces an error).
     fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self:Sized, P: Committed<S> { self.and_then(other).map(impls::TryZipTry) }
 
-    /// Iterate one or more times (returns a guarded parser).
+    /// Iterate one or more times (returns a parser).
     fn plus<F>(self, factory: F) -> impls::PlusParser<Self,F> where Self:Sized { impls::PlusParser::new(self,factory) }
 
-    /// Iterate zero or more times (returns a parser).
+    /// Iterate zero or more times (returns a committed parser).
     fn star<F>(self, factory: F) -> impls::StarParser<Self,F> where Self:Sized { impls::StarParser::new(self,factory) }
 
-    /// Apply a function to the result (returns a guarded parser).
+    /// Apply a function to the result (returns a parser).
     fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self:Sized, { impls::MapParser::new(self,f) }
 
-    /// Apply a 2-arguent function to the result (returns a guarded parser).
+    /// Apply a 2-arguent function to the result (returns a parser).
     fn map2<F>(self, f: F) -> impls::MapParser<Self,impls::Function2<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function2::new(f)) }
 
-    /// Apply a 3-arguent function to the result (returns a guarded parser).
+    /// Apply a 3-arguent function to the result (returns a parser).
     fn map3<F>(self, f: F) -> impls::MapParser<Self,impls::Function3<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function3::new(f)) }
 
-    /// Apply a 4-arguent function to the result (returns a guarded parser).
+    /// Apply a 4-arguent function to the result (returns a parser).
     fn map4<F>(self, f: F) -> impls::MapParser<Self,impls::Function4<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function4::new(f)) }
 
-    /// Apply a 5-arguent function to the result (returns a guarded parser).
+    /// Apply a 5-arguent function to the result (returns a parser).
     fn map5<F>(self, f: F) -> impls::MapParser<Self,impls::Function5<F>> where Self:Sized, { impls::MapParser::new(self,impls::Function5::new(f)) }
 
-    /// Apply a function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    /// Apply a function to the result (returns a parser which produces an error when this parser produces an error).
     fn try_map<F>(self, f: F) -> impls::MapParser<Self,impls::Try<F>> where Self:Sized, { self.map(impls::Try::new(f)) }
 
-    /// Apply a 2-argument function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    /// Apply a 2-argument function to the result (returns a parser which produces an error when this parser produces an error).
     fn try_map2<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function2<F>>> where Self:Sized, { self.try_map(impls::Function2::new(f)) }
 
-    /// Apply a 3-argument function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    /// Apply a 3-argument function to the result (returns a parser which produces an error when this parser produces an error).
     fn try_map3<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function3<F>>> where Self:Sized, { self.try_map(impls::Function3::new(f)) }
 
-    /// Apply a 4-argument function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    /// Apply a 4-argument function to the result (returns a parser which produces an error when this parser produces an error).
     fn try_map4<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function4<F>>> where Self:Sized, { self.try_map(impls::Function4::new(f)) }
 
-    /// Apply a 5-argument function to the result (returns a guarded parser, returns an error when this parser returns an error).
+    /// Apply a 5-argument function to the result (returns a parser which produces an error when this parser produces an error).
     fn try_map5<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function5<F>>> where Self:Sized, { self.try_map(impls::Function5::new(f)) }
 
-    /// Replace the result with the input.
+    /// A parser which produces its input.
     ///
     /// This does its best to avoid having to buffer the input. The result of a buffered parser
     /// may be borrowed (because no buffering was required) or owned (because buffering was required).
@@ -373,7 +376,7 @@ pub trait Parser<S> {
     ///
     /// ```
     /// # use parsimonious::{character,ignore,Parser,Stateful};
-    /// # use parsimonious::GuardedParseResult::{Commit};
+    /// # use parsimonious::MaybeParseResult::{Commit};
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// # use std::borrow::Cow::{Borrowed,Owned};
     /// let parser = character(char::is_alphabetic).plus(ignore).buffer();
