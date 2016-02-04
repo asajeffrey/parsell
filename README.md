@@ -46,3 +46,5 @@ fn main() {
 
 }
 ```
+
+Example tested with [Skeptic](https://github.com/brson/rust-skeptic).
