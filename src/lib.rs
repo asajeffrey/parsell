@@ -63,7 +63,7 @@ pub trait Stateful<S> {
     ///
     /// * returns `Done(rest, result)` where `rest: S` is any remaining input,
     ///   and `result: T` is the parsed output, or
-    /// * returns `Continue(parsing)` where `parsing: Self` is the new state of the parser.
+    /// * returns `Continue(rest,parsing)` where `parsing: Self` is the new state of the parser.
     ///
     /// For example:
     ///
@@ -73,7 +73,7 @@ pub trait Stateful<S> {
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
-    ///     Continue(parsing) => match parsing.parse("def!") {
+    ///     Continue("",parsing) => match parsing.parse("def!") {
     ///         Done("!",result) => assert_eq!(result,"abcdef"),
     ///         _ => panic!("can't happen"),
     ///     },
@@ -106,8 +106,8 @@ pub trait Stateful<S> {
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
-    ///     Continue(parsing) => match parsing.parse("def") {
-    ///         Continue(parsing) => assert_eq!(parsing.done(),"abcdef"),
+    ///     Continue("",parsing) => match parsing.parse("def") {
+    ///         Continue("",parsing) => assert_eq!(parsing.done(),"abcdef"),
     ///         _ => panic!("can't happen"),
     ///     },
     ///     _ => panic!("can't happen"),
@@ -138,7 +138,7 @@ pub enum ParseResult<P,S> where P: Stateful<S> {
     /// The parse is finished.
     Done(S,P::Output),
     /// The parse can continue.
-    Continue(P),
+    Continue(S,P),
 }
 
 impl<P,S> ParseResult<P,S> where P: Stateful<S> {
@@ -146,7 +146,7 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
     pub fn map<F,Q>(self, f: F) -> ParseResult<Q,S> where Q: Stateful<S,Output=P::Output>, F: Function<P,Output=Q> {
         match self {
             Done(rest,result) => Done(rest,result),
-            Continue(parsing) => Continue(f.apply(parsing)),
+            Continue(rest,parsing) => Continue(rest,f.apply(parsing)),
         }
     }
 }
@@ -275,7 +275,7 @@ pub trait Parser<S> {
     ///
     /// If `parser: Parser<S,Output=T>`, then `parser.parse(data)` either:
     ///
-    /// * returns `Empty` because `data` was empty,
+    /// * returns `Empty(data)` because `data` was empty,
     /// * returns `Abort(data)` because the parser should backtrack, or
     /// * returns `Commit(result)` because the parser has committed.
     ///
@@ -287,7 +287,7 @@ pub trait Parser<S> {
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// let parser = character(char::is_alphabetic).plus(String::new);
     /// match parser.parse("") {
-    ///     Empty => (),
+    ///     Empty("") => (),
     ///     _ => panic!("can't happen"),
     /// }
     /// match parser.parse("!abc") {
@@ -299,7 +299,7 @@ pub trait Parser<S> {
     ///     _ => panic!("can't happen"),
     /// }
     /// match parser.parse("abc") {
-    ///     Commit(Continue(parsing)) => match parsing.parse("def!") {
+    ///     Commit(Continue("",parsing)) => match parsing.parse("def!") {
     ///         Done("!",result) => assert_eq!(result,"abcdef"),
     ///         _ => panic!("can't happen"),
     ///     },
@@ -386,7 +386,7 @@ pub trait Parser<S> {
     ///     _ => panic!("can't happen"),
     /// }
     /// match parser.parse("abc") {
-    ///     Commit(Continue(parsing)) => match parsing.parse("def!") {
+    ///     Commit(Continue("",parsing)) => match parsing.parse("def!") {
     ///         Done("!",result) => assert_eq!(result,Owned::<'static,str>(String::from("abcdef"))),
     ///         _ => panic!("can't happen"),
     ///     },
@@ -400,7 +400,7 @@ pub trait Parser<S> {
 /// The result of a parse.
 pub enum MaybeParseResult<P,S> where P: Stateful<S> {
     /// The input was empty.
-    Empty,
+    Empty(S),
     /// The parser must backtrack.
     Abort(S),
     /// The parser has committed to parsing the input.
@@ -411,7 +411,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
     /// Apply a function the the Commit branch of a parse result
     pub fn map<F,Q>(self, f: F) -> MaybeParseResult<Q,S> where Q: Stateful<S,Output=P::Output>, F: Function<P,Output=Q> {
         match self {
-            Empty => Empty,
+            Empty(rest) => Empty(rest),
             Abort(s) => Abort(s),
             Commit(c) => Commit(c.map(f)),
         }
@@ -615,7 +615,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// }
 /// let TREE = TreeParser;
 /// match TREE.parse("((") {
-///     Commit(Continue(parsing)) => match parsing.parse(")()))") {
+///     Commit(Continue("",parsing)) => match parsing.parse(")()))") {
 ///         Done(")",result) => assert_eq!(result,Ok(Tree(vec![Tree(vec![]),Tree(vec![])]))),
 ///          _ => panic!("can't happen"),
 ///     },
@@ -629,7 +629,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 
 pub trait Boxable<S> {
     type Output;
-    fn parse_boxable(&mut self, value: S) -> Option<(S,Self::Output)>;
+    fn parse_boxable(&mut self, value: S) -> (S,Option<Self::Output>);
     fn done_boxable(&mut self) -> Self::Output;
 }
 
@@ -897,7 +897,7 @@ pub mod impls {
         fn parse(self, value: S) -> ParseResult<Self,S> {
             match self.0.parse(value) {
                 Done(rest,result) => Done(rest,self.1.apply(result)),
-                Continue(parsing) => Continue(MapStatefulParser(parsing,self.1)),
+                Continue(rest,parsing) => Continue(rest,MapStatefulParser(parsing,self.1)),
             }
         }
         fn done(self) -> Self::Output {
@@ -922,9 +922,9 @@ pub mod impls {
         type State = MapStatefulParser<P::State,F>;
         fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> {
             match self.0.parse(value) {
-                Empty => Empty,
+                Empty(rest) => Empty(rest),
                 Commit(Done(rest,result)) => Commit(Done(rest,self.1.apply(result))),
-                Commit(Continue(parsing)) => Commit(Continue(MapStatefulParser(parsing,self.1))),
+                Commit(Continue(rest,parsing)) => Commit(Continue(rest,MapStatefulParser(parsing,self.1))),
                 Abort(value) => Abort(value),
             }
         }
@@ -962,12 +962,12 @@ pub mod impls {
         type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
         fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> {
             match self.0.parse(value) {
-                Empty => Empty,
+                Empty(rest) => Empty(rest),
                 Commit(Done(rest,result1)) => match self.1.init().parse(rest) {
                     Done(rest,result2) => Commit(Done(rest,(result1,result2))),
-                    Continue(parsing) => Commit(Continue(InRhs(result1,parsing))),
+                    Continue(rest,parsing) => Commit(Continue(rest,InRhs(result1,parsing))),
                 },
-                Commit(Continue(parsing)) => Commit(Continue(InLhs(parsing,self.1.init()))),
+                Commit(Continue(rest,parsing)) => Commit(Continue(rest,InLhs(parsing,self.1.init()))),
                 Abort(value) => Abort(value),
             }
         }
@@ -987,15 +987,15 @@ pub mod impls {
                     match lhs.parse(value) {
                         Done(rest,result1) => match rhs.parse(rest) {
                             Done(rest,result2) => Done(rest,(result1,result2)),
-                            Continue(parsing) => Continue(InRhs(result1,parsing)),
+                            Continue(rest,parsing) => Continue(rest,InRhs(result1,parsing)),
                         },
-                        Continue(parsing) => Continue(InLhs(parsing,rhs)),
+                        Continue(rest,parsing) => Continue(rest,InLhs(parsing,rhs)),
                     }
                 },
                 InRhs(result1,rhs) => {
                     match rhs.parse(value) {
                         Done(rest,result2) => Done(rest,(result1,result2)),
-                        Continue(parsing) => Continue(InRhs(result1,parsing)),
+                        Continue(rest,parsing) => Continue(rest,InRhs(result1,parsing)),
                     }
                 },
             }
@@ -1024,13 +1024,13 @@ pub mod impls {
         type State = OrElseStatefulParser<P::State,Q::State>;
         fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> {
             match self.0.parse(value) {
-                Empty => Empty,
+                Empty(rest) => Empty(rest),
                 Commit(Done(rest,result)) => Commit(Done(rest,result)),
-                Commit(Continue(parsing)) => Commit(Continue(Lhs(parsing))),
+                Commit(Continue(rest,parsing)) => Commit(Continue(rest,Lhs(parsing))),
                 Abort(value) => match self.1.parse(value) {
-                    Empty => Empty,
+                    Empty(rest) => Empty(rest),
                     Commit(Done(rest,result)) => Commit(Done(rest,result)),
-                    Commit(Continue(parsing)) => Commit(Continue(Rhs(parsing))),
+                    Commit(Continue(rest,parsing)) => Commit(Continue(rest,Rhs(parsing))),
                     Abort(value) => Abort(value),
                 }
             }
@@ -1056,13 +1056,13 @@ pub mod impls {
                 Lhs(lhs) => {
                     match lhs.parse(value) {
                         Done(rest,result) => Done(rest,result),
-                        Continue(parsing) => Continue(Lhs(parsing)),
+                        Continue(rest,parsing) => Continue(rest,Lhs(parsing)),
                     }
                 },
                 Rhs(rhs) => {
                     match rhs.parse(value) {
                         Done(rest,result) => Done(rest,result),
-                        Continue(parsing) => Continue(Rhs(parsing)),
+                        Continue(rest,parsing) => Continue(rest,Rhs(parsing)),
                     }
                 },
             }
@@ -1099,16 +1099,16 @@ pub mod impls {
             match self {
                 Unresolved(parser,default) => {
                     match parser.parse(value) {
-                        Empty => Continue(Unresolved(parser,default)),
+                        Empty(rest) => Continue(rest,Unresolved(parser,default)),
                         Commit(Done(rest,result)) => Done(rest,result),
-                        Commit(Continue(parsing)) => Continue(Resolved(parsing)),
+                        Commit(Continue(rest,parsing)) => Continue(rest,Resolved(parsing)),
                         Abort(value) => Done(value,default.build()),
                     }
                 },
                 Resolved(parser) => {
                     match parser.parse(value) {
                         Done(rest,result) => Done(rest,result),
-                        Continue(parsing) => Continue(Resolved(parsing)),
+                        Continue(rest,parsing) => Continue(rest,Resolved(parsing)),
                     }
                 }
             }
@@ -1157,13 +1157,13 @@ pub mod impls {
             loop {
                 match self.1.take() {
                     None => match self.0.parse(value) {
-                        Empty => return Continue(StarStatefulParser(self.0,None,self.2)),
-                        Commit(Continue(parsing)) => return Continue(StarStatefulParser(self.0,Some(parsing),self.2)),
+                        Empty(rest) => return Continue(rest,StarStatefulParser(self.0,None,self.2)),
+                        Commit(Continue(rest,parsing)) => return Continue(rest,StarStatefulParser(self.0,Some(parsing),self.2)),
                         Commit(Done(rest,result)) => { self.2.accept(result); value = rest; },
                         Abort(rest) => return Done(rest,self.2),
                     },
                     Some(parser) => match parser.parse(value) {
-                        Continue(parsing) => return Continue(StarStatefulParser(self.0,Some(parsing),self.2)),
+                        Continue(rest,parsing) => return Continue(rest,StarStatefulParser(self.0,Some(parsing),self.2)),
                         Done(rest,result) => { self.2.accept(result); value = rest; },
                     }
                 }
@@ -1191,9 +1191,9 @@ pub mod impls {
         type State = StarStatefulParser<P,P::State,F::Output>;
         fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> {
             match self.0.parse(value) {
-                Empty => Empty,
+                Empty(rest) => Empty(rest),
                 Abort(rest) => Abort(rest),
-                Commit(Continue(parsing)) => Commit(Continue(StarStatefulParser(self.0,Some(parsing),self.1.build()))),
+                Commit(Continue(rest,parsing)) => Commit(Continue(rest,StarStatefulParser(self.0,Some(parsing),self.1.build()))),
                 Commit(Done(rest,result)) => {
                     let mut buffer = self.1.build();
                     buffer.accept(result);
@@ -1275,7 +1275,7 @@ pub mod impls {
         type Output = Option<char>;
         fn parse(self, value: &'a str) -> ParseResult<Self,&'a str> {
             match value.chars().next() {
-                None => Continue(self),
+                None => Continue(value,self),
                 Some(ch) if self.0.apply(ch) => {
                     let len = ch.len_utf8();
                     Done(&value[len..],Some(ch))
@@ -1305,7 +1305,7 @@ pub mod impls {
         type State = ImpossibleStatefulParser<char>;
         fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State,&'a str> {
             match value.chars().next() {
-                None => Empty,
+                None => Empty(value),
                 Some(ch) if self.0.apply(ch) => {
                     let len = ch.len_utf8();
                     Commit(Done(&value[len..],ch))
@@ -1340,9 +1340,9 @@ pub mod impls {
         type State = BufferedStatefulParser<P::State>;
         fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State,&'a str> {
             match self.0.parse(value) {
-                Empty => Empty,
+                Empty(rest) => Empty(rest),
                 Commit(Done(rest,_)) => Commit(Done(rest,Borrowed(&value[..(value.len() - rest.len())]))),
-                Commit(Continue(parsing)) => Commit(Continue(BufferedStatefulParser(parsing,String::from(value)))),
+                Commit(Continue(rest,parsing)) => Commit(Continue(rest,BufferedStatefulParser(parsing,String::from(value)))),
                 Abort(value) => Abort(value),
             }
         }
@@ -1362,7 +1362,7 @@ pub mod impls {
         fn parse(mut self, value: &'a str) -> ParseResult<Self,&'a str> {
             match self.0.parse(value) {
                 Done(rest,_) => { self.1.push_str(&value[..(value.len() - rest.len())]); Done(rest,Owned(self.1)) },
-                Continue(parsing) => { self.1.push_str(value); Continue(BufferedStatefulParser(parsing,self.1)) },
+                Continue(rest,parsing) => { self.1.push_str(value); Continue(rest,BufferedStatefulParser(parsing,self.1)) },
             }
         }
         fn done(self) -> Self::Output {
@@ -1375,10 +1375,10 @@ pub mod impls {
     pub struct BoxableParser<P> (Option<P>);
     impl<P,S> Boxable<S> for BoxableParser<P> where P: Stateful<S> {
         type Output = P::Output;
-        fn parse_boxable(&mut self, value: S) -> Option<(S,Self::Output)> {
+        fn parse_boxable(&mut self, value: S) -> (S,Option<Self::Output>) {
             match self.0.take().unwrap().parse(value) {
-                Done(rest,result) => Some((rest,result)),
-                Continue(parsing) => { self.0 = Some(parsing); None },
+                Done(rest,result) => (rest,Some(result)),
+                Continue(rest,parsing) => { self.0 = Some(parsing); (rest,None) },
             }
         }
         fn done_boxable(&mut self) -> Self::Output {
@@ -1390,8 +1390,8 @@ pub mod impls {
         type Output = P::Output;
         fn parse(mut self, value: S) -> ParseResult<Self,S> {
             match self.parse_boxable(value) {
-                Some((rest,result)) => Done(rest,result),
-                None => Continue(self),
+                (rest,Some(result)) => Done(rest,result),
+                (rest,None) => Continue(rest,self),
             }
         }
         fn done(mut self) -> Self::Output {
@@ -1412,9 +1412,9 @@ pub mod impls {
 #[allow(non_snake_case,dead_code)]
 impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 
-    fn unEmpty(self) {
+    fn unEmpty(self) -> S {
         match self {
-            Empty => (),
+            Empty(rest) => rest,
             _     => panic!("MaybeParseResult is not empty"),
         }
     }
@@ -1447,7 +1447,7 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 
     fn unContinue(self) -> P {
         match self {
-            Continue(p) => p,
+            Continue(_,p) => p,
             _           => panic!("ParseResult is not continue"),
         }
     }

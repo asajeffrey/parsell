@@ -37,7 +37,7 @@ fn main() {
 
     // If you provide incomplete input to the parser, you'll get back a Continue response:
     match ALPHANUMERICS.init().parse("abc") {
-        Continue(parsing) => match parsing.parse("123!") {
+        Continue("",parsing) => match parsing.parse("123!") {
             Done("!",result) => assert_eq!(result, "abc123"),
             _ => panic!("Can't happen."),
         },
