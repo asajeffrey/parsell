@@ -1260,35 +1260,6 @@ pub mod impls {
     }
 
     #[derive(Debug)]
-    pub struct CharacterStatefulParser<F>(F);
-
-    // A work around for functions implmenting copy but not clone
-    // https://github.com/rust-lang/rust/issues/28229
-    impl<F> Copy for CharacterStatefulParser<F> where F: Copy {}
-    impl<F> Clone for CharacterStatefulParser<F> where F: Copy {
-        fn clone(&self) -> Self {
-            CharacterStatefulParser(self.0)
-        }
-    }
-
-    impl<'a,F> Stateful<&'a str> for CharacterStatefulParser<F> where F: Function<char,Output=bool> {
-        type Output = Option<char>;
-        fn parse(self, value: &'a str) -> ParseResult<Self,&'a str> {
-            match value.chars().next() {
-                None => Continue(value,self),
-                Some(ch) if self.0.apply(ch) => {
-                    let len = ch.len_utf8();
-                    Done(&value[len..],Some(ch))
-                },
-                Some(_) => Done(value,None)
-            }
-        }
-        fn done(self) -> Option<char> {
-            None
-        }
-    }
-
-    #[derive(Debug)]
     pub struct CharacterParser<F>(F);
 
     // A work around for functions implmenting copy but not clone
