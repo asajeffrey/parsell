@@ -227,6 +227,9 @@ pub trait Committed<S> {
     /// Apply a 5-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
     fn try_map5<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function5<F>>> where Self:Sized, { self.try_map(impls::Function5::new(f)) }
 
+    /// Build an iterator from a parser and some data.
+    fn iter(self, data: S) -> impls::IterParser<Self,Self::State,S> where Self:Copy+Sized { impls::IterParser::new(self, data) }
+
 }
 
 /// A trait for stateless parsers.
@@ -790,7 +793,7 @@ pub mod impls {
     use self::AndThenStatefulParser::{InLhs,InRhs};
     use self::OrElseStatefulParser::{Lhs,Rhs};
     use self::OrEmitStatefulParser::{Unresolved,Resolved};
- 
+
     use std::borrow::Cow;
     use std::borrow::Cow::{Borrowed,Owned};
     use std::iter::Peekable;
@@ -1430,6 +1433,31 @@ pub mod impls {
         }
     }
 
+    // ----------- Iterate over parse results -------------
+
+    pub struct IterParser<P,Q,S>(P,Option<(Q,S)>);
+
+    impl<P,S> Iterator for IterParser<P,P::State,S> where P: Copy+Committed<S> {
+        type Item = P::Output;
+        fn next(&mut self) -> Option<P::Output> {
+            let (state, result) = match self.1.take() {
+                None => (None, None),
+                Some((parsing, data)) => match parsing.parse(data) {
+                    Done(rest, result) => (Some((self.0.init(), rest)), Some(result)),
+                    Continue(rest, parsing) => (Some((parsing, rest)), None),
+                }
+            };
+            *self = IterParser(self.0,state);
+            result
+        }
+    }
+
+    impl<P,S> IterParser<P,P::State,S> where P: Copy+Committed<S> {
+        pub fn new(parser: P, data: S) -> Self {
+            IterParser(parser, Some((parser.init(), data)))
+        }
+    }
+
 }
 
 // ----------- Tests -------------
@@ -1695,6 +1723,19 @@ fn test_buffer() {
     assert_eq!(parser.parse("abc!").unCommit().unDone(),("!",Borrowed("abc")));
     let parsing = parser.parse("a").unCommit().unContinue();
     assert_eq!(parsing.parse("bc!").unDone(),("!",Owned(String::from("abc"))));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_iter() {
+    fn mk_X() -> char { 'X' }
+    let ALPHABETIC = character(char::is_alphabetic);
+    let parser = ALPHABETIC.or_emit(mk_X);
+    let mut iter = parser.iter("abc");
+    assert_eq!(iter.next(),Some('a'));
+    assert_eq!(iter.next(),Some('b'));
+    assert_eq!(iter.next(),Some('c'));
+    assert_eq!(iter.next(),None);
 }
 
 #[test]
