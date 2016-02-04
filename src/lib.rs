@@ -374,7 +374,7 @@ pub trait GuardedParserOf<S> {
     /// # use parsimonious::{character_guard,ignore,GuardedParserOf,StatefulParserOf};
     /// # use parsimonious::GuardedParseResult::{Commit};
     /// # use parsimonious::ParseResult::{Done,Continue};
-    /// # use parsimonious::Str::{Borrowed,Owned};
+    /// # use std::borrow::Cow::{Borrowed,Owned};
     /// let parser = character_guard(char::is_alphabetic).plus(ignore).buffer();
     /// match parser.parse("abc!") {
     ///     Commit(Done("!",result)) => assert_eq!(result,Borrowed("abc")),
@@ -382,7 +382,7 @@ pub trait GuardedParserOf<S> {
     /// }
     /// match parser.parse("abc") {
     ///     Commit(Continue(parsing)) => match parsing.parse("def!") {
-    ///         Done("!",result) => assert_eq!(result,Owned(String::from("abcdef"))),
+    ///         Done("!",result) => assert_eq!(result,Owned::<'static,str>(String::from("abcdef"))),
     ///         _ => panic!("can't happen"),
     ///     },
     ///     _ => panic!("can't happen"),
@@ -757,12 +757,6 @@ impl<C,T,E> Consumer<Result<T,E>> for Result<C,E> where C: Consumer<T> {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum Str<'a> {
-    Borrowed(&'a str),
-    Owned(String),
-}
-
 pub fn character<F>(f: F) -> impls::CharacterParser<F> where F: Function<char,Output=bool> {
     impls::CharacterParser::new(f)
 }
@@ -775,16 +769,18 @@ pub mod impls {
 
     //! Provide implementations of parser traits.
 
-    use super::{StatefulParserOf,GuardedParserOf,ParserOf,BoxableParserOf,ParseResult,GuardedParseResult,Factory,Function,Consumer,Str};
+    use super::{StatefulParserOf,GuardedParserOf,ParserOf,BoxableParserOf,ParseResult,GuardedParseResult,Factory,Function,Consumer};
     use super::ParseResult::{Continue,Done};
     use super::GuardedParseResult::{Abort,Commit,Empty};
-    use super::Str::{Borrowed,Owned};
 
     use self::AndThenStatefulParser::{InLhs,InRhs};
     use self::OrElseStatefulParser::{Lhs,Rhs};
     use self::OrEmitStatefulParser::{Unresolved,Resolved};
-
-    // ----------- N-argument functions ---------------
+ 
+    use std::borrow::Cow;
+    use std::borrow::Cow::{Borrowed,Owned};
+    
+   // ----------- N-argument functions ---------------
 
     #[derive(Copy, Clone, Debug)]
     pub struct Function2<F>(F);
@@ -1349,30 +1345,19 @@ pub mod impls {
     // ----------- Buffering -------------
 
     // If m is a GuardedParserOf<&'a str>, then
-    // m.buffer() is a GuardedParserOf<&'a str> with Output Str<'a>.
+    // m.buffer() is a GuardedParserOf<&'a str> with Output Cow<'a,str>.
     // It does as little buffering as it can, but it does allocate as buffer for the case
     // where the boundary marker of the input is misaligned with that of the parser.
     // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
     // we have to buffer up '"abc'.
 
-    // TODO(ajeffrey): make this code generic in its input
-    // this may involove something like:
-    //
-    // pub trait IntoOwned {
-    //     type Owned;
-    //     fn into_owned(self) -> Self::Owned;
-    // }
-    //
-    // impl<'a,T> IntoOwned for &'a T where T: ToOwned {
-    //     type Owned = T::Owned;
-    //     fn into_owned(self) -> T::Owned { self.to_owned() }
-    // }
+    // TODO(ajeffrey): make this code generic.
 
     #[derive(Copy, Clone, Debug)]
     pub struct BufferedGuardedParser<P>(P);
 
     impl<'a,P> GuardedParserOf<&'a str> for BufferedGuardedParser<P> where P: GuardedParserOf<&'a str> {
-        type Output = Str<'a>;
+        type Output = Cow<'a,str>;
         type State = BufferedStatefulParser<P::State>;
         fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
             match self.0.parse(value) {
@@ -1394,7 +1379,7 @@ pub mod impls {
     pub struct BufferedStatefulParser<P>(P,String);
 
     impl<'a,P> StatefulParserOf<&'a str> for BufferedStatefulParser<P> where P: StatefulParserOf<&'a str> {
-        type Output = Str<'a>;
+        type Output = Cow<'a,str>;
         fn parse(mut self, value: &'a str) -> ParseResult<Self,&'a str> {
             match self.0.parse(value) {
                 Done(rest,_) => { self.1.push_str(&value[..(value.len() - rest.len())]); Done(rest,Owned(self.1)) },
@@ -1684,14 +1669,15 @@ fn test_star() {
 #[test]
 #[allow(non_snake_case)]
 fn test_buffer() {
+    use std::borrow::Cow::{Borrowed,Owned};
     let ALPHABETIC = character_guard(char::is_alphabetic);
     let ALPHANUMERIC = character_guard(char::is_alphanumeric);
     let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(ignore)).buffer();
     assert_eq!(parser.parse("989").unAbort(),"989");
-    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Str::Borrowed("a")));
-    assert_eq!(parser.parse("abc!").unCommit().unDone(),("!",Str::Borrowed("abc")));
+    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Borrowed("a")));
+    assert_eq!(parser.parse("abc!").unCommit().unDone(),("!",Borrowed("abc")));
     let parsing = parser.parse("a").unCommit().unContinue();
-    assert_eq!(parsing.parse("bc!").unDone(),("!",Str::Owned(String::from("abc"))));
+    assert_eq!(parsing.parse("bc!").unDone(),("!",Owned(String::from("abc"))));
 }
 
 #[test]
