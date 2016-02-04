@@ -71,7 +71,7 @@ pub trait Stateful<S> {
     /// the `parser` is no longer available, so the following does not typecheck:
     ///
     /// ```text
-    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// stateful.parse("abc");
     /// stateful.parse("def!");
@@ -104,7 +104,7 @@ pub trait Stateful<S> {
     /// the `parser` is no longer available, so the following does not typecheck:
     ///
     /// ```text
-    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let parser = character_guard(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// stateful.done();
     /// stateful.parse("def!");
@@ -155,12 +155,13 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 /// Copying parsers is quite common, for example:
 ///
 /// ```
-/// # use parsimonious::{character,Parser,Committed,Stateful};
+/// # use parsimonious::{character_guard,Parser,Committed,Stateful};
 /// # use parsimonious::ParseResult::Done;
-/// let DIGIT = character(char::is_numeric);
-/// let TWO_DIGITS = DIGIT.and_then(DIGIT);
+/// fn mk_err() -> Result<char,String> { Err(String::from("Expecting a digit")) }
+/// let DIGIT = character_guard(char::is_numeric).map(Ok).or_emit(mk_err);
+/// let TWO_DIGITS = DIGIT.try_and_then_try(DIGIT);
 /// match TWO_DIGITS.init().parse("123") {
-///    Done(_,result) => assert_eq!(result,(Some('1'),Some('2'))),
+///    Done(_,result) => assert_eq!(result,Ok(('1','2'))),
 ///    _ => panic!("Can't happen"),
 /// }
 /// ```
@@ -535,7 +536,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// The implementation of `Parser<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsimonious::{character,character_guard,Parser,Committed,Boxable,Stateful,GuardedParseResult};
+/// # use parsimonious::{character_guard,Parser,Committed,Boxable,Stateful,GuardedParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::GuardedParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -575,7 +576,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsimonious::{character,character_guard,Parser,Committed,Boxable,Stateful,GuardedParseResult};
+/// # use parsimonious::{character_guard,Parser,Committed,Boxable,Stateful,GuardedParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::GuardedParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -634,7 +635,7 @@ pub trait Boxable<S> {
 /// This is useful, as it allows the function type to be named, for example
 ///
 /// ```
-/// # use parsimonious::{Function,character};
+/// # use parsimonious::{Function,character_guard};
 /// # use parsimonious::impls::{CharacterParser};
 /// struct AlphaNumeric;
 /// impl Function<char> for AlphaNumeric {
@@ -642,7 +643,7 @@ pub trait Boxable<S> {
 ///     fn apply(&self, arg: char) -> bool { arg.is_alphanumeric() }
 /// }
 /// let parser: CharacterParser<AlphaNumeric> =
-///     character(AlphaNumeric);
+///     character_guard(AlphaNumeric);
 /// ```
 ///
 /// Here, we can name the type of the parser `CharacterParser<AlphaNumeric>`,
@@ -757,12 +758,8 @@ impl<C,T,E> Consumer<Result<T,E>> for Result<C,E> where C: Consumer<T> {
     }
 }
 
-pub fn character<F>(f: F) -> impls::CharacterParser<F> where F: Function<char,Output=bool> {
+pub fn character_guard<F>(f: F) -> impls::CharacterParser<F> where F: Function<char,Output=bool> {
     impls::CharacterParser::new(f)
-}
-
-pub fn character_guard<F>(f: F) -> impls::CharacterGuardedParser<F> where F: Function<char,Output=bool> {
-    impls::CharacterGuardedParser::new(f)
 }
 
 pub mod impls {
@@ -1295,33 +1292,7 @@ pub mod impls {
         }
     }
 
-    impl<'a,F> Committed<&'a str> for CharacterParser<F> where F: Copy+Function<char,Output=bool> {
-        type Output = Option<char>;
-        type State = CharacterStatefulParser<F>;
-        fn init(&self) -> Self::State {
-            CharacterStatefulParser(self.0)
-        }
-    }
-
-    impl<F> CharacterParser<F> {
-        pub fn new(function: F) -> Self {
-            CharacterParser(function)
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct CharacterGuardedParser<F>(F);
-
-    // A work around for functions implmenting copy but not clone
-    // https://github.com/rust-lang/rust/issues/28229
-    impl<F> Copy for CharacterGuardedParser<F> where F: Copy {}
-    impl<F> Clone for CharacterGuardedParser<F> where F: Copy {
-        fn clone(&self) -> Self {
-            CharacterGuardedParser(self.0)
-        }
-    }
-
-    impl<'a,F> Parser<&'a str> for CharacterGuardedParser<F> where F: Function<char,Output=bool> {
+    impl<'a,F> Parser<&'a str> for CharacterParser<F> where F: Function<char,Output=bool> {
         type Output = char;
         type State = ImpossibleStatefulParser<char>;
         fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
@@ -1336,9 +1307,9 @@ pub mod impls {
         }
     }
 
-    impl<F> CharacterGuardedParser<F> {
+    impl<F> CharacterParser<F> {
         pub fn new(function: F) -> Self {
-            CharacterGuardedParser(function)
+            CharacterParser(function)
         }
     }
 
@@ -1476,14 +1447,6 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 }
 
 #[test]
-fn test_character() {
-    let parser = character(char::is_alphabetic);
-    parser.init().parse("").unContinue();
-    assert_eq!(parser.init().parse("989").unDone(),("989",None));
-    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
-}
-
-#[test]
 fn test_character_guard() {
     let parser = character_guard(char::is_alphabetic);
     parser.parse("").unEmpty();
@@ -1515,7 +1478,8 @@ fn test_map2() {
     fn f(ch1: char, ch2: Option<char>) -> Option<(char, char)> {
         ch2.and_then(|ch2| Some((ch1,ch2)))
     }
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    fn mk_none<T>() -> Option<T> { None }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(Some).or_emit(mk_none);
     let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).map2(f);
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
@@ -1529,7 +1493,8 @@ fn test_map3() {
     fn f(ch1: char, ch2: Option<char>, ch3: Option<char>) -> Option<(char, char, char)> {
         ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3))))
     }
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    fn mk_none<T>() -> Option<T> { None }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(Some).or_emit(mk_none);
     let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map3(f);
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
@@ -1544,7 +1509,8 @@ fn test_map4() {
     fn f(ch1: char, ch2: Option<char>, ch3: Option<char>, ch4: Option<char>) -> Option<(char, char, char, char)> {
         ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3,ch4)))))
     }
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    fn mk_none<T>() -> Option<T> { None }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(Some).or_emit(mk_none);
     let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map4(f);
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
@@ -1560,7 +1526,8 @@ fn test_map5() {
     fn f(ch1: char, ch2: Option<char>, ch3: Option<char>, ch4: Option<char>, ch5: Option<char>) -> Option<(char, char, char, char, char)> {
         ch5.and_then(|ch5| ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3,ch4,ch5))))))
     }
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    fn mk_none<T>() -> Option<T> { None }
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(Some).or_emit(mk_none);
     let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map5(f);
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
@@ -1575,13 +1542,14 @@ fn test_map5() {
 #[allow(non_snake_case)]
 fn test_and_then() {
     fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(Some).or_emit(mk_none);
+    let ALPHABETIC = character_guard(char::is_alphabetic).map(Some).or_emit(mk_none);
     let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("989",None));
     assert_eq!(parser.init().parse("a!").unDone(),("!",Some(('a',None))));
     assert_eq!(parser.init().parse("abc").unDone(),("c",Some(('a',Some('b')))));
-    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC);
+    let parser = ALPHABETIC.and_then(ALPHANUMERIC);
     parser.init().parse("").unContinue();
     assert_eq!(parser.init().parse("989").unDone(),("89",(None,Some('9'))));
     assert_eq!(parser.init().parse("a!").unDone(),("!",(Some('a'),None)));
@@ -1631,8 +1599,8 @@ fn test_try_and_then_try() {
 #[allow(non_snake_case)]
 fn test_or_else() {
     fn mk_none<T>() -> Option<T> { None }
-    let NUMERIC = character(char::is_numeric);
-    let ALPHABETIC = character(char::is_alphabetic);
+    let NUMERIC = character_guard(char::is_numeric).map(Some).or_emit(mk_none);
+    let ALPHABETIC = character_guard(char::is_alphabetic).map(Some).or_emit(mk_none);
     let parser = character_guard(char::is_alphabetic).and_then(ALPHABETIC).map(Some).
         or_else(character_guard(char::is_numeric).and_then(NUMERIC).map(Some)).
         or_emit(mk_none);
@@ -1690,7 +1658,7 @@ fn test_different_lifetimes() {
         assert_eq!(parser.init().parse(cd).unDone(),("",Some(('c',Some('d')))));
     }
     fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let ALPHANUMERIC = character_guard(char::is_alphanumeric).map(Some).or_emit(mk_none);
     let parser = character_guard(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
     go("ab","cd",parser);
 }
@@ -1711,10 +1679,11 @@ fn test_boxable() {
         fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
             fn is_lparen(ch: char) -> bool { ch == '(' }
             fn is_rparen(ch: char) -> bool { ch == ')' }
+            fn mk_none<T>() -> Option<T> { None }
             fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree { Tree((children.0).1) }
             fn mk_box<P>(parser: P) -> TreeParserState where P: 'static+for<'a> Stateful<&'a str, Output=Tree> { Box::new(parser.boxable())  }
             let LPAREN = character_guard(is_lparen);
-            let RPAREN = character(is_rparen);
+            let RPAREN = character_guard(is_rparen).map(Some).or_emit(mk_none);
             let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map(mk_tree);
             parser.parse(data).map(mk_box)
         }
