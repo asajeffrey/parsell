@@ -10,3 +10,11 @@ documentation = "http://asajeffrey.github.io/parsimonious"
 readme = "README.md"
 keywords = [ "parser", "parsing", "streaming", "parser-combinators" ]
 license = "MPL-2.0"
+
+build = "build.rs"
+
+[build-dependencies]
+skeptic = "0.4.0"
+
+[dev-dependencies]
+skeptic = "0.4.0"
