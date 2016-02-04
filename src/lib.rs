@@ -17,7 +17,7 @@
 //! [Crate](https://crates.io/crates/parsimonious) |
 //! [CI](https://travis-ci.org/asajeffrey/parsimonious)
 
-use self::GuardedParseResult::{Empty,Abort,Commit};
+use self::MaybeParseResult::{Empty,Abort,Commit};
 use self::ParseResult::{Done,Continue};
 
 // ----------- Types for parsers ------------
@@ -393,8 +393,8 @@ pub trait Parser<S> {
 
 }
 
-/// The result of a guarded parse.
-pub enum GuardedParseResult<P,S> where P: Stateful<S> {
+/// The result of a parse.
+pub enum MaybeParseResult<P,S> where P: Stateful<S> {
     /// The input was empty.
     Empty,
     /// The parser must backtrack.
@@ -403,9 +403,9 @@ pub enum GuardedParseResult<P,S> where P: Stateful<S> {
     Commit(ParseResult<P,S>),
 }
 
-impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
-    /// Apply a function the the Commit branch of a guarded parse result
-    pub fn map<F,Q>(self, f: F) -> GuardedParseResult<Q,S> where Q: Stateful<S,Output=P::Output>, F: Function<P,Output=Q> {
+impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
+    /// Apply a function the the Commit branch of a parse result
+    pub fn map<F,Q>(self, f: F) -> MaybeParseResult<Q,S> where Q: Stateful<S,Output=P::Output>, F: Function<P,Output=Q> {
         match self {
             Empty => Empty,
             Abort(s) => Abort(s),
@@ -536,9 +536,9 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// The implementation of `Parser<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsimonious::{character,Parser,Committed,Boxable,Stateful,GuardedParseResult};
+/// # use parsimonious::{character,Parser,Committed,Boxable,Stateful,MaybeParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
-/// # use parsimonious::GuardedParseResult::{Commit};
+/// # use parsimonious::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
@@ -547,7 +547,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// impl<'a> Parser<&'a str> for TreeParser {
 ///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
-///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
+///     fn parse(&self, data: &'a str) -> MaybeParseResult<Self::State,&'a str> {
 ///         // ... parser goes here...`
 /// #       fn is_lparen(ch: char) -> bool { ch == '(' }
 /// #       fn is_rparen(ch: char) -> bool { ch == ')' }
@@ -576,9 +576,9 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsimonious::{character,Parser,Committed,Boxable,Stateful,GuardedParseResult};
+/// # use parsimonious::{character,Parser,Committed,Boxable,Stateful,MaybeParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
-/// # use parsimonious::GuardedParseResult::{Commit};
+/// # use parsimonious::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
@@ -587,7 +587,7 @@ impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
 /// impl<'a> Parser<&'a str> for TreeParser {
 ///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
-///     fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
+///     fn parse(&self, data: &'a str) -> MaybeParseResult<Self::State,&'a str> {
 ///         fn is_lparen(ch: char) -> bool { ch == '(' }
 ///         fn is_rparen(ch: char) -> bool { ch == ')' }
 ///         fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
@@ -772,9 +772,9 @@ pub mod impls {
 
     //! Provide implementations of parser traits.
 
-    use super::{Stateful,Parser,Committed,Boxable,ParseResult,GuardedParseResult,Factory,Function,Consumer};
+    use super::{Stateful,Parser,Committed,Boxable,ParseResult,MaybeParseResult,Factory,Function,Consumer};
     use super::ParseResult::{Continue,Done};
-    use super::GuardedParseResult::{Abort,Commit,Empty};
+    use super::MaybeParseResult::{Abort,Commit,Empty};
 
     use self::AndThenStatefulParser::{InLhs,InRhs};
     use self::OrElseStatefulParser::{Lhs,Rhs};
@@ -918,7 +918,7 @@ pub mod impls {
     impl<P,F,S> Parser<S> for MapParser<P,F> where P: Parser<S>, F: Copy+Function<P::Output> {
         type Output = F::Output;
         type State = MapStatefulParser<P::State,F>;
-        fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
+        fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> {
             match self.0.parse(value) {
                 Empty => Empty,
                 Commit(Done(rest,result)) => Commit(Done(rest,self.1.apply(result))),
@@ -958,7 +958,7 @@ pub mod impls {
     impl<P,Q,S> Parser<S> for AndThenParser<P,Q> where P: Parser<S>, Q: Committed<S> {
         type Output = (P::Output,Q::Output);
         type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
-        fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
+        fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> {
             match self.0.parse(value) {
                 Empty => Empty,
                 Commit(Done(rest,result1)) => match self.1.init().parse(rest) {
@@ -1020,7 +1020,7 @@ pub mod impls {
     impl<P,Q,S> Parser<S> for OrElseGuardedParser<P,Q> where P: Parser<S>, Q: Parser<S,Output=P::Output> {
         type Output = P::Output;
         type State = OrElseStatefulParser<P::State,Q::State>;
-        fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
+        fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> {
             match self.0.parse(value) {
                 Empty => Empty,
                 Commit(Done(rest,result)) => Commit(Done(rest,result)),
@@ -1187,7 +1187,7 @@ pub mod impls {
     impl<P,F,S> Parser<S> for PlusParser<P,F> where P: Copy+Parser<S>, F: Factory, F::Output: Consumer<P::Output> {
         type Output = F::Output;
         type State = StarStatefulParser<P,P::State,F::Output>;
-        fn parse(&self, value: S) -> GuardedParseResult<Self::State,S> {
+        fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> {
             match self.0.parse(value) {
                 Empty => Empty,
                 Abort(rest) => Abort(rest),
@@ -1301,7 +1301,7 @@ pub mod impls {
     impl<'a,F> Parser<&'a str> for CharacterParser<F> where F: Function<char,Output=bool> {
         type Output = char;
         type State = ImpossibleStatefulParser<char>;
-        fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
+        fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State,&'a str> {
             match value.chars().next() {
                 None => Empty,
                 Some(ch) if self.0.apply(ch) => {
@@ -1336,7 +1336,7 @@ pub mod impls {
     impl<'a,P> Parser<&'a str> for BufferedGuardedParser<P> where P: Parser<&'a str> {
         type Output = Cow<'a,str>;
         type State = BufferedStatefulParser<P::State>;
-        fn parse(&self, value: &'a str) -> GuardedParseResult<Self::State,&'a str> {
+        fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State,&'a str> {
             match self.0.parse(value) {
                 Empty => Empty,
                 Commit(Done(rest,_)) => Commit(Done(rest,Borrowed(&value[..(value.len() - rest.len())]))),
@@ -1408,26 +1408,26 @@ pub mod impls {
 // ----------- Tests -------------
 
 #[allow(non_snake_case,dead_code)]
-impl<P,S> GuardedParseResult<P,S> where P: Stateful<S> {
+impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 
     fn unEmpty(self) {
         match self {
             Empty => (),
-            _     => panic!("GuardedParseResult is not empty"),
+            _     => panic!("MaybeParseResult is not empty"),
         }
     }
 
     fn unAbort(self) -> S {
         match self {
             Abort(s) => s,
-            _        => panic!("GuardedParseResult is not failure"),
+            _        => panic!("MaybeParseResult is not failure"),
         }
     }
 
     fn unCommit(self) -> ParseResult<P,S> {
         match self {
             Commit(s) => s,
-            _       => panic!("GuardedParseResult is not success"),
+            _       => panic!("MaybeParseResult is not success"),
         }
     }
 
@@ -1682,7 +1682,7 @@ fn test_boxable() {
     impl<'a> Parser<&'a str> for TreeParser {
         type Output = Tree;
         type State = TreeParserState;
-        fn parse(&self, data: &'a str) -> GuardedParseResult<Self::State,&'a str> {
+        fn parse(&self, data: &'a str) -> MaybeParseResult<Self::State,&'a str> {
             fn is_lparen(ch: char) -> bool { ch == '(' }
             fn is_rparen(ch: char) -> bool { ch == ')' }
             fn mk_none<T>() -> Option<T> { None }
