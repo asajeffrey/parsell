@@ -375,10 +375,11 @@ pub trait Parser<S> {
     /// contiguously. For example:
     ///
     /// ```
-    /// # use parsimonious::{character,ignore,Parser,Stateful};
+    /// # use parsimonious::{character,Parser,Stateful};
     /// # use parsimonious::MaybeParseResult::{Commit};
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// # use std::borrow::Cow::{Borrowed,Owned};
+    /// fn ignore() {}
     /// let parser = character(char::is_alphabetic).plus(ignore).buffer();
     /// match parser.parse("abc!") {
     ///     Commit(Done("!",result)) => assert_eq!(result,Borrowed("abc")),
@@ -477,7 +478,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 ///    assert_eq!(rest,"!"); assert_eq!(result,"abc123");
 /// }
 /// # fn foo(self) {
-/// # use parsimonious::{character,ignore,Parser,Committed,Boxable,Stateful};
+/// # use parsimonious::{character,Parser,Committed,Boxable,Stateful};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// let parser = character(char::is_alphanumeric).star(String::new);
 /// let stateful = parser.init();
@@ -719,8 +720,6 @@ pub trait Consumer<T> {
 impl<T> Consumer<T> for () {
     fn accept(&mut self, _: T) {}
 }
-
-pub fn ignore() -> () { () }
 
 impl Consumer<String> for String {
     fn accept(&mut self, arg: String) {
@@ -1647,6 +1646,7 @@ fn test_star() {
 #[allow(non_snake_case)]
 fn test_buffer() {
     use std::borrow::Cow::{Borrowed,Owned};
+    fn ignore() {}
     let ALPHABETIC = character(char::is_alphabetic);
     let ALPHANUMERIC = character(char::is_alphanumeric);
     let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(ignore)).buffer();
