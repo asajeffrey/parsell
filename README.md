@@ -18,32 +18,31 @@ It is based on:
 
 ## Example
 
-To parse a sequence of alphanumerics into a string buffer:
 ```rust
+extern crate parsimonious;
+use parsimonious::{character,Parser,Committed,Stateful};
+use parsimonious::ParseResult::{Done,Continue};
+#[allow(non_snake_case)]
+fn main() {
+
+    // A sequence of alphanumerics, saved in a string buffer
     let ALPHANUMERIC = character(char::is_alphanumeric);
     let ALPHANUMERICS = ALPHANUMERIC.star(String::new);
-```
-If you provide complete input to the parser, you will get back a `Done` response, for example:
-```rust
-    if let Done(rest,result) = ALPHANUMERICS.init().parse("abc123!") {
-        println!("Matched {} with left over {}.", result, rest);
+
+    // If you provide complete input to the parser, you'll get back a Done response:
+    match ALPHANUMERICS.init().parse("abc123!") {
+        Done("!",result) => assert_eq!(result, "abc123"),
+        _ => panic!("Can't happen."),
     }
-```
-prints:
-```
-    Matched abc123 with left over !.
-```
-If you provide incomplete input, you will get back a `Continue` response, for example:
-```rust
-    if let Continue(parsing) = ALPHANUMERICS.init().parse("abc") {
-        println!("Still going...");
-        if let Done(rest,result) = parsing.parse("123!") {
-            println!("Matched {} with left over {}.", result, rest);
-        }
+
+    // If you provide incomplete input to the parser, you'll get back a Continue response:
+    match ALPHANUMERICS.init().parse("abc") {
+        Continue(parsing) => match parsing.parse("123!") {
+            Done("!",result) => assert_eq!(result, "abc123"),
+            _ => panic!("Can't happen."),
+        },
+        _ => panic!("Can't happen."),
     }
-```
-prints:
-```
-    Still going...
-    Matched abc123 with left over !.
+
+}
 ```
