@@ -156,7 +156,7 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 pub trait Parser {
 
     /// Choice between parsers (returns a parser).
-    fn or_else<P>(self, other: P) -> impls::OrElseGuardedParser<Self,P> where Self:Sized { impls::OrElseGuardedParser::new(self,other) }
+    fn or_else<P>(self, other: P) -> impls::OrElseParser<Self,P> where Self:Sized { impls::OrElseParser::new(self,other) }
 
     /// Gives a parser a default value (returns a committed parser).
     fn or_emit<F>(self, factory: F) -> impls::OrEmitParser<Self,F> where Self: Sized { impls::OrEmitParser::new(self,factory) }
@@ -238,7 +238,7 @@ pub trait Parser {
     ///     _ => panic!("can't happen"),
     /// }
     /// ```
-    fn buffer(self) -> impls::BufferedGuardedParser<Self> where Self: Sized { impls::BufferedGuardedParser::new(self) }
+    fn buffer(self) -> impls::BufferedParser<Self> where Self: Sized { impls::BufferedParser::new(self) }
 
 }
 
@@ -998,10 +998,10 @@ pub mod impls {
     // ----------- Choice ---------------
 
     #[derive(Copy, Clone, Debug)]
-    pub struct OrElseGuardedParser<P,Q>(P,Q);
+    pub struct OrElseParser<P,Q>(P,Q);
 
-    impl<P,Q> Parser for OrElseGuardedParser<P,Q> {}
-    impl<P,Q,S> Uncommitted<S> for OrElseGuardedParser<P,Q> where P: Uncommitted<S>, Q: Uncommitted<S,Output=P::Output> {
+    impl<P,Q> Parser for OrElseParser<P,Q> {}
+    impl<P,Q,S> Uncommitted<S> for OrElseParser<P,Q> where P: Uncommitted<S>, Q: Uncommitted<S,Output=P::Output> {
         type Output = P::Output;
         type State = OrElseStatefulParser<P::State,Q::State>;
         fn parse(&self, value: S) -> MaybeParseResult<Self::State,S> {
@@ -1019,9 +1019,9 @@ pub mod impls {
         }
     }
 
-    impl<P,Q> OrElseGuardedParser<P,Q> {
+    impl<P,Q> OrElseParser<P,Q> {
         pub fn new(lhs: P, rhs: Q) -> Self {
-            OrElseGuardedParser(lhs,rhs)
+            OrElseParser(lhs,rhs)
         }
     }
 
@@ -1335,10 +1335,10 @@ pub mod impls {
     // TODO(ajeffrey): make this code generic.
 
     #[derive(Copy, Clone, Debug)]
-    pub struct BufferedGuardedParser<P>(P);
+    pub struct BufferedParser<P>(P);
 
-    impl<P> Parser for BufferedGuardedParser<P> {}
-    impl<'a,P> Uncommitted<&'a str> for BufferedGuardedParser<P> where P: Uncommitted<&'a str> {
+    impl<P> Parser for BufferedParser<P> {}
+    impl<'a,P> Uncommitted<&'a str> for BufferedParser<P> where P: Uncommitted<&'a str> {
         type Output = Cow<'a,str>;
         type State = BufferedStatefulParser<P::State>;
         fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State,&'a str> {
@@ -1351,9 +1351,9 @@ pub mod impls {
         }
     }
 
-    impl<P> BufferedGuardedParser<P> {
+    impl<P> BufferedParser<P> {
         pub fn new(parser: P) -> Self {
-            BufferedGuardedParser(parser)
+            BufferedParser(parser)
         }
     }
 
