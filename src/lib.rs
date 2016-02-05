@@ -771,6 +771,13 @@ pub fn token<F>(f: F) -> impls::TokenParser<F> {
     impls::TokenParser::<F>::new(f)
 }
 
+/// A committed parser that reads one token.
+///
+/// The parser `TOKEN` reads one token `tok` from the input,
+/// and produces `Some(tok)`. It produces `None` at the end of input.
+
+pub const TOKEN: impls::AnyTokenParser = impls::AnyTokenParser;
+
 pub mod impls {
 
     //! Provide implementations of parser traits.
@@ -1423,6 +1430,30 @@ pub mod impls {
         }
     }
 
+    #[derive(Copy,Clone,Debug)]
+    pub struct AnyTokenParser;
+
+    impl Parser for AnyTokenParser {}
+    impl<I> Stateful<I> for AnyTokenParser where I: Iterator {
+        type Output = Option<I::Item>;
+        fn parse(self, mut iter: I) -> ParseResult<Self,I> {
+            match iter.next() {
+                None => Continue(iter,AnyTokenParser),
+                Some(tok) => Done(iter,Some(tok)),
+            }
+        }
+        fn done(self) -> Self::Output {
+            None
+        }
+    }
+    impl<I> Committed<I> for AnyTokenParser where I: Iterator {
+        type Output = Option<I::Item>;
+        type State = Self;
+        fn init(&self) -> Self {
+            AnyTokenParser
+        }
+    }
+
     // ----------- Buffering -------------
 
     // If m is a Uncommitted<&'a str>, then
@@ -1699,6 +1730,17 @@ fn test_token() {
     assert_eq!(iter.next(),Some(2));
     assert_eq!(iter.next(),None);
     assert_eq!(result,0);
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_TOKEN() {
+    let parser = TOKEN;
+    let (mut iter, result) = parser.init_parse("abc".chars()).unDone();
+    assert_eq!(result, Some('a'));
+    assert_eq!(iter.next(), Some('b'));
+    assert_eq!(iter.next(), Some('c'));
+    assert_eq!(iter.next(), None);
 }
 
 #[test]
