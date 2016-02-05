@@ -1,4 +1,4 @@
-//! Parsimonious: a parser combinator library for Rust
+//! Parsell: an LL(1) streaming parser combinator library for Rust
 //!
 //! The goal of this library is to provide parser combinators that:
 //!
@@ -13,9 +13,9 @@
 //!   by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,
 //! * [Nom, eating data byte by byte](https://github.com/Geal/nom) by G. Couprie.
 //!
-//! [Repo](https://github.com/asajeffrey/parsimonious) |
-//! [Crate](https://crates.io/crates/parsimonious) |
-//! [CI](https://travis-ci.org/asajeffrey/parsimonious)
+//! [Repo](https://github.com/asajeffrey/parsell) |
+//! [Crate](https://crates.io/crates/parsell) |
+//! [CI](https://travis-ci.org/asajeffrey/parsell)
 
 use self::MaybeParseResult::{Empty,Abort,Commit};
 use self::ParseResult::{Done,Continue};
@@ -28,7 +28,7 @@ use self::ParseResult::{Done,Continue};
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character,Parser,Uncommitted,Committed};
+/// # use parsell::{character,Parser,Uncommitted,Committed};
 /// let stateless = character(char::is_alphanumeric).star(String::new);
 /// let stateful = stateless.init();
 /// ```
@@ -41,8 +41,8 @@ use self::ParseResult::{Done,Continue};
 /// Copying parsers is quite common, for example:
 ///
 /// ```
-/// # use parsimonious::{character,CHARACTER,Uncommitted,Parser,Committed,Stateful};
-/// # use parsimonious::ParseResult::Done;
+/// # use parsell::{character,CHARACTER,Uncommitted,Parser,Committed,Stateful};
+/// # use parsell::ParseResult::Done;
 /// fn mk_err(_: Option<char>) -> Result<char,String> { Err(String::from("Expecting a digit")) }
 /// let DIGIT = character(char::is_numeric).map(Ok).or_else(CHARACTER.map(mk_err));
 /// let TWO_DIGITS = DIGIT.try_and_then_try(DIGIT);
@@ -68,8 +68,8 @@ pub trait Stateful<S> {
     /// For example:
     ///
     /// ```
-    /// # use parsimonious::{character,Parser,Uncommitted,Committed,Stateful};
-    /// # use parsimonious::ParseResult::{Continue,Done};
+    /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
+    /// # use parsell::ParseResult::{Continue,Done};
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
@@ -101,8 +101,8 @@ pub trait Stateful<S> {
     /// for example:
     ///
     /// ```
-    /// # use parsimonious::{character,Parser,Uncommitted,Committed,Stateful};
-    /// # use parsimonious::ParseResult::{Continue,Done};
+    /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
+    /// # use parsell::ParseResult::{Continue,Done};
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
     /// match stateful.parse("abc") {
@@ -223,9 +223,9 @@ pub trait Parser {
     /// contiguously. For example:
     ///
     /// ```
-    /// # use parsimonious::{character,Parser,Uncommitted,Stateful};
-    /// # use parsimonious::MaybeParseResult::{Commit};
-    /// # use parsimonious::ParseResult::{Done,Continue};
+    /// # use parsell::{character,Parser,Uncommitted,Stateful};
+    /// # use parsell::MaybeParseResult::{Commit};
+    /// # use parsell::ParseResult::{Done,Continue};
     /// # use std::borrow::Cow::{Borrowed,Owned};
     /// fn ignore() {}
     /// let parser = character(char::is_alphabetic).plus(ignore).buffer();
@@ -252,7 +252,7 @@ pub trait Parser {
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character,Parser,Uncommitted};
+/// # use parsell::{character,Parser,Uncommitted};
 /// let parser = character(char::is_alphanumeric).star(String::new);
 /// ```
 ///
@@ -300,8 +300,8 @@ pub trait Committed<S>: Parser {
 /// will then try `q`. For example:
 ///
 /// ```
-/// # use parsimonious::{character,CHARACTER,Parser,Uncommitted,Committed,Stateful};
-/// # use parsimonious::ParseResult::Done;
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Stateful};
+/// # use parsell::ParseResult::Done;
 /// fn default(_: Option<char>) -> String { String::from("?") }
 /// let parser =
 ///    character(char::is_numeric).plus(String::new)
@@ -343,9 +343,9 @@ pub trait Uncommitted<S>: Parser {
     /// For example:
     ///
     /// ```
-    /// # use parsimonious::{character,Parser,Uncommitted,Stateful};
-    /// # use parsimonious::MaybeParseResult::{Empty,Commit,Abort};
-    /// # use parsimonious::ParseResult::{Done,Continue};
+    /// # use parsell::{character,Parser,Uncommitted,Stateful};
+    /// # use parsell::MaybeParseResult::{Empty,Commit,Abort};
+    /// # use parsell::ParseResult::{Done,Continue};
     /// let parser = character(char::is_alphabetic).plus(String::new);
     /// match parser.parse("") {
     ///     Empty("") => (),
@@ -456,8 +456,8 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 ///    assert_eq!(rest,"!"); assert_eq!(result,"abc123");
 /// }
 /// # fn foo(self) {
-/// # use parsimonious::{character,Parser,Uncommitted,Committed,Boxable,Stateful};
-/// # use parsimonious::ParseResult::{Done,Continue};
+/// # use parsell::{character,Parser,Uncommitted,Committed,Boxable,Stateful};
+/// # use parsell::ParseResult::{Done,Continue};
 /// let parser = character(char::is_alphanumeric).star(String::new);
 /// let stateful = parser.init();
 /// let boxed: Box<for <'a> Boxable<&'a str,Output=String>> = Box::new(stateful.boxable());
@@ -510,7 +510,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// `BoxableParserState` trait:
 ///
 /// ```
-/// # use parsimonious::{Boxable};
+/// # use parsell::{Boxable};
 /// # struct Tree(Vec<Tree>);
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Tree>>;
 /// ```
@@ -518,9 +518,9 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// The implementation of `Uncommitted<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsimonious::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
-/// # use parsimonious::ParseResult::{Done,Continue};
-/// # use parsimonious::MaybeParseResult::{Commit};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
+/// # use parsell::ParseResult::{Done,Continue};
+/// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
@@ -559,9 +559,9 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsimonious::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
-/// # use parsimonious::ParseResult::{Done,Continue};
-/// # use parsimonious::MaybeParseResult::{Commit};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
+/// # use parsell::ParseResult::{Done,Continue};
+/// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
 /// # #[derive(Copy,Clone,Debug)]
@@ -619,8 +619,8 @@ pub trait Boxable<S> {
 /// This is useful, as it allows the function type to be named, for example
 ///
 /// ```
-/// # use parsimonious::{Function,character};
-/// # use parsimonious::impls::{CharacterParser};
+/// # use parsell::{Function,character};
+/// # use parsell::impls::{CharacterParser};
 /// struct AlphaNumeric;
 /// impl Function<char> for AlphaNumeric {
 ///     type Output = bool;
@@ -665,7 +665,7 @@ impl<F,T> Factory for F where F: Fn() -> T {
 /// `String` is a consumer of `&str` and of `char`.
 ///
 /// ```
-/// # use parsimonious::Consumer;
+/// # use parsell::Consumer;
 /// let mut buffer = String::new();
 /// buffer.accept("abc");
 /// buffer.accept('d');
@@ -675,7 +675,7 @@ impl<F,T> Factory for F where F: Fn() -> T {
 /// `Vec<T>` is a consumer of `&[T]` when `T` is `Clone`, and of `T`.
 ///
 /// ```
-/// # use parsimonious::Consumer;
+/// # use parsell::Consumer;
 /// let mut buffer = Vec::new();
 /// buffer.accept(&[1,2,3][..]);
 /// buffer.accept(4);
@@ -685,7 +685,7 @@ impl<F,T> Factory for F where F: Fn() -> T {
 /// The unit type `()` is a trivial consumer that discards data.
 ///
 /// ```
-/// # use parsimonious::Consumer;
+/// # use parsell::Consumer;
 /// let mut discarder = ();
 /// discarder.accept("this");
 /// discarder.accept(4);
