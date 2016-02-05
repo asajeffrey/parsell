@@ -768,6 +768,7 @@ pub mod impls {
 
     use self::AndThenStatefulParser::{InLhs,InRhs};
     use self::OrElseStatefulParser::{Lhs,Rhs};
+    use self::OrElseCommittedParser::{Uncommit,CommitLhs,CommitRhs};
     use self::OrEmitStatefulParser::{Unresolved,Resolved};
 
     use std::borrow::Cow;
@@ -1008,6 +1009,13 @@ pub mod impls {
     pub struct OrElseParser<P,Q>(P,Q);
 
     impl<P,Q> Parser for OrElseParser<P,Q> {}
+    impl<P,Q,S> Committed<S> for OrElseParser<P,Q> where P: Copy+Uncommitted<S>, Q: Committed<S,Output=P::Output> {
+        type Output = P::Output;
+        type State = OrElseCommittedParser<P,P::State,Q::State>;
+        fn init(&self) -> Self::State {
+            Uncommit(self.0,self.1.init())
+        }
+    }
     impl<P,Q,S> Uncommitted<S> for OrElseParser<P,Q> where P: Uncommitted<S>, Q: Uncommitted<S,Output=P::Output> {
         type Output = P::Output;
         type State = OrElseStatefulParser<P::State,Q::State>;
@@ -1060,6 +1068,51 @@ pub mod impls {
             match self {
                 Lhs(lhs) => lhs.done(),
                 Rhs(rhs) => rhs.done(),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub enum OrElseCommittedParser<P,Q,R> {
+        Uncommit(P,R),
+        CommitLhs(Q),
+        CommitRhs(R),
+    }
+
+    impl<P,Q,S> Stateful<S> for OrElseCommittedParser<P,P::State,Q> where P: Uncommitted<S>, Q: Stateful<S,Output=P::Output> {
+        type Output = P::Output;
+        fn parse(self, value: S) -> ParseResult<Self,S> {
+            match self {
+                Uncommit(lhs, rhs) => {
+                    match lhs.parse(value) {
+                        Empty(value) => Continue(value,Uncommit(lhs,rhs)),
+                        Commit(Done(rest,result)) => Done(rest,result),
+                        Commit(Continue(rest,parsing)) => Continue(rest,CommitLhs(parsing)),
+                        Abort(value) => match rhs.parse(value) {
+                            Done(rest,result) => Done(rest,result),
+                            Continue(rest,parsing) => Continue(rest,CommitRhs(parsing)),
+                        }
+                    }
+                },
+                CommitLhs(lhs) => {
+                    match lhs.parse(value) {
+                        Done(rest,result) => Done(rest,result),
+                        Continue(rest,parsing) => Continue(rest,CommitLhs(parsing)),
+                    }
+                },
+                CommitRhs(rhs) => {
+                    match rhs.parse(value) {
+                        Done(rest,result) => Done(rest,result),
+                        Continue(rest,parsing) => Continue(rest,CommitRhs(parsing)),
+                    }
+                },
+            }
+        }
+        fn done(self) -> Self::Output {
+            match self {
+                Uncommit(_,rhs) => rhs.done(),
+                CommitLhs(lhs) => lhs.done(),
+                CommitRhs(rhs) => rhs.done(),
             }
         }
     }
