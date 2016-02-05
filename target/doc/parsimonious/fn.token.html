@@ -45,8 +45,8 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-231' class='srclink' href='../src/parsimonious/lib.rs.html#757-759' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn token&lt;F&gt;(f: F) -&gt; <a class='struct' href='../parsimonious/impls/struct.TokenParser.html' title='parsimonious::impls::TokenParser'>TokenParser</a>&lt;F&gt;</pre><div class='docblock'><p>A parser that reads one token.</p>
+        </span><a id='src-233' class='srclink' href='../src/parsimonious/lib.rs.html#766-768' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn token&lt;F&gt;(f: F) -&gt; <a class='struct' href='../parsimonious/impls/struct.TokenParser.html' title='parsimonious::impls::TokenParser'>TokenParser</a>&lt;F&gt;</pre><div class='docblock'><p>An uncommitted parser that reads one token.</p>
 
 <p>The parser <code>token(f)</code> reads one token <code>tok</code> from the input,
 if <code>f(tok)</code> is <code>true</code> then it commits and the result is <code>tok</code>,

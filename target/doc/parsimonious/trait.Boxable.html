@@ -45,7 +45,7 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-152' class='srclink' href='../src/parsimonious/lib.rs.html#608-612' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-153' class='srclink' href='../src/parsimonious/lib.rs.html#610-614' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait Boxable&lt;S&gt; {
     type Output;
     fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;Self::<a class='trait' href='../parsimonious/trait.Boxable.html' title='parsimonious::Boxable'>Output</a>&gt;)</a>;
@@ -130,12 +130,12 @@ The desired implementation is:</p>
 fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }
 fn mk_vec() -&gt; Result&lt;Vec&lt;Tree&gt;,String&gt; { Ok(Vec::new()) }
 fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T,String&gt; { Ok(ok) }
-fn mk_err&lt;T&gt;() -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }
+fn mk_err&lt;T&gt;(_: Option&lt;char&gt;) -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }
 fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Result&lt;Tree,String&gt; {
     Ok(Tree(children))
 }
 let LPAREN = character(is_lparen);
-let RPAREN = character(is_rparen).map(mk_ok).or_emit(mk_err);
+let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
 let TREE = LPAREN
     .and_then_try(TREE.star(mk_vec))
     .try_and_then_try(RPAREN)
@@ -180,7 +180,7 @@ recursively, then box up the result state:</p>
         <span class='kw'>fn</span> <span class='ident'>is_rparen</span>(<span class='ident'>ch</span>: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='ident'>ch</span> <span class='op'>==</span> <span class='string'>&#39;)&#39;</span> }
         <span class='kw'>fn</span> <span class='ident'>mk_vec</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Ok</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>()) }
         <span class='kw'>fn</span> <span class='ident'>mk_ok</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>ok</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Ok</span>(<span class='ident'>ok</span>) }
-        <span class='kw'>fn</span> <span class='ident'>mk_err</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Err</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;Expected a ( or ).&quot;</span>)) }
+        <span class='kw'>fn</span> <span class='ident'>mk_err</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(_: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Err</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;Expected a ( or ).&quot;</span>)) }
         <span class='kw'>fn</span> <span class='ident'>mk_tree</span>(_: <span class='ident'>char</span>, <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>, _: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;</span> {
             <span class='prelude-val'>Ok</span>(<span class='ident'>Tree</span>(<span class='ident'>children</span>))
         }
@@ -189,7 +189,7 @@ recursively, then box up the result state:</p>
             <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>parser</span>.<span class='ident'>boxable</span>())
         }
         <span class='kw'>let</span> <span class='ident'>LPAREN</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>is_lparen</span>);
-        <span class='kw'>let</span> <span class='ident'>RPAREN</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>is_rparen</span>).<span class='ident'>map</span>(<span class='ident'>mk_ok</span>).<span class='ident'>or_emit</span>(<span class='ident'>mk_err</span>);
+        <span class='kw'>let</span> <span class='ident'>RPAREN</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>is_rparen</span>).<span class='ident'>map</span>(<span class='ident'>mk_ok</span>).<span class='ident'>or_else</span>(<span class='ident'>CHARACTER</span>.<span class='ident'>map</span>(<span class='ident'>mk_err</span>));
         <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>LPAREN</span>
             .<span class='ident'>and_then_try</span>(<span class='ident'>TreeParser</span>.<span class='ident'>star</span>(<span class='ident'>mk_vec</span>))
             .<span class='ident'>try_and_then_try</span>(<span class='ident'>RPAREN</span>)

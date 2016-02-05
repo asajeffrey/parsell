@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="API documentation for the Rust `Factory` trait in crate `parsimonious`.">
-    <meta name="keywords" content="rust, rustlang, rust-lang, Factory">
+    <meta name="description" content="API documentation for the Rust `CHARACTER` constant in crate `parsimonious`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, CHARACTER">
 
-    <title>parsimonious::Factory - Rust</title>
+    <title>parsimonious::CHARACTER - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../main.css">
 
@@ -26,7 +26,7 @@
 
     <nav class="sidebar">
         
-        <p class='location'><a href='index.html'>parsimonious</a></p><script>window.sidebarCurrent = {name: 'Factory', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'><a href='index.html'>parsimonious</a></p><script>window.sidebarCurrent = {name: 'CHARACTER', ty: 'constant', relpath: ''};</script><script defer src="sidebar-items.js"></script>
     </nav>
 
     <nav class="sub">
@@ -40,28 +40,17 @@
         </form>
     </nav>
 
-    <section id='main' class="content trait">
-<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>parsimonious</a>::<wbr><a class='trait' href=''>Factory</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content constant">
+<h1 class='fqn'><span class='in-band'><a href='index.html'>parsimonious</a>::<wbr><a class='constant' href=''>CHARACTER</a></span><span class='out-of-band'><span id='render-detail'>
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-175' class='srclink' href='../src/parsimonious/lib.rs.html#651-654' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Factory {
-    type Output;
-    fn <a href='#tymethod.build' class='fnname'>build</a>(&amp;self) -&gt; Self::<a class='trait' href='../parsimonious/trait.Factory.html' title='parsimonious::Factory'>Output</a>;
-}</pre><div class='docblock'><p>A trait for factories.</p>
-</div>
-            <h2 id='associated-types'>Associated Types</h2>
-            <div class='methods'>
-        <h3 id='associatedtype.Output' class='method stab '><code>type Output</code></h3></div>
-            <h2 id='required-methods'>Required Methods</h2>
-            <div class='methods'>
-        <h3 id='tymethod.build' class='method stab '><code>fn <a href='#tymethod.build' class='fnname'>build</a>(&amp;self) -&gt; Self::<a class='trait' href='../parsimonious/trait.Factory.html' title='parsimonious::Factory'>Output</a></code></h3></div>
-        <h2 id='implementors'>Implementors</h2>
-        <ul class='item-list' id='implementors-list'>
-    </ul><script type="text/javascript" async
-                              src="../implementors/parsimonious/trait.Factory.js">
-                      </script></section>
+        </span><a id='src-232' class='srclink' href='../src/parsimonious/lib.rs.html#758' title='goto source code'>[src]</a></span></h1>
+<pre class='rust const'>pub const CHARACTER: <a class='struct' href='../parsimonious/impls/struct.AnyCharacterParser.html' title='parsimonious::impls::AnyCharacterParser'>AnyCharacterParser</a><code> = </code><code>impls::AnyCharacterParser</code></pre><div class='docblock'><p>A committed parser that reads one character.</p>
+
+<p>The parser <code>CHARACTER</code> reads one character <code>ch</code> from the input,
+and produces <code>Some(ch)</code>. It produces <code>None</code> at the end of input.</p>
+</div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>
