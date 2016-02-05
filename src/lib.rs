@@ -762,7 +762,6 @@ pub mod impls {
 
     use std::borrow::Cow;
     use std::borrow::Cow::{Borrowed,Owned};
-    use std::iter::Peekable;
 
     // ----------- N-argument functions ---------------
 
@@ -1406,6 +1405,44 @@ pub mod impls {
         }
     }
 
+    // ----------- Cut-and-paste Peekable -------------
+
+    // Rather annoyingly, we need access to a private field, so we just copy the source.
+    // TOD: Fix this!
+
+    #[derive(Clone)]
+    pub struct Peekable<I> where I: Iterator {
+        iter: I,
+        peeked: Option<I::Item>,
+    }
+
+    impl<I> Iterator for Peekable<I> where I: Iterator {
+        type Item = I::Item;
+        #[inline]
+        fn next(&mut self) -> Option<I::Item> {
+            match self.peeked {
+                Some(_) => self.peeked.take(),
+                None => self.iter.next(),
+            }
+        }
+    }
+
+    impl<I> Peekable<I> where I: Iterator{
+        pub fn new(iter: I) -> Self {
+            Peekable{ iter: iter, peeked: None }
+        }
+        #[inline]
+        pub fn peek(&mut self) -> Option<&I::Item> {
+            if self.peeked.is_none() {
+                self.peeked = self.iter.next();
+            }
+            match self.peeked {
+                Some(ref value) => Some(value),
+                None => None,
+            }
+        }
+    }
+
     // ----------- Iterate over parse results -------------
 
     #[derive(Copy, Clone, Debug)]
@@ -1493,11 +1530,11 @@ fn test_character() {
 fn test_token() {
     fn is_zero(num: &usize) -> bool { *num == 0 }
     let parser = token(is_zero);
-    let mut iter = parser.parse((1..3).peekable()).unAbort();
+    let mut iter = parser.parse(impls::Peekable::new((1..3))).unAbort();
     assert_eq!(iter.next(),Some(1));
     assert_eq!(iter.next(),Some(2));
     assert_eq!(iter.next(),None);
-    let (mut iter, result) = parser.parse((0..3).peekable()).unCommit().unDone();
+    let (mut iter, result) = parser.parse(impls::Peekable::new((0..3))).unCommit().unDone();
     assert_eq!(iter.next(),Some(1));
     assert_eq!(iter.next(),Some(2));
     assert_eq!(iter.next(),None);
