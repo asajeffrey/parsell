@@ -151,7 +151,14 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
     }
 }
 
-/// The methods in common between committed and uncommitted parsers
+/// A trait for stateless parsers.
+///
+/// Parsers are implemented either as committed parsers, which cannot backtrack,
+/// or uncommitted parsers, which can backtrack on their first token of input.
+/// For example `character(char::is_alphabetic)` is uncommitted because
+/// it will backtrack on any non-alphabetic character, but
+/// `character(char::is_alphabetic).or_emit(default)` is not, because
+/// it will produce `default()` rather than backtracking.
 
 pub trait Parser {
 
@@ -281,12 +288,12 @@ pub trait Committed<S>: Parser {
 
 }
 
-/// A trait for stateless parsers.
+/// A trait for uncommitted parsers.
 ///
-/// A parser can decide based on the first token of input whether
+/// An uncommitted parser can decide based on the first token of input whether
 /// it will commit to parsing, or immediately backtrack and try another option.
 ///
-/// The advantage of parsers over committed parsers is they support choice:
+/// The advantage of uncommitted parsers over committed parsers is they support choice:
 /// `p.or_else(q)` will try `p`, and commit if it commits, but if it backtracks
 /// will then try `q`. For example:
 ///
