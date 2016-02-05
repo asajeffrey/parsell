@@ -286,6 +286,12 @@ pub trait Committed<S>: Parser {
     /// Build an iterator from a parser and some data.
     fn iter(self, data: S) -> impls::IterParser<Self,Self::State,S> where Self: Sized+Copy { impls::IterParser::new(self, data) }
 
+    /// Short hand for calling init then parse.
+    fn init_parse(&self, data: S) -> ParseResult<Self::State,S> where Self: Sized { self.init().parse(data) }
+
+    /// Short hand for calling init then done.
+    fn init_done(&self) -> Self::Output where Self: Sized { self.init().done() }
+
 }
 
 /// A trait for uncommitted parsers.
