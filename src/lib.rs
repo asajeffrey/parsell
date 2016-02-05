@@ -1538,7 +1538,7 @@ pub mod impls {
     // ----------- Cut-and-paste Peekable -------------
 
     // Rather annoyingly, we need access to a private field, so we just copy the source.
-    // TOD: Fix this!
+    // TODO: Fix this!
 
     #[derive(Clone)]
     pub struct Peekable<I> where I: Iterator {
