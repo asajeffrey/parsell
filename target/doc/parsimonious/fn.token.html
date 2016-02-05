@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="API documentation for the Rust `MaybeParseResult` enum in crate `parsimonious`.">
-    <meta name="keywords" content="rust, rustlang, rust-lang, MaybeParseResult">
+    <meta name="description" content="API documentation for the Rust `token` fn in crate `parsimonious`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, token">
 
-    <title>parsimonious::MaybeParseResult - Rust</title>
+    <title>parsimonious::token - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../main.css">
 
@@ -26,7 +26,7 @@
 
     <nav class="sidebar">
         
-        <p class='location'><a href='index.html'>parsimonious</a></p><script>window.sidebarCurrent = {name: 'MaybeParseResult', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'><a href='index.html'>parsimonious</a></p><script>window.sidebarCurrent = {name: 'token', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
     </nav>
 
     <nav class="sub">
@@ -40,24 +40,18 @@
         </form>
     </nav>
 
-    <section id='main' class="content enum">
-<h1 class='fqn'><span class='in-band'>Enum <a href='index.html'>parsimonious</a>::<wbr><a class='enum' href=''>MaybeParseResult</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content fn">
+<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>parsimonious</a>::<wbr><a class='fn' href=''>token</a></span><span class='out-of-band'><span id='render-detail'>
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-132' class='srclink' href='../src/parsimonious/lib.rs.html#378-385' title='goto source code'>[src]</a></span></h1>
-<pre class='rust enum'>pub enum MaybeParseResult&lt;P, S&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.Stateful.html' title='parsimonious::Stateful'>Stateful</a>&lt;S&gt;</span> {
-    Empty(S),
-    Abort(S),
-    Commit(<a class='enum' href='../parsimonious/enum.ParseResult.html' title='parsimonious::ParseResult'>ParseResult</a>&lt;P, S&gt;),
-}</pre><div class='docblock'><p>The result of a parse.</p>
-</div><h2 class='variants'>Variants</h2>
-<table><tr><td id='variant.Empty'><code>Empty</code></td><td><div class='docblock'><p>The input was empty.</p>
-</div></td></tr><tr><td id='variant.Abort'><code>Abort</code></td><td><div class='docblock'><p>The parser must backtrack.</p>
-</div></td></tr><tr><td id='variant.Commit'><code>Commit</code></td><td><div class='docblock'><p>The parser has committed to parsing the input.</p>
-</div></td></tr></table><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl&lt;P, S&gt; <a class='enum' href='../parsimonious/enum.MaybeParseResult.html' title='parsimonious::MaybeParseResult'>MaybeParseResult</a>&lt;P, S&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.Stateful.html' title='parsimonious::Stateful'>Stateful</a>&lt;S&gt;</span></code></h3><div class='impl-items'><h4 id='method.map' class='method'><code>fn <a href='#method.map' class='fnname'>map</a>&lt;F, Q&gt;(self, f: F) -&gt; <a class='enum' href='../parsimonious/enum.MaybeParseResult.html' title='parsimonious::MaybeParseResult'>MaybeParseResult</a>&lt;Q, S&gt; <span class='where'>where Q: <a class='trait' href='../parsimonious/trait.Stateful.html' title='parsimonious::Stateful'>Stateful</a>&lt;S, Output=P::Output&gt;, F: <a class='trait' href='../parsimonious/trait.Function.html' title='parsimonious::Function'>Function</a>&lt;P, Output=Q&gt;</span></code></h4>
-<div class='docblock'><p>Apply a function the the Commit branch of a parse result</p>
-</div></div></section>
+        </span><a id='src-231' class='srclink' href='../src/parsimonious/lib.rs.html#757-759' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn token&lt;F&gt;(f: F) -&gt; <a class='struct' href='../parsimonious/impls/struct.TokenParser.html' title='parsimonious::impls::TokenParser'>TokenParser</a>&lt;F&gt;</pre><div class='docblock'><p>A parser that reads one token.</p>
+
+<p>The parser <code>token(f)</code> reads one token <code>tok</code> from the input,
+if <code>f(tok)</code> is <code>true</code> then it commits and the result is <code>tok</code>,
+otherwise it backtracks.</p>
+</div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

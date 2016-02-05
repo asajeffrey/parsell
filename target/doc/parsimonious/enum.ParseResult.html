@@ -48,7 +48,7 @@
         </span><a id='src-16' class='srclink' href='../src/parsimonious/lib.rs.html#137-142' title='goto source code'>[src]</a></span></h1>
 <pre class='rust enum'>pub enum ParseResult&lt;P, S&gt; <span class='where'>where P: <a class='trait' href='../parsimonious/trait.Stateful.html' title='parsimonious::Stateful'>Stateful</a>&lt;S&gt;</span> {
     Done(S, P::Output),
-    Continue(P),
+    Continue(S, P),
 }</pre><div class='docblock'><p>The result of a parse.</p>
 </div><h2 class='variants'>Variants</h2>
 <table><tr><td id='variant.Done'><code>Done</code></td><td><div class='docblock'><p>The parse is finished.</p>
