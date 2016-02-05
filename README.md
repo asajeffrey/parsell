@@ -20,7 +20,7 @@ It is based on:
 
 ```rust
 extern crate parsimonious;
-use parsimonious::{character,Parser,Committed,Stateful};
+use parsimonious::{character,Parser,Uncommitted,Committed,Stateful};
 use parsimonious::ParseResult::{Done,Continue};
 #[allow(non_snake_case)]
 fn main() {
@@ -37,7 +37,7 @@ fn main() {
 
     // If you provide incomplete input to the parser, you'll get back a Continue response:
     match ALPHANUMERICS.init().parse("abc") {
-        Continue(parsing) => match parsing.parse("123!") {
+        Continue("",parsing) => match parsing.parse("123!") {
             Done("!",result) => assert_eq!(result, "abc123"),
             _ => panic!("Can't happen."),
         },
@@ -46,3 +46,5 @@ fn main() {
 
 }
 ```
+
+Example tested with [Skeptic](https://github.com/brson/rust-skeptic).
