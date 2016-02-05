@@ -28,7 +28,7 @@ use self::ParseResult::{Done,Continue};
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character,HelperMethods,Uncommitted,Committed};
+/// # use parsimonious::{character,Parser,Uncommitted,Committed};
 /// let stateless = character(char::is_alphanumeric).star(String::new);
 /// let stateful = stateless.init();
 /// ```
@@ -41,7 +41,7 @@ use self::ParseResult::{Done,Continue};
 /// Copying parsers is quite common, for example:
 ///
 /// ```
-/// # use parsimonious::{character,Uncommitted,HelperMethods,Committed,Stateful};
+/// # use parsimonious::{character,Uncommitted,Parser,Committed,Stateful};
 /// # use parsimonious::ParseResult::Done;
 /// fn mk_err() -> Result<char,String> { Err(String::from("Expecting a digit")) }
 /// let DIGIT = character(char::is_numeric).map(Ok).or_emit(mk_err);
@@ -68,7 +68,7 @@ pub trait Stateful<S> {
     /// For example:
     ///
     /// ```
-    /// # use parsimonious::{character,HelperMethods,Uncommitted,Committed,Stateful};
+    /// # use parsimonious::{character,Parser,Uncommitted,Committed,Stateful};
     /// # use parsimonious::ParseResult::{Continue,Done};
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
@@ -101,7 +101,7 @@ pub trait Stateful<S> {
     /// for example:
     ///
     /// ```
-    /// # use parsimonious::{character,HelperMethods,Uncommitted,Committed,Stateful};
+    /// # use parsimonious::{character,Parser,Uncommitted,Committed,Stateful};
     /// # use parsimonious::ParseResult::{Continue,Done};
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let stateful = parser.init();
@@ -153,7 +153,7 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 
 /// The methods in common between committed and uncommitted parsers
 
-pub trait HelperMethods {
+pub trait Parser {
 
     /// Choice between parsers (returns a parser).
     fn or_else<P>(self, other: P) -> impls::OrElseGuardedParser<Self,P> where Self:Sized { impls::OrElseGuardedParser::new(self,other) }
@@ -220,7 +220,7 @@ pub trait HelperMethods {
     /// contiguously. For example:
     ///
     /// ```
-    /// # use parsimonious::{character,HelperMethods,Uncommitted,Stateful};
+    /// # use parsimonious::{character,Parser,Uncommitted,Stateful};
     /// # use parsimonious::MaybeParseResult::{Commit};
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// # use std::borrow::Cow::{Borrowed,Owned};
@@ -249,7 +249,7 @@ pub trait HelperMethods {
 /// for example:
 ///
 /// ```
-/// # use parsimonious::{character,HelperMethods,Uncommitted};
+/// # use parsimonious::{character,Parser,Uncommitted};
 /// let parser = character(char::is_alphanumeric).star(String::new);
 /// ```
 ///
@@ -265,7 +265,7 @@ pub trait HelperMethods {
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
 /// and non-empty.
 
-pub trait Committed<S>: HelperMethods {
+pub trait Committed<S>: Parser {
 
     /// The type of the data being produced by the parser.
     type Output;
@@ -291,7 +291,7 @@ pub trait Committed<S>: HelperMethods {
 /// will then try `q`. For example:
 ///
 /// ```
-/// # use parsimonious::{character,HelperMethods,Uncommitted,Committed,Stateful};
+/// # use parsimonious::{character,Parser,Uncommitted,Committed,Stateful};
 /// # use parsimonious::ParseResult::Done;
 /// fn default_char() -> char { '?' }
 /// let parser =
@@ -315,7 +315,7 @@ pub trait Committed<S>: HelperMethods {
 /// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
-pub trait Uncommitted<S>: HelperMethods {
+pub trait Uncommitted<S>: Parser {
 
     /// The type of the data being produced by the parser.
     type Output;
@@ -334,7 +334,7 @@ pub trait Uncommitted<S>: HelperMethods {
     /// For example:
     ///
     /// ```
-    /// # use parsimonious::{character,HelperMethods,Uncommitted,Stateful};
+    /// # use parsimonious::{character,Parser,Uncommitted,Stateful};
     /// # use parsimonious::MaybeParseResult::{Empty,Commit,Abort};
     /// # use parsimonious::ParseResult::{Done,Continue};
     /// let parser = character(char::is_alphabetic).plus(String::new);
@@ -447,7 +447,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 ///    assert_eq!(rest,"!"); assert_eq!(result,"abc123");
 /// }
 /// # fn foo(self) {
-/// # use parsimonious::{character,HelperMethods,Uncommitted,Committed,Boxable,Stateful};
+/// # use parsimonious::{character,Parser,Uncommitted,Committed,Boxable,Stateful};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// let parser = character(char::is_alphanumeric).star(String::new);
 /// let stateful = parser.init();
@@ -509,7 +509,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// The implementation of `Uncommitted<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsimonious::{character,HelperMethods,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
+/// # use parsimonious::{character,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -517,7 +517,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
-/// impl HelperMethods for TreeParser {}
+/// impl Parser for TreeParser {}
 /// impl<'a> Uncommitted<&'a str> for TreeParser {
 ///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
@@ -550,7 +550,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsimonious::{character,HelperMethods,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
+/// # use parsimonious::{character,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -558,7 +558,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
-/// impl HelperMethods for TreeParser {}
+/// impl Parser for TreeParser {}
 /// impl<'a> Uncommitted<&'a str> for TreeParser {
 ///     type Output = Result<Tree,String>;
 ///     type State = TreeParserState;
@@ -755,7 +755,7 @@ pub mod impls {
 
     //! Provide implementations of parser traits.
 
-    use super::{Stateful,HelperMethods,Uncommitted,Committed,Boxable,ParseResult,MaybeParseResult,Factory,Function,Consumer};
+    use super::{Stateful,Parser,Uncommitted,Committed,Boxable,ParseResult,MaybeParseResult,Factory,Function,Consumer};
     use super::ParseResult::{Continue,Done};
     use super::MaybeParseResult::{Abort,Commit,Empty};
 
@@ -898,7 +898,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F> HelperMethods for MapParser<P,F> {}
+    impl<P,F> Parser for MapParser<P,F> {}
     impl<P,F,S> Uncommitted<S> for MapParser<P,F> where P: Uncommitted<S>, F: Copy+Function<P::Output> {
         type Output = F::Output;
         type State = MapStatefulParser<P::State,F>;
@@ -930,7 +930,7 @@ pub mod impls {
     #[derive(Copy, Clone, Debug)]
     pub struct AndThenParser<P,Q>(P,Q);
 
-    impl<P,Q> HelperMethods for AndThenParser<P,Q> {}
+    impl<P,Q> Parser for AndThenParser<P,Q> {}
     impl<P,Q,S> Committed<S> for AndThenParser<P,Q> where P: Committed<S>, Q: Committed<S> {
         type Output = (P::Output,Q::Output);
         type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
@@ -1000,7 +1000,7 @@ pub mod impls {
     #[derive(Copy, Clone, Debug)]
     pub struct OrElseGuardedParser<P,Q>(P,Q);
 
-    impl<P,Q> HelperMethods for OrElseGuardedParser<P,Q> {}
+    impl<P,Q> Parser for OrElseGuardedParser<P,Q> {}
     impl<P,Q,S> Uncommitted<S> for OrElseGuardedParser<P,Q> where P: Uncommitted<S>, Q: Uncommitted<S,Output=P::Output> {
         type Output = P::Output;
         type State = OrElseStatefulParser<P::State,Q::State>;
@@ -1114,7 +1114,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F> HelperMethods for OrEmitParser<P,F> {}
+    impl<P,F> Parser for OrEmitParser<P,F> {}
     impl<P,F,S> Committed<S> for OrEmitParser<P,F> where P: Clone+Uncommitted<S>, F: Copy+Factory<Output=P::Output> {
         type Output = P::Output;
         type State = OrEmitStatefulParser<P,F,P::State>;
@@ -1169,7 +1169,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F> HelperMethods for PlusParser<P,F> {}
+    impl<P,F> Parser for PlusParser<P,F> {}
     impl<P,F,S> Uncommitted<S> for PlusParser<P,F> where P: Copy+Uncommitted<S>, F: Factory, F::Output: Consumer<P::Output> {
         type Output = F::Output;
         type State = StarStatefulParser<P,P::State,F::Output>;
@@ -1205,7 +1205,7 @@ pub mod impls {
         }
     }
 
-    impl<P,F> HelperMethods for StarParser<P,F> {}
+    impl<P,F> Parser for StarParser<P,F> {}
     impl<P,F,S> Committed<S> for StarParser<P,F> where P: Copy+Uncommitted<S>, F: Factory, F::Output: Consumer<P::Output> {
         type Output = F::Output;
         type State = StarStatefulParser<P,P::State,F::Output>;
@@ -1258,7 +1258,7 @@ pub mod impls {
         }
     }
 
-    impl<F> HelperMethods for CharacterParser<F> {}
+    impl<F> Parser for CharacterParser<F> {}
     impl<'a,F> Uncommitted<&'a str> for CharacterParser<F> where F: Function<char,Output=bool> {
         type Output = char;
         type State = ImpossibleStatefulParser<char>;
@@ -1294,7 +1294,7 @@ pub mod impls {
         }
     }
 
-    impl<F> HelperMethods for TokenParser<F> {}
+    impl<F> Parser for TokenParser<F> {}
     impl<F,I> Uncommitted<Peekable<I>> for TokenParser<F> where
         F: for<'a> Function<&'a I::Item,Output=bool>,
         I: Iterator,
@@ -1337,7 +1337,7 @@ pub mod impls {
     #[derive(Copy, Clone, Debug)]
     pub struct BufferedGuardedParser<P>(P);
 
-    impl<P> HelperMethods for BufferedGuardedParser<P> {}
+    impl<P> Parser for BufferedGuardedParser<P> {}
     impl<'a,P> Uncommitted<&'a str> for BufferedGuardedParser<P> where P: Uncommitted<&'a str> {
         type Output = Cow<'a,str>;
         type State = BufferedStatefulParser<P::State>;
@@ -1502,7 +1502,7 @@ pub mod impls {
     #[derive(Copy, Clone, Debug)]
     pub struct PipeParser<P,Q>(P,Q);
 
-    impl<P,Q> HelperMethods for PipeParser<P,Q> {}
+    impl<P,Q> Parser for PipeParser<P,Q> {}
     impl<P,Q,S> Committed<S> for PipeParser<P,Q> where
         P: Copy+Committed<S>,
         Q: Committed<Peekable<IterParser<P,P::State,S>>>,
@@ -1847,7 +1847,7 @@ fn test_boxable() {
     #[derive(Copy,Clone,Debug)]
     struct TreeParser;
     type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Tree>>;
-    impl HelperMethods for TreeParser {}
+    impl Parser for TreeParser {}
     impl<'a> Uncommitted<&'a str> for TreeParser {
         type Output = Tree;
         type State = TreeParserState;
