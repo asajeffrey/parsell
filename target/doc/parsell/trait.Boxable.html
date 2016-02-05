@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Boxable` trait in crate `parsell`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Boxable">
+
+    <title>parsell::Boxable - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>parsell</a></p><script>window.sidebarCurrent = {name: 'Boxable', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>parsell</a>::<wbr><a class='trait' href=''>Boxable</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-153' class='srclink' href='../src/parsell/lib.rs.html#610-614' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Boxable&lt;S&gt; {
+    type Output;
+    fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;Self::<a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Output</a>&gt;)</a>;
+    fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Output</a>;
+}</pre><div class='docblock'><p>A trait for boxable parsers.</p>
+
+<p>Regular languages can be parsed in constant memory, so do not require any heap allocation (other than
+the heap allocation peformed by user code such as creating buffers). Context-free languages require
+allocating unbounded memory. In order to support streaming input, the state of the parser must be
+saved on the heap, and restored when more input arrives.</p>
+
+<p>In Rust, heap-allocated data is often kept in a <code>Box&lt;T&gt;</code>, where <code>T</code> is a trait. In the case
+of parsers, the library needs to save and restore a stateful parser, for which the obvious
+type is <code>Box&lt;Stateful&lt;S,Output=T&gt;</code>. There are two issues with this...</p>
+
+<p>Firstly, the lifetimes mentioned in the type of the parser may change over time.
+For example, the program:</p>
+
+<pre><code class="language-text">fn check_results (self, rest: &amp;&#39;b str, result: String) {
+   assert_eq!(rest,&quot;!&quot;); assert_eq!(result,&quot;abc123&quot;);
+}
+let parser = character(char::is_alphanumeric).star(String::new);
+let stateful = parser.init();
+let boxed: Box&lt;Stateful&lt;&amp;&#39;a str,Output=String&gt;&gt; = Box::new(stateful);
+let stuff: &amp;&#39;b str = &quot;abc123!&quot;;
+match boxed.parse(stuff) {
+   Done(rest,result) =&gt; self.check_results(rest,result),
+   _ =&gt; println!(&quot;can&#39;t happen&quot;),
+}
+</code></pre>
+
+<p>does not typecheck, because the type of <code>boxed</code> is fixed as containing parsers for input <code>&amp;&#39;a str</code>,
+but it was fed input of type <code>&amp;&#39;b str</code>. To fix this, we change the type of the box to be
+polymorphic in the lifetime of the parser:</p>
+
+<pre><code class="language-text">fn check_results (self, rest: &amp;&#39;b str, result: String) {
+   assert_eq!(rest,&quot;!&quot;); assert_eq!(result,&quot;abc123&quot;);
+}
+let parser = character(char::is_alphanumeric).star(String::new);
+let stateful = parser.init();
+let boxed: Box&lt;for &lt;&#39;a&gt; Stateful&lt;&amp;&#39;a str,Output=String&gt;&gt; = Box::new(stateful);
+let stuff: &amp;&#39;b str = &quot;abc123!&quot;;
+match boxed.parse(stuff) {
+   Done(rest,result) =&gt; self.check_results(rest,result),
+   _ =&gt; println!(&quot;can&#39;t happen&quot;),
+}
+</code></pre>
+
+<p>Secondly, the <code>Stateful</code> trait is not
+<a href="https://doc.rust-lang.org/book/trait-objects.html#object-safety">object-safe</a>,
+so cannot be boxed and unboxed safely. In order to address this, there is a trait
+<code>Boxable&lt;S,Output=T&gt;</code>, which represents stateful parsers, but is object-safe
+and so can be boxed and unboxed safely:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>fn</span> <span class='ident'>check_results</span> (<span class='self'>self</span>, <span class='ident'>rest</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>result</span>: <span class='ident'>String</span>) {
+   <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>rest</span>,<span class='string'>&quot;!&quot;</span>); <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='string'>&quot;abc123&quot;</span>);
+}
+<span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>char</span>::<span class='ident'>is_alphanumeric</span>).<span class='ident'>star</span>(<span class='ident'>String</span>::<span class='ident'>new</span>);
+<span class='kw'>let</span> <span class='ident'>stateful</span> <span class='op'>=</span> <span class='ident'>parser</span>.<span class='ident'>init</span>();
+<span class='kw'>let</span> <span class='ident'>boxed</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span> <span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>,<span class='ident'>Output</span><span class='op'>=</span><span class='ident'>String</span><span class='op'>&gt;&gt;</span> <span class='op'>=</span> <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>stateful</span>.<span class='ident'>boxable</span>());
+<span class='kw'>let</span> <span class='ident'>stuff</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span> <span class='op'>=</span> <span class='string'>&quot;abc123!&quot;</span>;
+<span class='kw'>match</span> <span class='ident'>boxed</span>.<span class='ident'>parse</span>(<span class='ident'>stuff</span>) {
+   <span class='ident'>Done</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>check_results</span>(<span class='ident'>rest</span>,<span class='ident'>result</span>),
+   _ <span class='op'>=&gt;</span> <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+}</pre>
+
+<p>The type <code>Box&lt;Boxable&lt;S,Output=T&gt;&gt;</code> implements the trait
+<code>Stateful&lt;S,Output=T&gt;</code>, so boxes can be used as parsers,
+which allows stateful parsers to heap-allocate their state.</p>
+
+<p>Boxable parsers are usually used in recursive-descent parsing,
+for context-free grammars that cannot be parsed as a regular language.
+For example, consider a simple type for trees:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>struct</span> <span class='ident'>Tree</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>);</pre>
+
+<p>which can be parsed from a well-nested sequence of parentheses, for example
+<code>(()())</code> can be parsed as <code>Tree(vec![Tree(vec![]),Tree(vec![])])</code>.
+The desired implementation is:</p>
+
+<pre><code class="language-text">fn is_lparen(ch: char) -&gt; bool { ch == &#39;(&#39; }
+fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }
+fn mk_vec() -&gt; Result&lt;Vec&lt;Tree&gt;,String&gt; { Ok(Vec::new()) }
+fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T,String&gt; { Ok(ok) }
+fn mk_err&lt;T&gt;(_: Option&lt;char&gt;) -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }
+fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Result&lt;Tree,String&gt; {
+    Ok(Tree(children))
+}
+let LPAREN = character(is_lparen);
+let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
+let TREE = LPAREN
+    .and_then_try(TREE.star(mk_vec))
+    .try_and_then_try(RPAREN)
+    .try_map3(mk_tree);
+</code></pre>
+
+<p>but this doesn&#39;t work because it gives the definition of <code>TREE</code> in terms of itself,
+and Rust doesn&#39;t allow this kind of cycle.</p>
+
+<p>Instead, the solution is to define a struct <code>TreeParser</code>, and then implement <code>Uncommitted&lt;&amp;str&gt;</code>
+for it. The type of the state of a <code>TreeParser</code> is a box containing an appropriate
+<code>BoxableParserState</code> trait:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>type</span> <span class='ident'>TreeParserState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='ident'>Tree</span><span class='op'>&gt;&gt;</span>;</pre>
+
+<p>The implementation of <code>Uncommitted&lt;&amp;str&gt;</code> for <code>TreeParser</code> is mostly straightfoward:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>struct</span> <span class='ident'>Tree</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>);
+<span class='kw'>struct</span> <span class='ident'>TreeParser</span>;
+<span class='kw'>type</span> <span class='ident'>TreeParserState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
+<span class='kw'>impl</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>TreeParser</span> {}
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>TreeParser</span> {
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;</span>;
+    <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>TreeParserState</span>;
+    <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>MaybeParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>,<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> {
+        <span class='comment'>// ... parser goes here...`</span>
+    }
+}</pre>
+
+<p>The important thing is that the definiton of <code>parse</code> can make use of <code>TREE</code>, so the parser can call itself
+recursively, then box up the result state:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>struct</span> <span class='ident'>Tree</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>);
+<span class='kw'>struct</span> <span class='ident'>TreeParser</span>;
+<span class='kw'>type</span> <span class='ident'>TreeParserState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
+<span class='kw'>impl</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>TreeParser</span> {}
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>TreeParser</span> {
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;</span>;
+    <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>TreeParserState</span>;
+    <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>MaybeParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>,<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> {
+        <span class='kw'>fn</span> <span class='ident'>is_lparen</span>(<span class='ident'>ch</span>: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='ident'>ch</span> <span class='op'>==</span> <span class='string'>&#39;(&#39;</span> }
+        <span class='kw'>fn</span> <span class='ident'>is_rparen</span>(<span class='ident'>ch</span>: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='ident'>ch</span> <span class='op'>==</span> <span class='string'>&#39;)&#39;</span> }
+        <span class='kw'>fn</span> <span class='ident'>mk_vec</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Ok</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>()) }
+        <span class='kw'>fn</span> <span class='ident'>mk_ok</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>ok</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Ok</span>(<span class='ident'>ok</span>) }
+        <span class='kw'>fn</span> <span class='ident'>mk_err</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(_: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Err</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;Expected a ( or ).&quot;</span>)) }
+        <span class='kw'>fn</span> <span class='ident'>mk_tree</span>(_: <span class='ident'>char</span>, <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>, _: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;</span> {
+            <span class='prelude-val'>Ok</span>(<span class='ident'>Tree</span>(<span class='ident'>children</span>))
+        }
+        <span class='kw'>fn</span> <span class='ident'>mk_box</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='ident'>parser</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>TreeParserState</span>
+        <span class='kw'>where</span> <span class='ident'>P</span>: <span class='lifetime'>&#39;static</span><span class='op'>+</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;&gt;</span> {
+            <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>parser</span>.<span class='ident'>boxable</span>())
+        }
+        <span class='kw'>let</span> <span class='ident'>LPAREN</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>is_lparen</span>);
+        <span class='kw'>let</span> <span class='ident'>RPAREN</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>is_rparen</span>).<span class='ident'>map</span>(<span class='ident'>mk_ok</span>).<span class='ident'>or_else</span>(<span class='ident'>CHARACTER</span>.<span class='ident'>map</span>(<span class='ident'>mk_err</span>));
+        <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>LPAREN</span>
+            .<span class='ident'>and_then_try</span>(<span class='ident'>TreeParser</span>.<span class='ident'>star</span>(<span class='ident'>mk_vec</span>))
+            .<span class='ident'>try_and_then_try</span>(<span class='ident'>RPAREN</span>)
+            .<span class='ident'>try_map3</span>(<span class='ident'>mk_tree</span>);
+        <span class='ident'>parser</span>.<span class='ident'>parse</span>(<span class='ident'>data</span>).<span class='ident'>map</span>(<span class='ident'>mk_box</span>)
+    }
+}
+<span class='kw'>let</span> <span class='ident'>TREE</span> <span class='op'>=</span> <span class='ident'>TreeParser</span>;
+<span class='kw'>match</span> <span class='ident'>TREE</span>.<span class='ident'>parse</span>(<span class='string'>&quot;((&quot;</span>) {
+    <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='string'>&quot;&quot;</span>,<span class='ident'>parsing</span>)) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>parsing</span>.<span class='ident'>parse</span>(<span class='string'>&quot;)()))&quot;</span>) {
+        <span class='ident'>Done</span>(<span class='string'>&quot;)&quot;</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='prelude-val'>Ok</span>(<span class='ident'>Tree</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>Tree</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]),<span class='ident'>Tree</span>(<span class='macro'>vec</span><span class='macro'>!</span>[])]))),
+         _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+    },
+    _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+}</pre>
+
+<p>The reason for making <code>Boxable&lt;S&gt;</code> a different trait from <code>Stateful&lt;S&gt;</code>
+is that it provides weaker safety guarantees. <code>Stateful&lt;S&gt;</code> enforces that
+clients cannot call <code>parse</code> after <code>done</code>, but <code>Boxable&lt;S&gt;</code> does not.</p>
+</div>
+            <h2 id='associated-types'>Associated Types</h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Output' class='method stab '><code>type Output</code></h3></div>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.parse_boxable' class='method stab '><code>fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;Self::<a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Output</a>&gt;)</a></code></h3><h3 id='tymethod.done_boxable' class='method stab '><code>fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Output</a></code></h3></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl&lt;P, S&gt; <a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Boxable</a>&lt;S&gt; for <a class='struct' href='../parsell/impls/struct.BoxableParser.html' title='parsell::impls::BoxableParser'>BoxableParser</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsell/trait.Stateful.html' title='parsell::Stateful'>Stateful</a>&lt;S&gt;</span></code></li>
+</ul><script type="text/javascript" async
+                              src="../implementors/parsell/trait.Boxable.js">
+                      </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "parsell";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `parsell` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, parsell">
+
+    <title>parsell - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'parsell', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>parsell</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-0' class='srclink' href='../src/parsell/lib.rs.html#1-1932' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Parsell: an LL(1) streaming parser combinator library for Rust</p>
+
+<p>The goal of this library is to provide parser combinators that:</p>
+
+<ul>
+<li>are optimized for LL(1) grammars,</li>
+<li>support streaming input,</li>
+<li>do as little buffering or copying as possible, and</li>
+<li>do as little dynamic method dispatch as possible.</li>
+</ul>
+
+<p>It is based on:</p>
+
+<ul>
+<li><a href="http://www.cs.nott.ac.uk/%7Epszgmh/pearl.pdf">Monadic Parsing in Haskell</a>
+by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,</li>
+<li><a href="https://github.com/Geal/nom">Nom, eating data byte by byte</a> by G. Couprie.</li>
+</ul>
+
+<p><a href="https://github.com/asajeffrey/parsell">Repo</a> |
+<a href="https://crates.io/crates/parsell">Crate</a> |
+<a href="https://travis-ci.org/asajeffrey/parsell">CI</a></p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='mod' href='impls/index.html'
+                               title='parsell::impls'>impls</a></td>
+                        <td class='docblock short'>
+                             <p>Provide implementations of parser traits.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.MaybeParseResult.html'
+                               title='parsell::MaybeParseResult'>MaybeParseResult</a></td>
+                        <td class='docblock short'>
+                             <p>The result of a parse.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.ParseResult.html'
+                               title='parsell::ParseResult'>ParseResult</a></td>
+                        <td class='docblock short'>
+                             <p>The result of a parse.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.CHARACTER.html'
+                               title='parsell::CHARACTER'>CHARACTER</a></td>
+                        <td class='docblock short'>
+                             <p>A committed parser that reads one character.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='constant' href='constant.TOKEN.html'
+                               title='parsell::TOKEN'>TOKEN</a></td>
+                        <td class='docblock short'>
+                             <p>A committed parser that reads one token.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Boxable.html'
+                               title='parsell::Boxable'>Boxable</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for boxable parsers.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Committed.html'
+                               title='parsell::Committed'>Committed</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for committed parsers.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Consumer.html'
+                               title='parsell::Consumer'>Consumer</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for consumers of data, typically buffers.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Factory.html'
+                               title='parsell::Factory'>Factory</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for factories.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Function.html'
+                               title='parsell::Function'>Function</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for one-argument functions.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Parser.html'
+                               title='parsell::Parser'>Parser</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for stateless parsers.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Stateful.html'
+                               title='parsell::Stateful'>Stateful</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for stateful parsers.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Uncommitted.html'
+                               title='parsell::Uncommitted'>Uncommitted</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for uncommitted parsers.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.character.html'
+                               title='parsell::character'>character</a></td>
+                        <td class='docblock short'>
+                             <p>An uncommitted parser that reads one character.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.token.html'
+                               title='parsell::token'>token</a></td>
+                        <td class='docblock short'>
+                             <p>An uncommitted parser that reads one token.</p>
+
+                        </td>
+                    </tr>
+                </table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "parsell";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>

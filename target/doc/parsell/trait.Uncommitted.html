@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Uncommitted` trait in crate `parsell`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Uncommitted">
+
+    <title>parsell::Uncommitted - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>parsell</a></p><script>window.sidebarCurrent = {name: 'Uncommitted', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content trait">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>parsell</a>::<wbr><a class='trait' href=''>Uncommitted</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-126' class='srclink' href='../src/parsell/lib.rs.html#327-377' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Uncommitted&lt;S&gt;: <a class='trait' href='../parsell/trait.Parser.html' title='parsell::Parser'>Parser</a> {
+    type Output;
+    type State: <a class='trait' href='../parsell/trait.Stateful.html' title='parsell::Stateful'>Stateful</a>&lt;S, Output=Self::<a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Output</a>&gt;;
+    fn <a href='#tymethod.parse' class='fnname'>parse</a>(&amp;self, value: S) -&gt; <a class='enum' href='../parsell/enum.MaybeParseResult.html' title='parsell::MaybeParseResult'>MaybeParseResult</a>&lt;Self::<a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>State</a>, S&gt; <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span>;
+}</pre><div class='docblock'><p>A trait for uncommitted parsers.</p>
+
+<p>An uncommitted parser can decide based on the first token of input whether
+it will commit to parsing, or immediately backtrack and try another option.</p>
+
+<p>The advantage of uncommitted parsers over committed parsers is they support choice:
+<code>p.or_else(q)</code> will try <code>p</code>, and commit if it commits, but if it backtracks
+will then try <code>q</code>. For example:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>fn</span> <span class='ident'>default</span>(_: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> { <span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;?&quot;</span>) }
+<span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span>
+   <span class='ident'>character</span>(<span class='ident'>char</span>::<span class='ident'>is_numeric</span>).<span class='ident'>plus</span>(<span class='ident'>String</span>::<span class='ident'>new</span>)
+       .<span class='ident'>or_else</span>(<span class='ident'>character</span>(<span class='ident'>char</span>::<span class='ident'>is_alphabetic</span>).<span class='ident'>plus</span>(<span class='ident'>String</span>::<span class='ident'>new</span>))
+       .<span class='ident'>or_else</span>(<span class='ident'>CHARACTER</span>.<span class='ident'>map</span>(<span class='ident'>default</span>));
+<span class='kw'>match</span> <span class='ident'>parser</span>.<span class='ident'>init</span>().<span class='ident'>parse</span>(<span class='string'>&quot;123abc&quot;</span>) {
+   <span class='ident'>Done</span>(<span class='string'>&quot;abc&quot;</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='string'>&quot;123&quot;</span>),
+   _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Can&#39;t happen&quot;</span>),
+}
+<span class='kw'>match</span> <span class='ident'>parser</span>.<span class='ident'>init</span>().<span class='ident'>parse</span>(<span class='string'>&quot;abc123&quot;</span>) {
+   <span class='ident'>Done</span>(<span class='string'>&quot;123&quot;</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='string'>&quot;abc&quot;</span>),
+   _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Can&#39;t happen&quot;</span>),
+}
+<span class='kw'>match</span> <span class='ident'>parser</span>.<span class='ident'>init</span>().<span class='ident'>parse</span>(<span class='string'>&quot;!@#&quot;</span>) {
+   <span class='ident'>Done</span>(<span class='string'>&quot;@#&quot;</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='string'>&quot;?&quot;</span>),
+   _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Can&#39;t happen&quot;</span>),
+}</pre>
+
+<p>Semantically, a parser with input <em>S</em> and output <em>T</em> is a partial function <em>S+ → T</em>
+whose domain is prefix-closed (that is, if <em>s·t</em> is in the domain, then <em>s</em> is in the domain).</p>
+</div>
+            <h2 id='associated-types'>Associated Types</h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Output' class='method stab '><code>type Output</code></h3><div class='docblock'><p>The type of the data being produced by the parser.</p>
+</div><h3 id='associatedtype.State' class='method stab '><code>type State: <a class='trait' href='../parsell/trait.Stateful.html' title='parsell::Stateful'>Stateful</a>&lt;S, Output=Self::<a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Output</a>&gt;</code></h3><div class='docblock'><p>The type of the parser state.</p>
+</div></div>
+            <h2 id='required-methods'>Required Methods</h2>
+            <div class='methods'>
+        <h3 id='tymethod.parse' class='method stab '><code>fn <a href='#tymethod.parse' class='fnname'>parse</a>(&amp;self, value: S) -&gt; <a class='enum' href='../parsell/enum.MaybeParseResult.html' title='parsell::MaybeParseResult'>MaybeParseResult</a>&lt;Self::<a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>State</a>, S&gt; <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span></code></h3><div class='docblock'><p>Provides data to the parser.</p>
+
+<p>If <code>parser: Uncommitted&lt;S,Output=T&gt;</code>, then <code>parser.parse(data)</code> either:</p>
+
+<ul>
+<li>returns <code>Empty(data)</code> because <code>data</code> was empty,</li>
+<li>returns <code>Abort(data)</code> because the parser should backtrack, or</li>
+<li>returns <code>Commit(result)</code> because the parser has committed.</li>
+</ul>
+
+<p>For example:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>character</span>(<span class='ident'>char</span>::<span class='ident'>is_alphabetic</span>).<span class='ident'>plus</span>(<span class='ident'>String</span>::<span class='ident'>new</span>);
+<span class='kw'>match</span> <span class='ident'>parser</span>.<span class='ident'>parse</span>(<span class='string'>&quot;&quot;</span>) {
+    <span class='ident'>Empty</span>(<span class='string'>&quot;&quot;</span>) <span class='op'>=&gt;</span> (),
+    _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+}
+<span class='kw'>match</span> <span class='ident'>parser</span>.<span class='ident'>parse</span>(<span class='string'>&quot;!abc&quot;</span>) {
+    <span class='ident'>Abort</span>(<span class='string'>&quot;!abc&quot;</span>) <span class='op'>=&gt;</span> (),
+    _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+}
+<span class='kw'>match</span> <span class='ident'>parser</span>.<span class='ident'>parse</span>(<span class='string'>&quot;abc!&quot;</span>) {
+    <span class='ident'>Commit</span>(<span class='ident'>Done</span>(<span class='string'>&quot;!&quot;</span>,<span class='ident'>result</span>)) <span class='op'>=&gt;</span> <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='string'>&quot;abc&quot;</span>),
+    _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+}
+<span class='kw'>match</span> <span class='ident'>parser</span>.<span class='ident'>parse</span>(<span class='string'>&quot;abc&quot;</span>) {
+    <span class='ident'>Commit</span>(<span class='ident'>Continue</span>(<span class='string'>&quot;&quot;</span>,<span class='ident'>parsing</span>)) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>parsing</span>.<span class='ident'>parse</span>(<span class='string'>&quot;def!&quot;</span>) {
+        <span class='ident'>Done</span>(<span class='string'>&quot;!&quot;</span>,<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>result</span>,<span class='string'>&quot;abcdef&quot;</span>),
+        _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+    },
+    _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;can&#39;t happen&quot;</span>),
+}</pre>
+
+<p>Note that the decision to commit or abort must be made on the first
+token of data (since the parser only retries on empty input)
+so this is appropriate for LL(1) grammars that only perform one token
+of lookahead.</p>
+</div></div>
+        <h2 id='implementors'>Implementors</h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><code>impl&lt;P, F, S&gt; <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;S&gt; for <a class='struct' href='../parsell/impls/struct.MapParser.html' title='parsell::impls::MapParser'>MapParser</a>&lt;P, F&gt; <span class='where'>where P: <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;S&gt;, F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> + <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;P::Output&gt;</span></code></li>
+<li><code>impl&lt;P, Q, S&gt; <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;S&gt; for <a class='struct' href='../parsell/impls/struct.AndThenParser.html' title='parsell::impls::AndThenParser'>AndThenParser</a>&lt;P, Q&gt; <span class='where'>where P: <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;S&gt;, Q: <a class='trait' href='../parsell/trait.Committed.html' title='parsell::Committed'>Committed</a>&lt;S&gt;</span></code></li>
+<li><code>impl&lt;P, Q, S&gt; <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;S&gt; for <a class='struct' href='../parsell/impls/struct.OrElseParser.html' title='parsell::impls::OrElseParser'>OrElseParser</a>&lt;P, Q&gt; <span class='where'>where P: <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;S&gt;, Q: <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;S, Output=P::Output&gt;</span></code></li>
+<li><code>impl&lt;P, F, S&gt; <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;S&gt; for <a class='struct' href='../parsell/impls/struct.PlusParser.html' title='parsell::impls::PlusParser'>PlusParser</a>&lt;P, F&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> + <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;S&gt;, F: <a class='trait' href='../parsell/trait.Factory.html' title='parsell::Factory'>Factory</a>, F::Output: <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;P::Output&gt;</span></code></li>
+<li><code>impl&lt;'a, F&gt; <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;&amp;'a <a href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt; for <a class='struct' href='../parsell/impls/struct.CharacterParser.html' title='parsell::impls::CharacterParser'>CharacterParser</a>&lt;F&gt; <span class='where'>where F: <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>, Output=<a href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;</span></code></li>
+<li><code>impl&lt;F, I&gt; <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/core/iter/struct.Peekable.html' title='core::iter::Peekable'>Peekable</a>&lt;I&gt;&gt; for <a class='struct' href='../parsell/impls/struct.TokenParser.html' title='parsell::impls::TokenParser'>TokenParser</a>&lt;F&gt; <span class='where'>where F: for&lt;'a&gt; <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;&amp;'a I::Item, Output=<a href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;, I: <a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html' title='core::iter::Iterator'>Iterator</a></span></code></li>
+<li><code>impl&lt;'a, P&gt; <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;&amp;'a <a href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt; for <a class='struct' href='../parsell/impls/struct.BufferedParser.html' title='parsell::impls::BufferedParser'>BufferedParser</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsell/trait.Uncommitted.html' title='parsell::Uncommitted'>Uncommitted</a>&lt;&amp;'a <a href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt;</span></code></li>
+</ul><script type="text/javascript" async
+                              src="../implementors/parsell/trait.Uncommitted.js">
+                      </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "parsell";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>
