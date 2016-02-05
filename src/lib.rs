@@ -41,10 +41,10 @@ use self::ParseResult::{Done,Continue};
 /// Copying parsers is quite common, for example:
 ///
 /// ```
-/// # use parsimonious::{character,Uncommitted,Parser,Committed,Stateful};
+/// # use parsimonious::{character,CHARACTER,Uncommitted,Parser,Committed,Stateful};
 /// # use parsimonious::ParseResult::Done;
-/// fn mk_err() -> Result<char,String> { Err(String::from("Expecting a digit")) }
-/// let DIGIT = character(char::is_numeric).map(Ok).or_emit(mk_err);
+/// fn mk_err(_: Option<char>) -> Result<char,String> { Err(String::from("Expecting a digit")) }
+/// let DIGIT = character(char::is_numeric).map(Ok).or_else(CHARACTER.map(mk_err));
 /// let TWO_DIGITS = DIGIT.try_and_then_try(DIGIT);
 /// match TWO_DIGITS.init().parse("123") {
 ///    Done("3",result) => assert_eq!(result,Ok(('1','2'))),
@@ -157,63 +157,59 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 /// or uncommitted parsers, which can backtrack on their first token of input.
 /// For example `character(char::is_alphabetic)` is uncommitted because
 /// it will backtrack on any non-alphabetic character, but
-/// `character(char::is_alphabetic).or_emit(default)` is not, because
-/// it will produce `default()` rather than backtracking.
+/// `CHARACTER` is not, because it will produce `None` rather than backtracking.
 
 pub trait Parser {
 
-    /// Choice between parsers (returns a parser).
+    /// Choice between parsers
     fn or_else<P>(self, other: P) -> impls::OrElseParser<Self,P> where Self:Sized { impls::OrElseParser::new(self,other) }
 
-    /// Gives a parser a default value (returns a committed parser).
-    fn or_emit<F>(self, factory: F) -> impls::OrEmitParser<Self,F> where Self: Sized { impls::OrEmitParser::new(self,factory) }
-
-    /// Sequencing with a committed parser (returns a committed parser).
+    /// Sequencing with a committed parser
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self: Sized { impls::AndThenParser::new(self,other) }
 
-    /// Sequencing with a committed parser (returns a committed parser which produces an error when this parser returns an error).
+    /// Sequencing with a committed parser (bubble any errors from this parser).
     fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self: Sized { self.and_then(other).map(impls::TryZip) }
 
-    /// Sequencing with a committed parser (returns a committed parser which produces an error when the other parser returns an error).
+    /// Sequencing with a committed parser (bubble any errors from that parser).
     fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self: Sized { self.and_then(other).map(impls::ZipTry) }
 
-    /// Sequencing with a committed parser (returns a committed parser which produces an error when the other parser returns an error).
+    /// Sequencing with a committed parser (bubble any errors from either parser).
     fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self: Sized { self.and_then(other).map(impls::TryZipTry) }
 
-    /// Iterate one or more times (returns a parser).
+    /// Iterate one or more times (returns an uncommitted parser).
     fn plus<F>(self, factory: F) -> impls::PlusParser<Self,F> where Self: Sized { impls::PlusParser::new(self,factory) }
 
     /// Iterate zero or more times (returns a committed parser).
     fn star<F>(self, factory: F) -> impls::StarParser<Self,F> where Self: Sized { impls::StarParser::new(self,factory) }
 
-    /// Apply a function to the result (returns a committed parser).
+    /// Apply a function to the result
     fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self: Sized { impls::MapParser::new(self,f) }
 
-    /// Apply a 2-arguent function to the result (returns a committed parser).
+    /// Apply a 2-arguent function to the result
     fn map2<F>(self, f: F) -> impls::MapParser<Self,impls::Function2<F>> where Self: Sized { impls::MapParser::new(self,impls::Function2::new(f)) }
 
-    /// Apply a 3-arguent function to the result (returns a committed parser).
+    /// Apply a 3-arguent function to the result
     fn map3<F>(self, f: F) -> impls::MapParser<Self,impls::Function3<F>> where Self: Sized { impls::MapParser::new(self,impls::Function3::new(f)) }
 
-    /// Apply a 4-arguent function to the result (returns a committed parser).
+    /// Apply a 4-arguent function to the result
     fn map4<F>(self, f: F) -> impls::MapParser<Self,impls::Function4<F>> where Self: Sized { impls::MapParser::new(self,impls::Function4::new(f)) }
 
-    /// Apply a 5-arguent function to the result (returns a committed parser).
+    /// Apply a 5-arguent function to the result
     fn map5<F>(self, f: F) -> impls::MapParser<Self,impls::Function5<F>> where Self: Sized { impls::MapParser::new(self,impls::Function5::new(f)) }
 
-    /// Apply a function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a function to the result (bubble any errors).
     fn try_map<F>(self, f: F) -> impls::MapParser<Self,impls::Try<F>> where Self: Sized { self.map(impls::Try::new(f)) }
 
-    /// Apply a 2-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a 2-argument function to the result (bubble any errors).
     fn try_map2<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function2<F>>> where Self: Sized { self.try_map(impls::Function2::new(f)) }
 
-    /// Apply a 3-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a 3-argument function to the result (bubble any errors).
     fn try_map3<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function3<F>>> where Self: Sized { self.try_map(impls::Function3::new(f)) }
 
-    /// Apply a 4-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a 4-argument function to the result (bubble any errors).
     fn try_map4<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function4<F>>> where Self: Sized { self.try_map(impls::Function4::new(f)) }
 
-    /// Apply a 5-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a 5-argument function to the result (bubble any errors).
     fn try_map5<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function5<F>>> where Self: Sized { self.try_map(impls::Function5::new(f)) }
 
     /// Take the results of iterating this parser, and feed it into another parser.
@@ -286,6 +282,12 @@ pub trait Committed<S>: Parser {
     /// Build an iterator from a parser and some data.
     fn iter(self, data: S) -> impls::IterParser<Self,Self::State,S> where Self: Sized+Copy { impls::IterParser::new(self, data) }
 
+    /// Short hand for calling init then parse.
+    fn init_parse(&self, data: S) -> ParseResult<Self::State,S> where Self: Sized { self.init().parse(data) }
+
+    /// Short hand for calling init then done.
+    fn init_done(&self) -> Self::Output where Self: Sized { self.init().done() }
+
 }
 
 /// A trait for uncommitted parsers.
@@ -298,23 +300,23 @@ pub trait Committed<S>: Parser {
 /// will then try `q`. For example:
 ///
 /// ```
-/// # use parsimonious::{character,Parser,Uncommitted,Committed,Stateful};
+/// # use parsimonious::{character,CHARACTER,Parser,Uncommitted,Committed,Stateful};
 /// # use parsimonious::ParseResult::Done;
-/// fn default_char() -> char { '?' }
+/// fn default(_: Option<char>) -> String { String::from("?") }
 /// let parser =
-///    character(char::is_numeric)
-///        .or_else(character(char::is_alphabetic))
-///        .or_emit(default_char);
-/// match parser.init().parse("123") {
-///    Done(_,result) => assert_eq!(result,'1'),
+///    character(char::is_numeric).plus(String::new)
+///        .or_else(character(char::is_alphabetic).plus(String::new))
+///        .or_else(CHARACTER.map(default));
+/// match parser.init().parse("123abc") {
+///    Done("abc",result) => assert_eq!(result,"123"),
 ///    _ => panic!("Can't happen"),
 /// }
-/// match parser.init().parse("abc") {
-///    Done(_,result) => assert_eq!(result,'a'),
+/// match parser.init().parse("abc123") {
+///    Done("123",result) => assert_eq!(result,"abc"),
 ///    _ => panic!("Can't happen"),
 /// }
 /// match parser.init().parse("!@#") {
-///    Done(_,result) => assert_eq!(result,'?'),
+///    Done("@#",result) => assert_eq!(result,"?"),
 ///    _ => panic!("Can't happen"),
 /// }
 /// ```
@@ -488,12 +490,12 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// fn is_rparen(ch: char) -> bool { ch == ')' }
 /// fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
 /// fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
-/// fn mk_err<T>() -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+/// fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
 /// fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
 ///     Ok(Tree(children))
 /// }
 /// let LPAREN = character(is_lparen);
-/// let RPAREN = character(is_rparen).map(mk_ok).or_emit(mk_err);
+/// let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
 /// let TREE = LPAREN
 ///     .and_then_try(TREE.star(mk_vec))
 ///     .try_and_then_try(RPAREN)
@@ -516,7 +518,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// The implementation of `Uncommitted<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsimonious::{character,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
+/// # use parsimonious::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -534,7 +536,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// #       fn is_rparen(ch: char) -> bool { ch == ')' }
 /// #       fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
 /// #       fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
-/// #       fn mk_err<T>() -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+/// #       fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
 /// #       fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
 /// #           Ok(Tree(children))
 /// #       }
@@ -543,7 +545,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// #           Box::new(parser.boxable())
 /// #       }
 /// #       let LPAREN = character(is_lparen);
-/// #       let RPAREN = character(is_rparen).map(mk_ok).or_emit(mk_err);
+/// #       let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
 /// #       let parser = LPAREN
 /// #           .and_then_try(TreeParser.star(mk_vec))
 /// #           .try_and_then_try(RPAREN)
@@ -557,7 +559,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsimonious::{character,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
+/// # use parsimonious::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
 /// # use parsimonious::ParseResult::{Done,Continue};
 /// # use parsimonious::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
@@ -574,7 +576,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 ///         fn is_rparen(ch: char) -> bool { ch == ')' }
 ///         fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
 ///         fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
-///         fn mk_err<T>() -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+///         fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
 ///         fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
 ///             Ok(Tree(children))
 ///         }
@@ -583,7 +585,7 @@ impl<P,S> MaybeParseResult<P,S> where P: Stateful<S> {
 ///             Box::new(parser.boxable())
 ///         }
 ///         let LPAREN = character(is_lparen);
-///         let RPAREN = character(is_rparen).map(mk_ok).or_emit(mk_err);
+///         let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
 ///         let parser = LPAREN
 ///             .and_then_try(TreeParser.star(mk_vec))
 ///             .try_and_then_try(RPAREN)
@@ -738,7 +740,7 @@ impl<C,T,E> Consumer<Result<T,E>> for Result<C,E> where C: Consumer<T> {
     }
 }
 
-/// A parser that reads one character.
+/// An uncommitted parser that reads one character.
 ///
 /// The parser `character(f)` reads one character `ch` from the input,
 /// if `f(ch)` is `true` then it commits and the result is `ch`,
@@ -748,7 +750,14 @@ pub fn character<F>(f: F) -> impls::CharacterParser<F> where F: Function<char,Ou
     impls::CharacterParser::new(f)
 }
 
-/// A parser that reads one token.
+/// A committed parser that reads one character.
+///
+/// The parser `CHARACTER` reads one character `ch` from the input,
+/// and produces `Some(ch)`. It produces `None` at the end of input.
+
+pub const CHARACTER: impls::AnyCharacterParser = impls::AnyCharacterParser;
+
+/// An uncommitted parser that reads one token.
 ///
 /// The parser `token(f)` reads one token `tok` from the input,
 /// if `f(tok)` is `true` then it commits and the result is `tok`,
@@ -757,6 +766,13 @@ pub fn character<F>(f: F) -> impls::CharacterParser<F> where F: Function<char,Ou
 pub fn token<F>(f: F) -> impls::TokenParser<F> {
     impls::TokenParser::<F>::new(f)
 }
+
+/// A committed parser that reads one token.
+///
+/// The parser `TOKEN` reads one token `tok` from the input,
+/// and produces `Some(tok)`. It produces `None` at the end of input.
+
+pub const TOKEN: impls::AnyTokenParser = impls::AnyTokenParser;
 
 pub mod impls {
 
@@ -768,10 +784,12 @@ pub mod impls {
 
     use self::AndThenStatefulParser::{InLhs,InRhs};
     use self::OrElseStatefulParser::{Lhs,Rhs};
+    use self::OrElseCommittedParser::{Uncommit,CommitLhs,CommitRhs};
     use self::OrEmitStatefulParser::{Unresolved,Resolved};
 
     use std::borrow::Cow;
     use std::borrow::Cow::{Borrowed,Owned};
+    use std::iter::Peekable;
 
     // ----------- N-argument functions ---------------
 
@@ -1008,6 +1026,13 @@ pub mod impls {
     pub struct OrElseParser<P,Q>(P,Q);
 
     impl<P,Q> Parser for OrElseParser<P,Q> {}
+    impl<P,Q,S> Committed<S> for OrElseParser<P,Q> where P: Copy+Uncommitted<S>, Q: Committed<S,Output=P::Output> {
+        type Output = P::Output;
+        type State = OrElseCommittedParser<P,P::State,Q::State>;
+        fn init(&self) -> Self::State {
+            Uncommit(self.0,self.1.init())
+        }
+    }
     impl<P,Q,S> Uncommitted<S> for OrElseParser<P,Q> where P: Uncommitted<S>, Q: Uncommitted<S,Output=P::Output> {
         type Output = P::Output;
         type State = OrElseStatefulParser<P::State,Q::State>;
@@ -1060,6 +1085,51 @@ pub mod impls {
             match self {
                 Lhs(lhs) => lhs.done(),
                 Rhs(rhs) => rhs.done(),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub enum OrElseCommittedParser<P,Q,R> {
+        Uncommit(P,R),
+        CommitLhs(Q),
+        CommitRhs(R),
+    }
+
+    impl<P,Q,S> Stateful<S> for OrElseCommittedParser<P,P::State,Q> where P: Uncommitted<S>, Q: Stateful<S,Output=P::Output> {
+        type Output = P::Output;
+        fn parse(self, value: S) -> ParseResult<Self,S> {
+            match self {
+                Uncommit(lhs, rhs) => {
+                    match lhs.parse(value) {
+                        Empty(value) => Continue(value,Uncommit(lhs,rhs)),
+                        Commit(Done(rest,result)) => Done(rest,result),
+                        Commit(Continue(rest,parsing)) => Continue(rest,CommitLhs(parsing)),
+                        Abort(value) => match rhs.parse(value) {
+                            Done(rest,result) => Done(rest,result),
+                            Continue(rest,parsing) => Continue(rest,CommitRhs(parsing)),
+                        }
+                    }
+                },
+                CommitLhs(lhs) => {
+                    match lhs.parse(value) {
+                        Done(rest,result) => Done(rest,result),
+                        Continue(rest,parsing) => Continue(rest,CommitLhs(parsing)),
+                    }
+                },
+                CommitRhs(rhs) => {
+                    match rhs.parse(value) {
+                        Done(rest,result) => Done(rest,result),
+                        Continue(rest,parsing) => Continue(rest,CommitRhs(parsing)),
+                    }
+                },
+            }
+        }
+        fn done(self) -> Self::Output {
+            match self {
+                Uncommit(_,rhs) => rhs.done(),
+                CommitLhs(lhs) => lhs.done(),
+                CommitRhs(rhs) => rhs.done(),
             }
         }
     }
@@ -1287,6 +1357,33 @@ pub mod impls {
         }
     }
 
+    #[derive(Copy,Clone,Debug)]
+    pub struct AnyCharacterParser;
+
+    impl Parser for AnyCharacterParser {}
+    impl<'a> Stateful<&'a str> for AnyCharacterParser {
+        type Output = Option<char>;
+        fn parse(self, value: &'a str) -> ParseResult<Self,&'a str> {
+            match value.chars().next() {
+                None => Continue(value,AnyCharacterParser),
+                Some(ch) => {
+                    let len = ch.len_utf8();
+                    Done(&value[len..],Some(ch))
+                },
+            }
+        }
+        fn done(self) -> Self::Output {
+            None
+        }
+    }
+    impl<'a> Committed<&'a str> for AnyCharacterParser {
+        type Output = Option<char>;
+        type State = Self;
+        fn init(&self) -> Self {
+            AnyCharacterParser
+        }
+    }
+
     // ----------- Token parsers -------------
 
     #[derive(Debug)]
@@ -1327,6 +1424,30 @@ pub mod impls {
     impl<F> TokenParser<F> {
         pub fn new(function: F) -> Self {
             TokenParser(function)
+        }
+    }
+
+    #[derive(Copy,Clone,Debug)]
+    pub struct AnyTokenParser;
+
+    impl Parser for AnyTokenParser {}
+    impl<I> Stateful<I> for AnyTokenParser where I: Iterator {
+        type Output = Option<I::Item>;
+        fn parse(self, mut iter: I) -> ParseResult<Self,I> {
+            match iter.next() {
+                None => Continue(iter,AnyTokenParser),
+                Some(tok) => Done(iter,Some(tok)),
+            }
+        }
+        fn done(self) -> Self::Output {
+            None
+        }
+    }
+    impl<I> Committed<I> for AnyTokenParser where I: Iterator {
+        type Output = Option<I::Item>;
+        type State = Self;
+        fn init(&self) -> Self {
+            AnyTokenParser
         }
     }
 
@@ -1415,44 +1536,6 @@ pub mod impls {
         }
     }
 
-    // ----------- Cut-and-paste Peekable -------------
-
-    // Rather annoyingly, we need access to a private field, so we just copy the source.
-    // TOD: Fix this!
-
-    #[derive(Clone)]
-    pub struct Peekable<I> where I: Iterator {
-        iter: I,
-        peeked: Option<I::Item>,
-    }
-
-    impl<I> Iterator for Peekable<I> where I: Iterator {
-        type Item = I::Item;
-        #[inline]
-        fn next(&mut self) -> Option<I::Item> {
-            match self.peeked {
-                Some(_) => self.peeked.take(),
-                None => self.iter.next(),
-            }
-        }
-    }
-
-    impl<I> Peekable<I> where I: Iterator{
-        pub fn new(iter: I) -> Self {
-            Peekable{ iter: iter, peeked: None }
-        }
-        #[inline]
-        pub fn peek(&mut self) -> Option<&I::Item> {
-            if self.peeked.is_none() {
-                self.peeked = self.iter.next();
-            }
-            match self.peeked {
-                Some(ref value) => Some(value),
-                None => None,
-            }
-        }
-    }
-
     // ----------- Iterate over parse results -------------
 
     #[derive(Copy, Clone, Debug)]
@@ -1484,22 +1567,22 @@ pub mod impls {
     #[derive(Copy, Clone, Debug)]
     pub struct PipeStateful<P,Q,R>(P,Q,R);
 
-    impl<P,Q,S> Stateful<S> for PipeStateful<P,P::State,Q> where
+    impl<P,Q,S,T> Stateful<S> for PipeStateful<P,P::State,Q> where
         P: Copy+Committed<S>,
-        Q: Stateful<Peekable<IterParser<P,P::State,S>>>,
+        Q: for<'a> Stateful<Peekable<&'a mut IterParser<P,P::State,S>>,Output=T>,
     {
-        type Output = Q::Output;
+        type Output = T;
         fn parse(self, data: S) -> ParseResult<Self,S> {
-            let iter = IterParser(self.0,Some((self.1,data)));
-            match self.2.parse(Peekable::new(iter)) {
-                Done(iter, result) => Done(iter.iter.1.unwrap().1, result),
-                Continue(iter, parsing2) => {
-                    let (parsing1, data) = iter.iter.1.unwrap();
+            let mut iter = IterParser(self.0,Some((self.1,data)));
+            match self.2.parse(iter.by_ref().peekable()) {
+                Done(_, result) => Done(iter.1.unwrap().1, result),
+                Continue(_, parsing2) => {
+                    let (parsing1, data) = iter.1.unwrap();
                     Continue(data, PipeStateful(self.0, parsing1, parsing2))
                 }
             }
         }
-        fn done(self) -> Q::Output {
+        fn done(self) -> T {
             // TODO: feed the output of self.1.done() into self.2.
             self.1.done();
             self.2.done()
@@ -1510,12 +1593,13 @@ pub mod impls {
     pub struct PipeParser<P,Q>(P,Q);
 
     impl<P,Q> Parser for PipeParser<P,Q> {}
-    impl<P,Q,S> Committed<S> for PipeParser<P,Q> where
+    impl<P,Q,R,S,T> Committed<S> for PipeParser<P,Q> where
         P: Copy+Committed<S>,
-        Q: Committed<Peekable<IterParser<P,P::State,S>>>,
+        Q: for<'a> Committed<Peekable<&'a mut IterParser<P,P::State,S>>,State=R,Output=T>,
+        R: for<'a> Stateful<Peekable<&'a mut IterParser<P,P::State,S>>,Output=T>,
     {
-        type State = PipeStateful<P,P::State,Q::State>;
-        type Output = Q::Output;
+        type State = PipeStateful<P,P::State,R>;
+        type Output = T;
         fn init(&self) -> Self::State {
             PipeStateful(self.0, self.0.init(), self.1.init())
         }
@@ -1585,14 +1669,23 @@ fn test_character() {
 }
 
 #[test]
+#[allow(non_snake_case)]
+fn test_CHARACTER() {
+    let parser = CHARACTER;
+    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
+    assert_eq!(parser.init().parse("").unContinue().parse("abc").unDone(),("bc",Some('a')));
+    assert_eq!(parser.init().done(),None);
+}
+
+#[test]
 fn test_token() {
     fn is_zero(num: &usize) -> bool { *num == 0 }
     let parser = token(is_zero);
-    let mut iter = parser.parse(impls::Peekable::new((1..3))).unAbort();
+    let mut iter = parser.parse((1..3).peekable()).unAbort();
     assert_eq!(iter.next(),Some(1));
     assert_eq!(iter.next(),Some(2));
     assert_eq!(iter.next(),None);
-    let (mut iter, result) = parser.parse(impls::Peekable::new((0..3))).unCommit().unDone();
+    let (mut iter, result) = parser.parse((0..3).peekable()).unCommit().unDone();
     assert_eq!(iter.next(),Some(1));
     assert_eq!(iter.next(),Some(2));
     assert_eq!(iter.next(),None);
@@ -1600,21 +1693,22 @@ fn test_token() {
 }
 
 #[test]
-fn test_or_emit() {
-    fn mk_x() -> char { 'X' }
-    let parser = character(char::is_alphabetic).or_emit(mk_x);
-    parser.init().parse("").unContinue();
-    assert_eq!(parser.init().parse("989").unDone(),("989",'X'));
-    assert_eq!(parser.init().parse("abc").unDone(),("bc",'a'));
+#[allow(non_snake_case)]
+fn test_TOKEN() {
+    let parser = TOKEN;
+    let (mut iter, result) = parser.init_parse("abc".chars()).unDone();
+    assert_eq!(result, Some('a'));
+    assert_eq!(iter.next(), Some('b'));
+    assert_eq!(iter.next(), Some('c'));
+    assert_eq!(iter.next(), None);
 }
 
 #[test]
 fn test_map() {
-    fn mk_none<T>() -> Option<T> { None }
-    let parser = character(char::is_alphabetic).map(Some).or_emit(mk_none);
-    parser.init().parse("").unContinue();
-    assert_eq!(parser.init().parse("989").unDone(),("989",None));
-    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
+    let parser = character(char::is_alphabetic).map(Some);
+    parser.parse("").unEmpty();
+    assert_eq!(parser.parse("989").unAbort(),"989");
+    assert_eq!(parser.parse("abc").unCommit().unDone(),("bc",Some('a')));
 }
 
 #[test]
@@ -1623,13 +1717,13 @@ fn test_map2() {
     fn f(ch1: char, ch2: Option<char>) -> Option<(char, char)> {
         ch2.and_then(|ch2| Some((ch1,ch2)))
     }
-    fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
+    fn mk_none<T>(_: Option<char>) -> Option<T> { None }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map2(f);
     parser.parse("").unEmpty();
-    assert_eq!(parser.parse("989").unAbort(),"989");
-    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Some(('a','b'))));
+    assert_eq!(parser.parse("!b!").unAbort(),"!b!");
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("ab!").unCommit().unDone(),("!",Some(('a','b'))));
 }
 
 #[test]
@@ -1638,14 +1732,14 @@ fn test_map3() {
     fn f(ch1: char, ch2: Option<char>, ch3: Option<char>) -> Option<(char, char, char)> {
         ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3))))
     }
-    fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
+    fn mk_none<T>(_: Option<char>) -> Option<T> { None }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map3(f);
     parser.parse("").unEmpty();
-    assert_eq!(parser.parse("989").unAbort(),"989");
-    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("abcd").unCommit().unDone(),("d",Some(('a','b','c'))));
+    assert_eq!(parser.parse("!bc!").unAbort(),"!bc!");
+    assert_eq!(parser.parse("a!c!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("abc!").unCommit().unDone(),("!",Some(('a','b','c'))));
 }
 
 #[test]
@@ -1654,15 +1748,15 @@ fn test_map4() {
     fn f(ch1: char, ch2: Option<char>, ch3: Option<char>, ch4: Option<char>) -> Option<(char, char, char, char)> {
         ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3,ch4)))))
     }
-    fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
+    fn mk_none<T>(_: Option<char>) -> Option<T> { None }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map4(f);
     parser.parse("").unEmpty();
-    assert_eq!(parser.parse("989").unAbort(),"989");
-    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("abc!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("abcde").unCommit().unDone(),("e",Some(('a','b','c','d'))));
+    assert_eq!(parser.parse("!bcd!").unAbort(),"!bcd!");
+    assert_eq!(parser.parse("a!cd!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("ab!d!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("abc!!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("abcd!").unCommit().unDone(),("!",Some(('a','b','c','d'))));
 }
 
 #[test]
@@ -1671,90 +1765,85 @@ fn test_map5() {
     fn f(ch1: char, ch2: Option<char>, ch3: Option<char>, ch4: Option<char>, ch5: Option<char>) -> Option<(char, char, char, char, char)> {
         ch5.and_then(|ch5| ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1,ch2,ch3,ch4,ch5))))))
     }
-    fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
+    fn mk_none<T>(_: Option<char>) -> Option<T> { None }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).and_then(ALPHANUMERIC).map5(f);
     parser.parse("").unEmpty();
-    assert_eq!(parser.parse("989").unAbort(),"989");
-    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("ab!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("abc!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("abcd!!").unCommit().unDone(),("!!",None));
-    assert_eq!(parser.parse("abcdef").unCommit().unDone(),("f",Some(('a','b','c','d','e'))));
+    assert_eq!(parser.parse("!bcde!").unAbort(),"!bcde!");
+    assert_eq!(parser.parse("a!cde!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("ab!de!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("abc!e!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("abcd!!").unCommit().unDone(),("!",None));
+    assert_eq!(parser.parse("abcde!").unCommit().unDone(),("!",Some(('a','b','c','d','e'))));
 }
 
 #[test]
 #[allow(non_snake_case)]
 fn test_and_then() {
-    fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
-    let ALPHABETIC = character(char::is_alphabetic).map(Some).or_emit(mk_none);
-    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
-    parser.init().parse("").unContinue();
-    assert_eq!(parser.init().parse("989").unDone(),("989",None));
-    assert_eq!(parser.init().parse("a!").unDone(),("!",Some(('a',None))));
-    assert_eq!(parser.init().parse("abc").unDone(),("c",Some(('a',Some('b')))));
+    fn mk_none<T>(_: Option<char>) -> Option<T> { None }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
+    let ALPHABETIC = character(char::is_alphabetic).map(Some).or_else(CHARACTER.map(mk_none));
     let parser = ALPHABETIC.and_then(ALPHANUMERIC);
     parser.init().parse("").unContinue();
-    assert_eq!(parser.init().parse("989").unDone(),("89",(None,Some('9'))));
-    assert_eq!(parser.init().parse("a!").unDone(),("!",(Some('a'),None)));
+    assert_eq!(parser.init().parse("989").unDone(),("9",(None,Some('8'))));
+    assert_eq!(parser.init().parse("a!!").unDone(),("!",(Some('a'),None)));
     assert_eq!(parser.init().parse("abc").unDone(),("c",(Some('a'),Some('b'))));
 }
 
 #[test]
 #[allow(non_snake_case)]
 fn test_try_and_then() {
-    fn mk_err<T>() -> Result<T,String> { Err(String::from("oh")) }
+    fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("oh")) }
     fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_emit(mk_err);
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
     let parser = character(char::is_alphabetic).map(mk_ok).try_and_then(ALPHANUMERIC);
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
-    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Ok(('a',Err(String::from("oh"))))));
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!",Ok(('a',Err(String::from("oh"))))));
     assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Ok(('a',Ok('b')))));
 }
 
 #[test]
 #[allow(non_snake_case)]
 fn test_and_then_try() {
-    fn mk_err<T>() -> Result<T,String> { Err(String::from("oh")) }
+    fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("oh")) }
     fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_emit(mk_err);
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
     let parser = character(char::is_alphabetic).map(mk_ok).and_then_try(ALPHANUMERIC);
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
-    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Err(String::from("oh"))));
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!",Err(String::from("oh"))));
     assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Ok((Ok('a'),'b'))));
 }
 
 #[test]
 #[allow(non_snake_case)]
 fn test_try_and_then_try() {
-    fn mk_err<T>() -> Result<T,String> { Err(String::from("oh")) }
+    fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("oh")) }
     fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_emit(mk_err);
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
     let parser = character(char::is_alphabetic).map(mk_ok).try_and_then_try(ALPHANUMERIC);
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
-    assert_eq!(parser.parse("a!").unCommit().unDone(),("!",Err(String::from("oh"))));
+    assert_eq!(parser.parse("a!!").unCommit().unDone(),("!",Err(String::from("oh"))));
     assert_eq!(parser.parse("abc").unCommit().unDone(),("c",Ok(('a','b'))));
 }
 
 #[test]
 #[allow(non_snake_case)]
 fn test_or_else() {
-    fn mk_none<T>() -> Option<T> { None }
-    let NUMERIC = character(char::is_numeric).map(Some).or_emit(mk_none);
-    let ALPHABETIC = character(char::is_alphabetic).map(Some).or_emit(mk_none);
+    fn mk_none<T>(_: Option<char>) -> Option<T> { None }
+    let NUMERIC = character(char::is_numeric).map(Some).or_else(CHARACTER.map(mk_none));
+    let ALPHABETIC = character(char::is_alphabetic).map(Some).or_else(CHARACTER.map(mk_none));
     let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some).
         or_else(character(char::is_numeric).and_then(NUMERIC).map(Some)).
-        or_emit(mk_none);
+        or_else(CHARACTER.map(mk_none));
     parser.init().parse("").unContinue();
     parser.init().parse("a").unContinue();
     parser.init().parse("9").unContinue();
-    assert_eq!(parser.init().parse("!").unDone(),("!",None));
-    assert_eq!(parser.init().parse("a9").unDone(),("9",Some(('a',None))));
-    assert_eq!(parser.init().parse("9a").unDone(),("a",Some(('9',None))));
+    assert_eq!(parser.init().parse("!!").unDone(),("!",None));
+    assert_eq!(parser.init().parse("a99").unDone(),("9",Some(('a',None))));
+    assert_eq!(parser.init().parse("9aa").unDone(),("a",Some(('9',None))));
     assert_eq!(parser.init().parse("abc").unDone(),("c",Some(('a',Some('b')))));
     assert_eq!(parser.init().parse("123").unDone(),("3",Some(('1',Some('2')))));
 }
@@ -1797,9 +1886,9 @@ fn test_buffer() {
 #[test]
 #[allow(non_snake_case)]
 fn test_iter() {
-    fn mk_X() -> char { 'X' }
+    fn mk_X(_: Option<char>) -> char { 'X' }
     let ALPHABETIC = character(char::is_alphabetic);
-    let parser = ALPHABETIC.or_emit(mk_X);
+    let parser = ALPHABETIC.or_else(CHARACTER.map(mk_X));
     let mut iter = parser.iter("abc");
     assert_eq!(iter.next(),Some('a'));
     assert_eq!(iter.next(),Some('b'));
@@ -1815,7 +1904,7 @@ fn test_pipe() {
     enum Token { Identifier(String), Number(usize), Other }
     fn mk_id<'a>(string: Cow<'a,str>) -> Token { Token::Identifier(string.into_owned()) }
     fn mk_num<'a>(string: Cow<'a,str>) -> Token { Token::Number(usize::from_str_radix(string.borrow(),10).unwrap()) }
-    fn mk_other() -> Token { Token::Other }
+    fn mk_other(_: Option<char>) -> Token { Token::Other }
     fn ignore() {}
     fn is_decimal(ch: char) -> bool { ch.is_digit(10) }
     fn is_identifier(tok: &Token) -> bool { match *tok { Token::Identifier(_) => true, _ => false } }
@@ -1824,57 +1913,20 @@ fn test_pipe() {
     let DIGIT = character(is_decimal);
     let lexer = ALPHABETIC.plus(ignore).buffer().map(mk_id)
         .or_else(DIGIT.plus(ignore).buffer().map(mk_num))
-        .or_emit(mk_other);
+        .or_else(CHARACTER.map(mk_other));
     let parser = token(is_identifier).or_else(token(is_number)).star(Vec::<Token>::new);
-    assert_eq!(lexer.pipe(parser).init().parse("abc37!").unDone(), ("!",vec![ Token::Identifier(String::from("abc")), Token::Number(37) ]));
+    assert_eq!(lexer.pipe(parser).init().parse("abc37!!").unDone(), ("!",vec![ Token::Identifier(String::from("abc")), Token::Number(37) ]));
 }
 
 #[test]
 #[allow(non_snake_case)]
 fn test_different_lifetimes() {
-    fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Copy+for<'c> Committed<&'c str,Output=Option<(char,Option<char>)>> {
+    fn go<'a,'b,P>(ab: &'a str, cd: &'b str, parser: P) where P: Copy+for<'c> Committed<&'c str,Output=(Option<char>,Option<char>)> {
         let _: &'a str = parser.init().parse(ab).unDone().0;
         let _: &'b str = parser.init().parse(cd).unDone().0;
-        assert_eq!(parser.init().parse(ab).unDone(),("",Some(('a',Some('b')))));
-        assert_eq!(parser.init().parse(cd).unDone(),("",Some(('c',Some('d')))));
+        assert_eq!(parser.init().parse(ab).unDone(),("",(Some('a'),Some('b'))));
+        assert_eq!(parser.init().parse(cd).unDone(),("",(Some('c'),Some('d'))));
     }
-    fn mk_none<T>() -> Option<T> { None }
-    let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_emit(mk_none);
-    let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map(Some).or_emit(mk_none);
+    let parser = CHARACTER.and_then(CHARACTER);
     go("ab","cd",parser);
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn test_boxable() {
-
-    #[derive(Clone,Debug,Eq,PartialEq)]
-    struct Tree(Vec<Tree>);
-
-    #[derive(Copy,Clone,Debug)]
-    struct TreeParser;
-    type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Tree>>;
-    impl Parser for TreeParser {}
-    impl<'a> Uncommitted<&'a str> for TreeParser {
-        type Output = Tree;
-        type State = TreeParserState;
-        fn parse(&self, data: &'a str) -> MaybeParseResult<Self::State,&'a str> {
-            fn is_lparen(ch: char) -> bool { ch == '(' }
-            fn is_rparen(ch: char) -> bool { ch == ')' }
-            fn mk_none<T>() -> Option<T> { None }
-            fn mk_tree(children: ((char, Vec<Tree>), Option<char>)) -> Tree { Tree((children.0).1) }
-            fn mk_box<P>(parser: P) -> TreeParserState where P: 'static+for<'a> Stateful<&'a str, Output=Tree> { Box::new(parser.boxable())  }
-            let LPAREN = character(is_lparen);
-            let RPAREN = character(is_rparen).map(Some).or_emit(mk_none);
-            let parser = LPAREN.and_then(TreeParser.star(Vec::new)).and_then(RPAREN).map(mk_tree);
-            parser.parse(data).map(mk_box)
-        }
-    }
-
-    assert_eq!(TreeParser.parse("!").unAbort(),"!");
-    assert_eq!(TreeParser.parse("()!").unCommit().unDone(),("!",Tree(vec![])));
-    assert_eq!(TreeParser.parse("(()))").unCommit().unDone(),(")",Tree(vec![Tree(vec![])])));
-    assert_eq!(TreeParser.parse("(").unCommit().unContinue().parse(")!").unDone(),("!",Tree(vec![])));
-    assert_eq!(TreeParser.parse("((").unCommit().unContinue().parse(")))").unDone(),(")",Tree(vec![Tree(vec![])])));
-
 }
