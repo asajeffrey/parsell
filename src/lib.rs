@@ -789,6 +789,7 @@ pub mod impls {
 
     use std::borrow::Cow;
     use std::borrow::Cow::{Borrowed,Owned};
+    use std::iter::Peekable;
 
     // ----------- N-argument functions ---------------
 
@@ -1535,44 +1536,6 @@ pub mod impls {
         }
     }
 
-    // ----------- Cut-and-paste Peekable -------------
-
-    // Rather annoyingly, we need access to a private field, so we just copy the source.
-    // TODO: Fix this!
-
-    #[derive(Clone)]
-    pub struct Peekable<I> where I: Iterator {
-        iter: I,
-        peeked: Option<I::Item>,
-    }
-
-    impl<I> Iterator for Peekable<I> where I: Iterator {
-        type Item = I::Item;
-        #[inline]
-        fn next(&mut self) -> Option<I::Item> {
-            match self.peeked {
-                Some(_) => self.peeked.take(),
-                None => self.iter.next(),
-            }
-        }
-    }
-
-    impl<I> Peekable<I> where I: Iterator{
-        pub fn new(iter: I) -> Self {
-            Peekable{ iter: iter, peeked: None }
-        }
-        #[inline]
-        pub fn peek(&mut self) -> Option<&I::Item> {
-            if self.peeked.is_none() {
-                self.peeked = self.iter.next();
-            }
-            match self.peeked {
-                Some(ref value) => Some(value),
-                None => None,
-            }
-        }
-    }
-
     // ----------- Iterate over parse results -------------
 
     #[derive(Copy, Clone, Debug)]
@@ -1604,22 +1567,22 @@ pub mod impls {
     #[derive(Copy, Clone, Debug)]
     pub struct PipeStateful<P,Q,R>(P,Q,R);
 
-    impl<P,Q,S> Stateful<S> for PipeStateful<P,P::State,Q> where
+    impl<P,Q,S,T> Stateful<S> for PipeStateful<P,P::State,Q> where
         P: Copy+Committed<S>,
-        Q: Stateful<Peekable<IterParser<P,P::State,S>>>,
+        Q: for<'a> Stateful<Peekable<&'a mut IterParser<P,P::State,S>>,Output=T>,
     {
-        type Output = Q::Output;
+        type Output = T;
         fn parse(self, data: S) -> ParseResult<Self,S> {
-            let iter = IterParser(self.0,Some((self.1,data)));
-            match self.2.parse(Peekable::new(iter)) {
-                Done(iter, result) => Done(iter.iter.1.unwrap().1, result),
-                Continue(iter, parsing2) => {
-                    let (parsing1, data) = iter.iter.1.unwrap();
+            let mut iter = IterParser(self.0,Some((self.1,data)));
+            match self.2.parse(iter.by_ref().peekable()) {
+                Done(_, result) => Done(iter.1.unwrap().1, result),
+                Continue(_, parsing2) => {
+                    let (parsing1, data) = iter.1.unwrap();
                     Continue(data, PipeStateful(self.0, parsing1, parsing2))
                 }
             }
         }
-        fn done(self) -> Q::Output {
+        fn done(self) -> T {
             // TODO: feed the output of self.1.done() into self.2.
             self.1.done();
             self.2.done()
@@ -1630,12 +1593,13 @@ pub mod impls {
     pub struct PipeParser<P,Q>(P,Q);
 
     impl<P,Q> Parser for PipeParser<P,Q> {}
-    impl<P,Q,S> Committed<S> for PipeParser<P,Q> where
+    impl<P,Q,R,S,T> Committed<S> for PipeParser<P,Q> where
         P: Copy+Committed<S>,
-        Q: Committed<Peekable<IterParser<P,P::State,S>>>,
+        Q: for<'a> Committed<Peekable<&'a mut IterParser<P,P::State,S>>,State=R,Output=T>,
+        R: for<'a> Stateful<Peekable<&'a mut IterParser<P,P::State,S>>,Output=T>,
     {
-        type State = PipeStateful<P,P::State,Q::State>;
-        type Output = Q::Output;
+        type State = PipeStateful<P,P::State,R>;
+        type Output = T;
         fn init(&self) -> Self::State {
             PipeStateful(self.0, self.0.init(), self.1.init())
         }
@@ -1717,11 +1681,11 @@ fn test_CHARACTER() {
 fn test_token() {
     fn is_zero(num: &usize) -> bool { *num == 0 }
     let parser = token(is_zero);
-    let mut iter = parser.parse(impls::Peekable::new((1..3))).unAbort();
+    let mut iter = parser.parse((1..3).peekable()).unAbort();
     assert_eq!(iter.next(),Some(1));
     assert_eq!(iter.next(),Some(2));
     assert_eq!(iter.next(),None);
-    let (mut iter, result) = parser.parse(impls::Peekable::new((0..3))).unCommit().unDone();
+    let (mut iter, result) = parser.parse((0..3).peekable()).unCommit().unDone();
     assert_eq!(iter.next(),Some(1));
     assert_eq!(iter.next(),Some(2));
     assert_eq!(iter.next(),None);
