@@ -161,55 +161,55 @@ impl<P,S> ParseResult<P,S> where P: Stateful<S> {
 
 pub trait Parser {
 
-    /// Choice between parsers (returns a parser).
+    /// Choice between parsers
     fn or_else<P>(self, other: P) -> impls::OrElseParser<Self,P> where Self:Sized { impls::OrElseParser::new(self,other) }
 
-    /// Sequencing with a committed parser (returns a committed parser).
+    /// Sequencing with a committed parser
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self,P> where Self: Sized { impls::AndThenParser::new(self,other) }
 
-    /// Sequencing with a committed parser (returns a committed parser which produces an error when this parser returns an error).
+    /// Sequencing with a committed parser (bubble any errors from this parser).
     fn try_and_then<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZip> where Self: Sized { self.and_then(other).map(impls::TryZip) }
 
-    /// Sequencing with a committed parser (returns a committed parser which produces an error when the other parser returns an error).
+    /// Sequencing with a committed parser (bubble any errors from that parser).
     fn and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::ZipTry> where Self: Sized { self.and_then(other).map(impls::ZipTry) }
 
-    /// Sequencing with a committed parser (returns a committed parser which produces an error when the other parser returns an error).
+    /// Sequencing with a committed parser (bubble any errors from either parser).
     fn try_and_then_try<P>(self, other: P) -> impls::MapParser<impls::AndThenParser<Self,P>,impls::TryZipTry> where Self: Sized { self.and_then(other).map(impls::TryZipTry) }
 
-    /// Iterate one or more times (returns a parser).
+    /// Iterate one or more times (returns an uncommitted parser).
     fn plus<F>(self, factory: F) -> impls::PlusParser<Self,F> where Self: Sized { impls::PlusParser::new(self,factory) }
 
     /// Iterate zero or more times (returns a committed parser).
     fn star<F>(self, factory: F) -> impls::StarParser<Self,F> where Self: Sized { impls::StarParser::new(self,factory) }
 
-    /// Apply a function to the result (returns a committed parser).
+    /// Apply a function to the result
     fn map<F>(self, f: F) -> impls::MapParser<Self,F> where Self: Sized { impls::MapParser::new(self,f) }
 
-    /// Apply a 2-arguent function to the result (returns a committed parser).
+    /// Apply a 2-arguent function to the result
     fn map2<F>(self, f: F) -> impls::MapParser<Self,impls::Function2<F>> where Self: Sized { impls::MapParser::new(self,impls::Function2::new(f)) }
 
-    /// Apply a 3-arguent function to the result (returns a committed parser).
+    /// Apply a 3-arguent function to the result
     fn map3<F>(self, f: F) -> impls::MapParser<Self,impls::Function3<F>> where Self: Sized { impls::MapParser::new(self,impls::Function3::new(f)) }
 
-    /// Apply a 4-arguent function to the result (returns a committed parser).
+    /// Apply a 4-arguent function to the result
     fn map4<F>(self, f: F) -> impls::MapParser<Self,impls::Function4<F>> where Self: Sized { impls::MapParser::new(self,impls::Function4::new(f)) }
 
-    /// Apply a 5-arguent function to the result (returns a committed parser).
+    /// Apply a 5-arguent function to the result
     fn map5<F>(self, f: F) -> impls::MapParser<Self,impls::Function5<F>> where Self: Sized { impls::MapParser::new(self,impls::Function5::new(f)) }
 
-    /// Apply a function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a function to the result (bubble any errors).
     fn try_map<F>(self, f: F) -> impls::MapParser<Self,impls::Try<F>> where Self: Sized { self.map(impls::Try::new(f)) }
 
-    /// Apply a 2-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a 2-argument function to the result (bubble any errors).
     fn try_map2<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function2<F>>> where Self: Sized { self.try_map(impls::Function2::new(f)) }
 
-    /// Apply a 3-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a 3-argument function to the result (bubble any errors).
     fn try_map3<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function3<F>>> where Self: Sized { self.try_map(impls::Function3::new(f)) }
 
-    /// Apply a 4-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a 4-argument function to the result (bubble any errors).
     fn try_map4<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function4<F>>> where Self: Sized { self.try_map(impls::Function4::new(f)) }
 
-    /// Apply a 5-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
+    /// Apply a 5-argument function to the result (bubble any errors).
     fn try_map5<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function5<F>>> where Self: Sized { self.try_map(impls::Function5::new(f)) }
 
     /// Take the results of iterating this parser, and feed it into another parser.
