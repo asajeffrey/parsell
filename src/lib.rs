@@ -738,7 +738,7 @@ impl<C,T,E> Consumer<Result<T,E>> for Result<C,E> where C: Consumer<T> {
     }
 }
 
-/// A parser that reads one character.
+/// An uncommitted parser that reads one character.
 ///
 /// The parser `character(f)` reads one character `ch` from the input,
 /// if `f(ch)` is `true` then it commits and the result is `ch`,
@@ -748,7 +748,14 @@ pub fn character<F>(f: F) -> impls::CharacterParser<F> where F: Function<char,Ou
     impls::CharacterParser::new(f)
 }
 
-/// A parser that reads one token.
+/// A committed parser that reads one character.
+///
+/// The parser `CHARACTER` reads one character `ch` from the input,
+/// and produces `Some(ch)`. It produces `None` at the end of input.
+
+pub const CHARACTER: impls::AnyCharacterParser = impls::AnyCharacterParser;
+
+/// An uncommitted parser that reads one token.
 ///
 /// The parser `token(f)` reads one token `tok` from the input,
 /// if `f(tok)` is `true` then it commits and the result is `tok`,
@@ -1340,6 +1347,33 @@ pub mod impls {
         }
     }
 
+    #[derive(Copy,Clone,Debug)]
+    pub struct AnyCharacterParser;
+
+    impl Parser for AnyCharacterParser {}
+    impl<'a> Stateful<&'a str> for AnyCharacterParser {
+        type Output = Option<char>;
+        fn parse(self, value: &'a str) -> ParseResult<Self,&'a str> {
+            match value.chars().next() {
+                None => Continue(value,AnyCharacterParser),
+                Some(ch) => {
+                    let len = ch.len_utf8();
+                    Done(&value[len..],Some(ch))
+                },
+            }
+        }
+        fn done(self) -> Self::Output {
+            None
+        }
+    }
+    impl<'a> Committed<&'a str> for AnyCharacterParser {
+        type Output = Option<char>;
+        type State = Self;
+        fn init(&self) -> Self {
+            AnyCharacterParser
+        }
+    }
+
     // ----------- Token parsers -------------
 
     #[derive(Debug)]
@@ -1635,6 +1669,15 @@ fn test_character() {
     parser.parse("").unEmpty();
     assert_eq!(parser.parse("989").unAbort(),"989");
     assert_eq!(parser.parse("abc").unCommit().unDone(),("bc",'a'));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_CHARACTER() {
+    let parser = CHARACTER;
+    assert_eq!(parser.init().parse("abc").unDone(),("bc",Some('a')));
+    assert_eq!(parser.init().parse("").unContinue().parse("abc").unDone(),("bc",Some('a')));
+    assert_eq!(parser.init().done(),None);
 }
 
 #[test]
