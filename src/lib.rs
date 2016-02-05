@@ -209,6 +209,9 @@ pub trait HelperMethods {
     /// Apply a 5-argument function to the result (returns a committed parser which produces an error when this parser returns an error).
     fn try_map5<F>(self, f: F) -> impls::MapParser<Self,impls::Try<impls::Function5<F>>> where Self: Sized { self.try_map(impls::Function5::new(f)) }
 
+    /// Take the results of iterating this parser, and feed it into another parser.
+    fn pipe<P>(self, other: P) -> impls::PipeParser<Self,P> where Self: Sized { impls::PipeParser::new(self,other) }
+
     /// A parser which produces its input.
     ///
     /// This does its best to avoid having to buffer the input. The result of a buffered parser
@@ -1469,6 +1472,54 @@ pub mod impls {
         }
     }
 
+    // ----------- Pipe parsers -------------
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct PipeStateful<P,Q,R>(P,Q,R);
+
+    impl<P,Q,S> Stateful<S> for PipeStateful<P,P::State,Q> where
+        P: Copy+Committed<S>,
+        Q: Stateful<Peekable<IterParser<P,P::State,S>>>,
+    {
+        type Output = Q::Output;
+        fn parse(self, data: S) -> ParseResult<Self,S> {
+            let iter = IterParser(self.0,Some((self.1,data)));
+            match self.2.parse(Peekable::new(iter)) {
+                Done(iter, result) => Done(iter.iter.1.unwrap().1, result),
+                Continue(iter, parsing2) => {
+                    let (parsing1, data) = iter.iter.1.unwrap();
+                    Continue(data, PipeStateful(self.0, parsing1, parsing2))
+                }
+            }
+        }
+        fn done(self) -> Q::Output {
+            // TODO: feed the output of self.1.done() into self.2.
+            self.1.done();
+            self.2.done()
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct PipeParser<P,Q>(P,Q);
+
+    impl<P,Q> HelperMethods for PipeParser<P,Q> {}
+    impl<P,Q,S> Committed<S> for PipeParser<P,Q> where
+        P: Copy+Committed<S>,
+        Q: Committed<Peekable<IterParser<P,P::State,S>>>,
+    {
+        type State = PipeStateful<P,P::State,Q::State>;
+        type Output = Q::Output;
+        fn init(&self) -> Self::State {
+            PipeStateful(self.0, self.0.init(), self.1.init())
+        }
+    }
+
+    impl<P,Q> PipeParser<P,Q> {
+        pub fn new(lhs: P, rhs: Q) -> Self {
+            PipeParser(lhs,rhs)
+        }
+    }
+
 }
 
 // ----------- Tests -------------
@@ -1747,6 +1798,28 @@ fn test_iter() {
     assert_eq!(iter.next(),Some('b'));
     assert_eq!(iter.next(),Some('c'));
     assert_eq!(iter.next(),None);
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_pipe() {
+    use std::borrow::{Borrow,Cow};
+    #[derive(Clone,Debug,PartialEq,Eq)]
+    enum Token { Identifier(String), Number(usize), Other }
+    fn mk_id<'a>(string: Cow<'a,str>) -> Token { Token::Identifier(string.into_owned()) }
+    fn mk_num<'a>(string: Cow<'a,str>) -> Token { Token::Number(usize::from_str_radix(string.borrow(),10).unwrap()) }
+    fn mk_other() -> Token { Token::Other }
+    fn ignore() {}
+    fn is_decimal(ch: char) -> bool { ch.is_digit(10) }
+    fn is_identifier(tok: &Token) -> bool { match *tok { Token::Identifier(_) => true, _ => false } }
+    fn is_number(tok: &Token) -> bool { match *tok { Token::Number(_) => true, _ => false } }
+    let ALPHABETIC = character(char::is_alphabetic);
+    let DIGIT = character(is_decimal);
+    let lexer = ALPHABETIC.plus(ignore).buffer().map(mk_id)
+        .or_else(DIGIT.plus(ignore).buffer().map(mk_num))
+        .or_emit(mk_other);
+    let parser = token(is_identifier).or_else(token(is_number)).star(Vec::<Token>::new);
+    assert_eq!(lexer.pipe(parser).init().parse("abc37!").unDone(), ("!",vec![ Token::Identifier(String::from("abc")), Token::Number(37) ]));
 }
 
 #[test]

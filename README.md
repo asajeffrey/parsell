@@ -20,7 +20,7 @@ It is based on:
 
 ```rust
 extern crate parsimonious;
-use parsimonious::{character,Parser,Committed,Stateful};
+use parsimonious::{character,HelperMethods,Parser,Committed,Stateful};
 use parsimonious::ParseResult::{Done,Continue};
 #[allow(non_snake_case)]
 fn main() {
