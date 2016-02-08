@@ -1247,6 +1247,13 @@ fn test_buffer() {
     let parsing = parser.parse("a").unCommit().unContinue();
     assert_eq!(parsing.parse("bc!").unDone(),
                ("!", Owned(String::from("abc"))));
+    let parser = ALPHANUMERIC.star(ignore).buffer();
+    assert_eq!(parser.init().parse("!").unDone(), ("!", Borrowed("")));
+    assert_eq!(parser.init().parse("a!").unDone(), ("!", Borrowed("a")));
+    assert_eq!(parser.init().parse("abc!").unDone(), ("!", Borrowed("abc")));
+    let parsing = parser.init().parse("a").unContinue();
+    assert_eq!(parsing.parse("bc!").unDone(),
+               ("!", Owned(String::from("abc"))));
 }
 
 #[test]

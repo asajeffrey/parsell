@@ -860,6 +860,14 @@ impl<'a, P> Uncommitted<&'a str> for BufferedParser<P> where P: Uncommitted<&'a 
         }
     }
 }
+impl<'a, P> Committed<&'a str> for BufferedParser<P> where P: Committed<&'a str>
+{
+    type Output = Cow<'a,str>;
+    type State = BufferedStatefulParser<P::State>;
+    fn init(&self) -> Self::State {
+        BufferedStatefulParser(self.0.init(), String::new())
+    }
+}
 
 impl<P> BufferedParser<P> {
     pub fn new(parser: P) -> Self {
@@ -875,6 +883,9 @@ impl<'a, P> Stateful<&'a str> for BufferedStatefulParser<P> where P: Stateful<&'
     type Output = Cow<'a,str>;
     fn parse(mut self, value: &'a str) -> ParseResult<Self, &'a str> {
         match self.0.parse(value) {
+            Done(rest, _) if self.1.is_empty() => {
+                Done(rest, Borrowed(&value[..(value.len() - rest.len())]))
+            }
             Done(rest, _) => {
                 self.1.push_str(&value[..(value.len() - rest.len())]);
                 Done(rest, Owned(self.1))
