@@ -45,7 +45,7 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-153' class='srclink' href='../src/parsell/lib.rs.html#610-614' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-1414' class='srclink' href='../src/parsell/lib.rs.html#726-730' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait Boxable&lt;S&gt; {
     type Output;
     fn <a href='#tymethod.parse_boxable' class='fnname'>parse_boxable</a>(&amp;mut self, value: S) -&gt; <a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;Self::<a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Output</a>&gt;)</a>;
@@ -131,8 +131,8 @@ fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }
 fn mk_vec() -&gt; Result&lt;Vec&lt;Tree&gt;,String&gt; { Ok(Vec::new()) }
 fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T,String&gt; { Ok(ok) }
 fn mk_err&lt;T&gt;(_: Option&lt;char&gt;) -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }
-fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Result&lt;Tree,String&gt; {
-    Ok(Tree(children))
+fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Tree {
+    Tree(children)
 }
 let LPAREN = character(is_lparen);
 let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
@@ -181,8 +181,8 @@ recursively, then box up the result state:</p>
         <span class='kw'>fn</span> <span class='ident'>mk_vec</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Ok</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>()) }
         <span class='kw'>fn</span> <span class='ident'>mk_ok</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>ok</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Ok</span>(<span class='ident'>ok</span>) }
         <span class='kw'>fn</span> <span class='ident'>mk_err</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(_: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>String</span><span class='op'>&gt;</span> { <span class='prelude-val'>Err</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;Expected a ( or ).&quot;</span>)) }
-        <span class='kw'>fn</span> <span class='ident'>mk_tree</span>(_: <span class='ident'>char</span>, <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>, _: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;</span> {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>Tree</span>(<span class='ident'>children</span>))
+        <span class='kw'>fn</span> <span class='ident'>mk_tree</span>(_: <span class='ident'>char</span>, <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>, _: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='ident'>Tree</span> {
+            <span class='ident'>Tree</span>(<span class='ident'>children</span>)
         }
         <span class='kw'>fn</span> <span class='ident'>mk_box</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='ident'>parser</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>TreeParserState</span>
         <span class='kw'>where</span> <span class='ident'>P</span>: <span class='lifetime'>&#39;static</span><span class='op'>+</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;&gt;</span> {
