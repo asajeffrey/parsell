@@ -1070,6 +1070,52 @@
 <span id="1028">1028</span>
 <span id="1029">1029</span>
 <span id="1030">1030</span>
+<span id="1031">1031</span>
+<span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Provide implementations of parser traits.</span>
 
@@ -1086,6 +1132,8 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>::{<span class='ident'>Borrowed</span>, <span class='ident'>Owned</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>iter</span>::<span class='ident'>Peekable</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::{<span class='ident'>Formatter</span>, <span class='ident'>Debug</span>};
+<span class='kw'>use</span> <span class='ident'>std</span>;
 
 <span class='comment'>// ----------- N-argument functions ---------------</span>
 
@@ -1251,7 +1299,6 @@
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>MapParser</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>P</span>, <span class='ident'>F</span>);
 
 <span class='comment'>// A work around for functions implmenting copy but not clone</span>
@@ -1266,6 +1313,16 @@
 {
     <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
         <span class='ident'>MapParser</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>clone</span>(), <span class='self'>self</span>.<span class='number'>1</span>)
+    }
+}
+
+<span class='comment'>// A work around for named functions not implmenting Debug</span>
+<span class='comment'>// https://github.com/rust-lang/rust/issues/31522</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>MapParser</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
+    <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Debug</span>
+{
+    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>fmt</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
+        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;MapParser({:?}, ...)&quot;</span>, <span class='self'>self</span>.<span class='number'>0</span>)
     }
 }
 
@@ -1660,7 +1717,6 @@
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>PlusParser</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>P</span>, <span class='ident'>F</span>);
 
 <span class='comment'>// A work around for functions implmenting copy but not clone</span>
@@ -1675,6 +1731,16 @@
 {
     <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
         <span class='ident'>PlusParser</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>clone</span>(), <span class='self'>self</span>.<span class='number'>1</span>)
+    }
+}
+
+<span class='comment'>// A work around for named functions not implmenting Debug</span>
+<span class='comment'>// https://github.com/rust-lang/rust/issues/31522</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>PlusParser</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
+    <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Debug</span>
+{
+    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>fmt</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
+        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;PlusParser({:?}, ...)&quot;</span>, <span class='self'>self</span>.<span class='number'>0</span>)
     }
 }
 
@@ -1709,7 +1775,6 @@
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>StarParser</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>P</span>, <span class='ident'>F</span>);
 
 <span class='comment'>// A work around for functions implmenting copy but not clone</span>
@@ -1724,6 +1789,16 @@
 {
     <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
         <span class='ident'>StarParser</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>clone</span>(), <span class='self'>self</span>.<span class='number'>1</span>)
+    }
+}
+
+<span class='comment'>// A work around for named functions not implmenting Debug</span>
+<span class='comment'>// https://github.com/rust-lang/rust/issues/31522</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>StarParser</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
+    <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Debug</span>
+{
+    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>fmt</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
+        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;StarParser({:?}, ...)&quot;</span>, <span class='self'>self</span>.<span class='number'>0</span>)
     }
 }
 
@@ -1772,7 +1847,6 @@
 
 <span class='comment'>// ----------- Character parsers -------------</span>
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>CharacterParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>F</span>);
 
 <span class='comment'>// A work around for functions implmenting copy but not clone</span>
@@ -1783,6 +1857,15 @@
 {
     <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
         <span class='ident'>CharacterParser</span>(<span class='self'>self</span>.<span class='number'>0</span>)
+    }
+}
+
+<span class='comment'>// A work around for named functions not implmenting Debug</span>
+<span class='comment'>// https://github.com/rust-lang/rust/issues/31522</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>CharacterParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
+{
+    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>fmt</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
+        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;CharacterParser(...)&quot;</span>)
     }
 }
 
@@ -1838,7 +1921,6 @@
 
 <span class='comment'>// ----------- Token parsers -------------</span>
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>TokenParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>F</span>);
 
 <span class='comment'>// A work around for functions implmenting copy but not clone</span>
@@ -1849,6 +1931,15 @@
 {
     <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
         <span class='ident'>TokenParser</span>(<span class='self'>self</span>.<span class='number'>0</span>)
+    }
+}
+
+<span class='comment'>// A work around for named functions not implmenting Debug</span>
+<span class='comment'>// https://github.com/rust-lang/rust/issues/31522</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>TokenParser</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
+{
+    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>fmt</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
+        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;TokenParser(...)&quot;</span>)
     }
 }
 
@@ -1982,6 +2073,7 @@
 
 <span class='comment'>// ----------- Parsers which are boxable -------------</span>
 
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>BoxableParser</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>);
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>S</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>BoxableParser</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>S</span><span class='op'>&gt;</span>
 {
