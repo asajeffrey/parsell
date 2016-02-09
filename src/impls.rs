@@ -25,10 +25,12 @@ impl<F> Function2<F> {
     }
 }
 
-impl<F, S1, S2, T> Function<(S1, S2)> for Function2<F> where F: Fn(S1, S2) -> T
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S1, S2> Function<(S1, S2)> for Function2<F> where F: Fn<(S1, S2, )>
 {
-    type Output = T;
-    fn apply(&self, args: (S1, S2)) -> T {
+    type Output = F::Output;
+    fn apply(&self, args: (S1, S2)) -> F::Output {
         (self.0)(args.0, args.1)
     }
 }
@@ -42,10 +44,12 @@ impl<F> Function3<F> {
     }
 }
 
-impl<F, S1, S2, S3, T> Function<((S1, S2), S3)> for Function3<F> where F: Fn(S1, S2, S3) -> T
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S1, S2, S3> Function<((S1, S2), S3)> for Function3<F> where F: Fn<(S1, S2, S3, )>
 {
-    type Output = T;
-    fn apply(&self, args: ((S1, S2), S3)) -> T {
+    type Output = F::Output;
+    fn apply(&self, args: ((S1, S2), S3)) -> F::Output {
         (self.0)((args.0).0, (args.0).1, args.1)
     }
 }
@@ -59,11 +63,13 @@ impl<F> Function4<F> {
     }
 }
 
-impl<F, S1, S2, S3, S4, T> Function<(((S1, S2), S3), S4)> for Function4<F>
-    where F: Fn(S1, S2, S3, S4) -> T
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S1, S2, S3, S4> Function<(((S1, S2), S3), S4)> for Function4<F>
+    where F: Fn<(S1, S2, S3, S4, )>
 {
-    type Output = T;
-    fn apply(&self, args: (((S1, S2), S3), S4)) -> T {
+    type Output = F::Output;
+    fn apply(&self, args: (((S1, S2), S3), S4)) -> F::Output {
         (self.0)(((args.0).0).0, ((args.0).0).1, (args.0).1, args.1)
     }
 }
@@ -77,11 +83,13 @@ impl<F> Function5<F> {
     }
 }
 
-impl<F, S1, S2, S3, S4, S5, T> Function<((((S1, S2), S3), S4), S5)> for Function5<F>
-    where F: Fn(S1, S2, S3, S4, S5) -> T
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S1, S2, S3, S4, S5> Function<((((S1, S2), S3), S4), S5)> for Function5<F>
+    where F: Fn<(S1, S2, S3, S4, S5, )>
 {
-    type Output = T;
-    fn apply(&self, args: ((((S1, S2), S3), S4), S5)) -> T {
+    type Output = F::Output;
+    fn apply(&self, args: ((((S1, S2), S3), S4), S5)) -> F::Output {
         (self.0)((((args.0).0).0).0,
                  (((args.0).0).0).1,
                  ((args.0).0).1,
@@ -154,8 +162,6 @@ impl<P, F> Clone for MapStatefulParser<P, F>
     }
 }
 
-// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
-// See https://github.com/rust-lang/rust/issues/30867 for more details.
 impl<P, F, S, T> Stateful<S> for MapStatefulParser<P, F>
     where P: Stateful<S, Output = T>,
           F: Function<T>

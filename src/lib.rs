@@ -17,6 +17,8 @@
 //! [Crate](https://crates.io/crates/parsell) |
 //! [CI](https://travis-ci.org/asajeffrey/parsell)
 
+#![feature(unboxed_closures)]
+
 use self::MaybeParseResult::{Empty, Abort, Commit};
 use self::ParseResult::{Done, Continue};
 
@@ -755,10 +757,12 @@ pub trait Function<T> {
     fn apply(&self, arg: T) -> Self::Output;
 }
 
-impl<F, S, T> Function<S> for F where F: Fn(S) -> T
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S> Function<S> for F where F: Fn<(S, )>
 {
-    type Output = T;
-    fn apply(&self, arg: S) -> T {
+    type Output = F::Output;
+    fn apply(&self, arg: S) -> F::Output {
         self(arg)
     }
 }
