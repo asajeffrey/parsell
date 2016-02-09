@@ -102,11 +102,11 @@ impl<F, S1, S2, S3, S4, S5> Function<((((S1, S2), S3), S4), S5)> for Function5<F
 
 #[derive(Copy, Clone, Debug)]
 pub struct Try<F>(F);
-impl<F, S, T, E> Function<Result<S, E>> for Try<F> where F: Function<S, Output = Result<T, E>>
+impl<F, S, E> Function<Result<S, E>> for Try<F> where F: Function<S>
 {
-    type Output = Result<T,E>;
-    fn apply(&self, args: Result<S, E>) -> Result<T, E> {
-        self.0.apply(try!(args))
+    type Output = Result<F::Output,E>;
+    fn apply(&self, args: Result<S, E>) -> Result<F::Output, E> {
+        Ok(self.0.apply(try!(args)))
     }
 }
 impl<F> Try<F> {

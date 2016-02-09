@@ -607,8 +607,8 @@ impl<P, S> MaybeParseResult<P, S> where P: Stateful<S>
 /// fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
 /// fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
 /// fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
-/// fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
-///     Ok(Tree(children))
+/// fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Tree {
+///     Tree(children)
 /// }
 /// let LPAREN = character(is_lparen);
 /// let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
@@ -653,8 +653,8 @@ impl<P, S> MaybeParseResult<P, S> where P: Stateful<S>
 /// #       fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
 /// #       fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
 /// #       fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
-/// #       fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
-/// #           Ok(Tree(children))
+/// #       fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Tree {
+/// #           Tree(children)
 /// #       }
 /// #       fn mk_box<P>(parser: P) -> TreeParserState
 /// #       where P: 'static+for<'a> Stateful<&'a str, Output=Result<Tree,String>> {
@@ -693,8 +693,8 @@ impl<P, S> MaybeParseResult<P, S> where P: Stateful<S>
 ///         fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
 ///         fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
 ///         fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
-///         fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Result<Tree,String> {
-///             Ok(Tree(children))
+///         fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Tree {
+///             Tree(children)
 ///         }
 ///         fn mk_box<P>(parser: P) -> TreeParserState
 ///         where P: 'static+for<'a> Stateful<&'a str, Output=Result<Tree,String>> {
