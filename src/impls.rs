@@ -13,6 +13,8 @@ use self::OrEmitStatefulParser::{Unresolved, Resolved};
 use std::borrow::Cow;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::iter::Peekable;
+use std::fmt::{Formatter, Debug};
+use std;
 
 // ----------- N-argument functions ---------------
 
@@ -178,7 +180,6 @@ impl<P, F, S, T> Stateful<S> for MapStatefulParser<P, F>
     }
 }
 
-#[derive(Debug)]
 pub struct MapParser<P, F>(P, F);
 
 // A work around for functions implmenting copy but not clone
@@ -193,6 +194,16 @@ impl<P, F> Clone for MapParser<P, F>
 {
     fn clone(&self) -> Self {
         MapParser(self.0.clone(), self.1)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<P, F> Debug for MapParser<P, F>
+    where P: Debug
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "MapParser({:?}, ...)", self.0)
     }
 }
 
@@ -587,7 +598,6 @@ impl<P, T, S> Stateful<S> for StarStatefulParser<P, P::State, T>
     }
 }
 
-#[derive(Debug)]
 pub struct PlusParser<P, F>(P, F);
 
 // A work around for functions implmenting copy but not clone
@@ -602,6 +612,16 @@ impl<P, F> Clone for PlusParser<P, F>
 {
     fn clone(&self) -> Self {
         PlusParser(self.0.clone(), self.1)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<P, F> Debug for PlusParser<P, F>
+    where P: Debug
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "PlusParser({:?}, ...)", self.0)
     }
 }
 
@@ -636,7 +656,6 @@ impl<P, F> PlusParser<P, F> {
     }
 }
 
-#[derive(Debug)]
 pub struct StarParser<P, F>(P, F);
 
 // A work around for functions implmenting copy but not clone
@@ -651,6 +670,16 @@ impl<P, F> Clone for StarParser<P, F>
 {
     fn clone(&self) -> Self {
         StarParser(self.0.clone(), self.1)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<P, F> Debug for StarParser<P, F>
+    where P: Debug
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "StarParser({:?}, ...)", self.0)
     }
 }
 
@@ -699,7 +728,6 @@ impl<T, S> Stateful<S> for ImpossibleStatefulParser<T> {
 
 // ----------- Character parsers -------------
 
-#[derive(Debug)]
 pub struct CharacterParser<F>(F);
 
 // A work around for functions implmenting copy but not clone
@@ -710,6 +738,15 @@ impl<F> Clone for CharacterParser<F> where F: Copy
 {
     fn clone(&self) -> Self {
         CharacterParser(self.0)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<F> Debug for CharacterParser<F>
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "CharacterParser(...)")
     }
 }
 
@@ -765,7 +802,6 @@ impl<'a> Committed<&'a str> for AnyCharacterParser {
 
 // ----------- Token parsers -------------
 
-#[derive(Debug)]
 pub struct TokenParser<F>(F);
 
 // A work around for functions implmenting copy but not clone
@@ -776,6 +812,15 @@ impl<F> Clone for TokenParser<F> where F: Copy
 {
     fn clone(&self) -> Self {
         TokenParser(self.0)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<F> Debug for TokenParser<F>
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "TokenParser(...)")
     }
 }
 
@@ -909,6 +954,7 @@ impl<'a, P> Stateful<&'a str> for BufferedStatefulParser<P> where P: Stateful<&'
 
 // ----------- Parsers which are boxable -------------
 
+#[derive(Debug)]
 pub struct BoxableParser<P>(Option<P>);
 impl<P, S> Boxable<S> for BoxableParser<P> where P: Stateful<S>
 {

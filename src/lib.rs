@@ -21,7 +21,7 @@
 
 use self::MaybeParseResult::{Empty, Abort, Commit};
 use self::ParseResult::{Done, Continue};
-
+use std::fmt::{Formatter, Debug};
 
 pub mod impls;
 
@@ -153,6 +153,21 @@ pub enum ParseResult<P, S>
     Continue(S, P),
 }
 
+// Implement Debug for ParseResult<P, S> without requiring P: Debug
+
+impl<P, S> Debug for ParseResult<P, S>
+    where P: Stateful<S>,
+          S: Debug,
+          P::Output: Debug,
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        match self {
+            &Done(ref rest, ref result) => write!(fmt, "Done({:?}, {:?})", rest, result),
+            &Continue(ref rest, _) => write!(fmt, "Continue({:?}, ...)", rest),
+        }
+    }
+}
+
 impl<P, S> ParseResult<P, S> where P: Stateful<S>
 {
     /// Apply a function the the `Continue` branch of a parse result.
@@ -163,6 +178,15 @@ impl<P, S> ParseResult<P, S> where P: Stateful<S>
         match self {
             Done(rest, result) => Done(rest, result),
             Continue(rest, parsing) => Continue(rest, f.apply(parsing)),
+        }
+    }
+}
+
+impl<P,S> PartialEq for ParseResult<P, S> where S: PartialEq, P: Stateful<S>, P::Output: PartialEq {
+    fn eq(&self, other: &ParseResult<P, S>) -> bool {
+        match (self, other) {
+            (&Done(ref rest1, ref result1), &Done(ref rest2, ref result2)) => (rest1 == rest2) && (result1 == result2),
+            _ => false,
         }
     }
 }
@@ -509,6 +533,33 @@ impl<P, S> MaybeParseResult<P, S> where P: Stateful<S>
             Empty(rest) => Empty(rest),
             Abort(s) => Abort(s),
             Commit(c) => Commit(c.map(f)),
+        }
+    }
+}
+
+// Implement Debug for MaybeParseResult<P, S> without requiring P: Debug
+
+impl<P, S> Debug for MaybeParseResult<P, S>
+    where P: Stateful<S>,
+          S: Debug,
+          P::Output: Debug,
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        match self {
+            &Empty(ref rest) => write!(fmt, "Empty({:?})", rest),
+            &Abort(ref rest) => write!(fmt, "Abort({:?})", rest),
+            &Commit(ref result) => write!(fmt, "Commit({:?})", result),
+        }
+    }
+}
+
+impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S>, P::Output: PartialEq {
+    fn eq(&self, other: &MaybeParseResult<P, S>) -> bool {
+        match (self, other) {
+            (&Empty(ref rest1), &Empty(ref rest2)) => (rest1 == rest2),
+            (&Abort(ref rest1), &Abort(ref rest2)) => (rest1 == rest2),
+            (&Commit(ref result1), &Commit(ref result2)) => (result1 == result2),
+            _ => false,
         }
     }
 }
