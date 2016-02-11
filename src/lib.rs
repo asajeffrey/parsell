@@ -648,9 +648,9 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// For example, consider a simple type for trees:
 ///
 /// ```
-/// # use parsell::{Persistent};
+/// # use parsell::{Owned};
 /// struct Tree(Vec<Tree>);
-/// impl Persistent for Tree {}
+/// impl Owned for Tree {}
 /// ```
 ///
 /// which can be parsed from a well-nested sequence of parentheses, for example
@@ -682,21 +682,21 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// `BoxableParserState` trait:
 ///
 /// ```
-/// # use parsell::{Boxable, Persistent};
+/// # use parsell::{Boxable, Owned};
 /// # struct Tree(Vec<Tree>);
-/// # impl Persistent for Tree {}
+/// # impl Owned for Tree {}
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Tree>>;
 /// ```
 ///
 /// The implementation of `Uncommitted<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistent};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Owned};
 /// # use parsell::ParseResult::{Done,Continue};
 /// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
-/// impl Persistent for Tree {}
+/// impl Owned for Tree {}
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
@@ -733,12 +733,12 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistent};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Owned};
 /// # use parsell::ParseResult::{Done,Continue};
 /// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
-/// impl Persistent for Tree {}
+/// impl Owned for Tree {}
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
@@ -939,63 +939,63 @@ impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
 /// This trait is lot like `ToOwned`, the difference is that `Cow<'a,T>::Owned`
 /// is `Cow<'a,T>`, not `T::Owned`.
 
-pub trait ToPersistent {
-    type Persistent;
-    fn to_persistent(self) -> Self::Persistent;
-    fn from_persistent(p: Self::Persistent) -> Self;
+pub trait ToFromOwned {
+    type Owned;
+    fn to_owned(self) -> Self::Owned;
+    fn from_owned(p: Self::Owned) -> Self;
 }
 
-impl<'a, T: ?Sized> ToPersistent for Cow<'a, T> where T: ToOwned {
-    type Persistent = T::Owned;
-    fn to_persistent(self) -> T::Owned { self.into_owned() }
-    fn from_persistent(p: T::Owned) -> Cow<'a,T> { Owned(p) }
+impl<'a, T: ?Sized> ToFromOwned for Cow<'a, T> where T: ToOwned {
+    type Owned = T::Owned;
+    fn to_owned(self) -> T::Owned { self.into_owned() }
+    fn from_owned(p: T::Owned) -> Cow<'a,T> { Owned(p) }
 }
 
-impl<T, U> ToPersistent for (T, U) where T: ToPersistent, U: ToPersistent {
-    type Persistent = (T::Persistent, U::Persistent);
-    fn to_persistent(self) -> Self::Persistent { (self.0.to_persistent(), self.1.to_persistent()) }
-    fn from_persistent(p: Self::Persistent) -> Self { (ToPersistent::from_persistent(p.0), ToPersistent::from_persistent(p.1)) }
+impl<T, U> ToFromOwned for (T, U) where T: ToFromOwned, U: ToFromOwned {
+    type Owned = (T::Owned, U::Owned);
+    fn to_owned(self) -> Self::Owned { (self.0.to_owned(), self.1.to_owned()) }
+    fn from_owned(p: Self::Owned) -> Self { (ToFromOwned::from_owned(p.0), ToFromOwned::from_owned(p.1)) }
 }
 
-impl<T> ToPersistent for Option<T> where T: ToPersistent {
-    type Persistent = Option<T::Persistent>;
-    fn to_persistent(self) -> Self::Persistent { self.map(ToPersistent::to_persistent) }
-    fn from_persistent(p: Self::Persistent) -> Self { p.map(ToPersistent::from_persistent) }
+impl<T> ToFromOwned for Option<T> where T: ToFromOwned {
+    type Owned = Option<T::Owned>;
+    fn to_owned(self) -> Self::Owned { self.map(ToFromOwned::to_owned) }
+    fn from_owned(p: Self::Owned) -> Self { p.map(ToFromOwned::from_owned) }
 }
 
-impl<T,E> ToPersistent for Result<T,E> where T: ToPersistent, E: ToPersistent {
-    type Persistent = Result<T::Persistent,E::Persistent>;
-    fn to_persistent(self) -> Self::Persistent { self.map(ToPersistent::to_persistent).map_err(ToPersistent::to_persistent) }
-    fn from_persistent(p: Self::Persistent) -> Self { p.map(ToPersistent::from_persistent).map_err(ToPersistent::from_persistent) }
+impl<T,E> ToFromOwned for Result<T,E> where T: ToFromOwned, E: ToFromOwned {
+    type Owned = Result<T::Owned,E::Owned>;
+    fn to_owned(self) -> Self::Owned { self.map(ToFromOwned::to_owned).map_err(ToFromOwned::to_owned) }
+    fn from_owned(p: Self::Owned) -> Self { p.map(ToFromOwned::from_owned).map_err(ToFromOwned::from_owned) }
 }
 
-/// A marker trait for persistent data.
+/// A marker trait for owned data.
 ///
 /// This trait is a quick way to implment `Persist` as a no-op.
 
-pub trait Persistent {}
+pub trait Owned {}
 
-impl<T> ToPersistent for T where T: Persistent {
-    type Persistent = T;
-    fn to_persistent(self) -> T { self }
-    fn from_persistent(p: T) -> T { p }
+impl<T> ToFromOwned for T where T: Owned {
+    type Owned = T;
+    fn to_owned(self) -> T { self }
+    fn from_owned(p: T) -> T { p }
 }
 
-impl Persistent for usize {}
-impl Persistent for u8 {}
-impl Persistent for u16 {}
-impl Persistent for u32 {}
-impl Persistent for u64 {}
-impl Persistent for isize {}
-impl Persistent for i8 {}
-impl Persistent for i16 {}
-impl Persistent for i32 {}
-impl Persistent for i64 {}
-impl Persistent for () {}
-impl Persistent for bool {}
-impl Persistent for char {}
-impl Persistent for String {}
-impl<T> Persistent for Vec<T> where T: Persistent {}
+impl Owned for usize {}
+impl Owned for u8 {}
+impl Owned for u16 {}
+impl Owned for u32 {}
+impl Owned for u64 {}
+impl Owned for isize {}
+impl Owned for i8 {}
+impl Owned for i16 {}
+impl Owned for i32 {}
+impl Owned for i64 {}
+impl Owned for () {}
+impl Owned for bool {}
+impl Owned for char {}
+impl Owned for String {}
+impl<T> Owned for Vec<T> where T: Owned {}
 
 /// An uncommitted parser that reads one character.
 ///

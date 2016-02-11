@@ -1,7 +1,7 @@
 //! Provide implementations of parser traits.
 
 use super::{Stateful, Parser, Uncommitted, Committed, Boxable, ParseResult, MaybeParseResult,
-            Factory, Function, Consumer, ToPersistent};
+            Factory, Function, Consumer, ToFromOwned};
 use super::ParseResult::{Continue, Done};
 use super::MaybeParseResult::{Abort, Commit, Empty};
 
@@ -251,10 +251,10 @@ impl<P, Q> Parser for AndThenParser<P, Q> {}
 impl<P, Q, S> Committed<S> for AndThenParser<P, Q>
     where P: Committed<S>,
           Q: Committed<S>,
-          P::Output: ToPersistent,
+          P::Output: ToFromOwned,
 {
     type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToPersistent>::Persistent>;
+    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToFromOwned>::Owned>;
     fn init(&self) -> Self::State {
         InLhs(self.0.init(), self.1.init())
     }
@@ -262,17 +262,17 @@ impl<P, Q, S> Committed<S> for AndThenParser<P, Q>
 impl<P, Q, S> Uncommitted<S> for AndThenParser<P, Q>
     where P: Uncommitted<S>,
           Q: Committed<S>,
-          P::Output: ToPersistent,
+          P::Output: ToFromOwned,
 {
     type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToPersistent>::Persistent>;
+    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToFromOwned>::Owned>;
     fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
         match self.0.parse(value) {
             Empty(rest) => Empty(rest),
             Commit(Done(rest, result1)) => {
                 match self.1.init().parse(rest) {
                     Done(rest, result2) => Commit(Done(rest, (result1, result2))),
-                    Continue(rest, parsing) => Commit(Continue(rest, InRhs(result1.to_persistent(), parsing))),
+                    Continue(rest, parsing) => Commit(Continue(rest, InRhs(result1.to_owned(), parsing))),
                 }
             }
             Commit(Continue(rest, parsing)) => {
@@ -289,10 +289,10 @@ pub enum AndThenStatefulParser<P, Q, T> {
     InRhs(T, Q),
 }
 
-impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToPersistent>::Persistent>
+impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToFromOwned>::Owned>
     where P: Stateful<S>,
           Q: Stateful<S>,
-          P::Output: ToPersistent,
+          P::Output: ToFromOwned,
 {
     type Output = (P::Output,Q::Output);
     fn parse(self, value: S) -> ParseResult<Self, S> {
@@ -302,7 +302,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToPersis
                     Done(rest, result1) => {
                         match rhs.parse(rest) {
                             Done(rest, result2) => Done(rest, (result1, result2)),
-                            Continue(rest, parsing) => Continue(rest, InRhs(result1.to_persistent(), parsing)),
+                            Continue(rest, parsing) => Continue(rest, InRhs(result1.to_owned(), parsing)),
                         }
                     }
                     Continue(rest, parsing) => Continue(rest, InLhs(parsing, rhs)),
@@ -310,7 +310,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToPersis
             }
             InRhs(result1, rhs) => {
                 match rhs.parse(value) {
-                    Done(rest, result2) => Done(rest, (ToPersistent::from_persistent(result1), result2)),
+                    Done(rest, result2) => Done(rest, (ToFromOwned::from_owned(result1), result2)),
                     Continue(rest, parsing) => Continue(rest, InRhs(result1, parsing)),
                 }
             }
@@ -319,7 +319,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToPersis
     fn done(self) -> Self::Output {
         match self {
             InLhs(lhs, rhs) => (lhs.done(), rhs.done()),
-            InRhs(result1, rhs) => (ToPersistent::from_persistent(result1), rhs.done()),
+            InRhs(result1, rhs) => (ToFromOwned::from_owned(result1), rhs.done()),
         }
     }
 }
