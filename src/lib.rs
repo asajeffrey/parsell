@@ -1376,7 +1376,7 @@ fn test_pipe() {
 
 #[test]
 #[allow(non_snake_case)]
-fn test_different_lifetimes() {
+fn test_different_lifetimes1() {
     fn go<'a, 'b, P>(ab: &'a str, cd: &'b str, parser: P)
         where P: Copy + for<'c> Committed<&'c str, Output = (Option<char>, Option<char>)>
     {
@@ -1389,4 +1389,41 @@ fn test_different_lifetimes() {
     }
     let parser = CHARACTER.and_then(CHARACTER);
     go("ab", "cd", parser);
+}
+
+#[test]
+#[should_panic] // TODO: get this test to pass!
+#[allow(non_snake_case)]
+fn test_different_lifetimes2() {
+    use std::borrow::Cow;
+    use std::borrow::Cow::Owned;
+    fn ignore() {}
+    fn is_owned<'a,T:?Sized+ToOwned>(cow: &Cow<'a,T>) -> bool { match cow { &Owned(_) => true, _ => false } }
+    fn go<'a, 'b, P>(fst: &'a str, snd: &'b str, parser: P)
+        where P: Copy + for<'c> Committed<&'c str, Output = (Cow<'c,str>, Cow<'c,str>)>
+    {
+        match parser.init().parse(fst) {
+            Continue("", parsing) => match parsing.parse(snd) {
+                Done("!", (ref fst, ref snd)) => {
+                    assert!(is_owned(fst));
+                    assert!(is_owned(snd));
+                    assert_eq!(fst, "abc");
+                    assert_eq!(snd, "123");
+                },
+                oops => panic!("Shouldn't happen 2 {:?}", oops),
+            },
+            Done("!", (ref fst, ref snd)) => {
+                assert!(!is_owned(fst));
+                assert!(!is_owned(snd));
+                assert_eq!(fst, "abc");
+                assert_eq!(snd, "123");
+            },
+            oops => panic!("Shouldn't happen 1 {:?}", oops),
+        }
+    }
+    let parser = character(char::is_alphabetic).star(ignore).buffer()
+        .and_then(character(char::is_numeric).star(ignore).buffer());
+    go("abc123!", "!", parser);
+    go("abc1", "23!", parser);
+    go("ab", "c123!", parser);
 }
