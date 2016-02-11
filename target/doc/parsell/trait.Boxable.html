@@ -121,7 +121,7 @@ for context-free grammars that cannot be parsed as a regular language.
 For example, consider a simple type for trees:</p>
 <pre class='rust rust-example-rendered'>
 <span class='kw'>struct</span> <span class='ident'>Tree</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>);
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>Tree</span> {}</pre>
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>Tree</span> {}</pre>
 
 <p>which can be parsed from a well-nested sequence of parentheses, for example
 <code>(()())</code> can be parsed as <code>Tree(vec![Tree(vec![]),Tree(vec![])])</code>.
@@ -155,7 +155,7 @@ for it. The type of the state of a <code>TreeParser</code> is a box containing a
 <p>The implementation of <code>Uncommitted&lt;&amp;str&gt;</code> for <code>TreeParser</code> is mostly straightfoward:</p>
 <pre class='rust rust-example-rendered'>
 <span class='kw'>struct</span> <span class='ident'>Tree</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>);
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>Tree</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>Tree</span> {}
 <span class='kw'>struct</span> <span class='ident'>TreeParser</span>;
 <span class='kw'>type</span> <span class='ident'>TreeParserState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
 <span class='kw'>impl</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>TreeParser</span> {}
@@ -171,7 +171,7 @@ for it. The type of the state of a <code>TreeParser</code> is a box containing a
 recursively, then box up the result state:</p>
 <pre class='rust rust-example-rendered'>
 <span class='kw'>struct</span> <span class='ident'>Tree</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Tree</span><span class='op'>&gt;</span>);
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>Tree</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>Tree</span> {}
 <span class='kw'>struct</span> <span class='ident'>TreeParser</span>;
 <span class='kw'>type</span> <span class='ident'>TreeParserState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>str</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Tree</span>,<span class='ident'>String</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
 <span class='kw'>impl</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>TreeParser</span> {}

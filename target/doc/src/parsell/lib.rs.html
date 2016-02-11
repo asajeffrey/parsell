@@ -2192,9 +2192,9 @@
 <span class='doccomment'>/// For example, consider a simple type for trees:</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// ```</span>
-<span class='doccomment'>/// # use parsell::{Persistant};</span>
+<span class='doccomment'>/// # use parsell::{Persistent};</span>
 <span class='doccomment'>/// struct Tree(Vec&lt;Tree&gt;);</span>
-<span class='doccomment'>/// impl Persistant for Tree {}</span>
+<span class='doccomment'>/// impl Persistent for Tree {}</span>
 <span class='doccomment'>/// ```</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// which can be parsed from a well-nested sequence of parentheses, for example</span>
@@ -2226,21 +2226,21 @@
 <span class='doccomment'>/// `BoxableParserState` trait:</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// ```</span>
-<span class='doccomment'>/// # use parsell::{Boxable, Persistant};</span>
+<span class='doccomment'>/// # use parsell::{Boxable, Persistent};</span>
 <span class='doccomment'>/// # struct Tree(Vec&lt;Tree&gt;);</span>
-<span class='doccomment'>/// # impl Persistant for Tree {}</span>
+<span class='doccomment'>/// # impl Persistent for Tree {}</span>
 <span class='doccomment'>/// type TreeParserState = Box&lt;for&lt;&#39;b&gt; Boxable&lt;&amp;&#39;b str, Output=Tree&gt;&gt;;</span>
 <span class='doccomment'>/// ```</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// The implementation of `Uncommitted&lt;&amp;str&gt;` for `TreeParser` is mostly straightfoward:</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// ```</span>
-<span class='doccomment'>/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistant};</span>
+<span class='doccomment'>/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistent};</span>
 <span class='doccomment'>/// # use parsell::ParseResult::{Done,Continue};</span>
 <span class='doccomment'>/// # use parsell::MaybeParseResult::{Commit};</span>
 <span class='doccomment'>/// # #[derive(Eq,PartialEq,Clone,Debug)]</span>
 <span class='doccomment'>/// struct Tree(Vec&lt;Tree&gt;);</span>
-<span class='doccomment'>/// impl Persistant for Tree {}</span>
+<span class='doccomment'>/// impl Persistent for Tree {}</span>
 <span class='doccomment'>/// # #[derive(Copy,Clone,Debug)]</span>
 <span class='doccomment'>/// struct TreeParser;</span>
 <span class='doccomment'>/// type TreeParserState = Box&lt;for&lt;&#39;b&gt; Boxable&lt;&amp;&#39;b str, Output=Result&lt;Tree,String&gt;&gt;&gt;;</span>
@@ -2277,12 +2277,12 @@
 <span class='doccomment'>/// recursively, then box up the result state:</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// ```</span>
-<span class='doccomment'>/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistant};</span>
+<span class='doccomment'>/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistent};</span>
 <span class='doccomment'>/// # use parsell::ParseResult::{Done,Continue};</span>
 <span class='doccomment'>/// # use parsell::MaybeParseResult::{Commit};</span>
 <span class='doccomment'>/// # #[derive(Eq,PartialEq,Clone,Debug)]</span>
 <span class='doccomment'>/// struct Tree(Vec&lt;Tree&gt;);</span>
-<span class='doccomment'>/// impl Persistant for Tree {}</span>
+<span class='doccomment'>/// impl Persistent for Tree {}</span>
 <span class='doccomment'>/// # #[derive(Copy,Clone,Debug)]</span>
 <span class='doccomment'>/// struct TreeParser;</span>
 <span class='doccomment'>/// type TreeParserState = Box&lt;for&lt;&#39;b&gt; Boxable&lt;&amp;&#39;b str, Output=Result&lt;Tree,String&gt;&gt;&gt;;</span>
@@ -2483,63 +2483,63 @@
 <span class='doccomment'>/// This trait is lot like `ToOwned`, the difference is that `Cow&lt;&#39;a,T&gt;::Owned`</span>
 <span class='doccomment'>/// is `Cow&lt;&#39;a,T&gt;`, not `T::Owned`.</span>
 
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>ToPersistant</span> {
-    <span class='kw'>type</span> <span class='ident'>Persistant</span>;
-    <span class='kw'>fn</span> <span class='ident'>to_persistant</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Persistant</span>;
-    <span class='kw'>fn</span> <span class='ident'>from_persistant</span>(<span class='ident'>p</span>: <span class='ident'>Self</span>::<span class='ident'>Persistant</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span>;
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>ToPersistent</span> {
+    <span class='kw'>type</span> <span class='ident'>Persistent</span>;
+    <span class='kw'>fn</span> <span class='ident'>to_persistent</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Persistent</span>;
+    <span class='kw'>fn</span> <span class='ident'>from_persistent</span>(<span class='ident'>p</span>: <span class='ident'>Self</span>::<span class='ident'>Persistent</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span>;
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span>: ?<span class='ident'>Sized</span><span class='op'>&gt;</span> <span class='ident'>ToPersistant</span> <span class='kw'>for</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>ToOwned</span> {
-    <span class='kw'>type</span> <span class='ident'>Persistant</span> <span class='op'>=</span> <span class='ident'>T</span>::<span class='ident'>Owned</span>;
-    <span class='kw'>fn</span> <span class='ident'>to_persistant</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span>::<span class='ident'>Owned</span> { <span class='self'>self</span>.<span class='ident'>into_owned</span>() }
-    <span class='kw'>fn</span> <span class='ident'>from_persistant</span>(<span class='ident'>p</span>: <span class='ident'>T</span>::<span class='ident'>Owned</span>) <span class='op'>-&gt;</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>T</span><span class='op'>&gt;</span> { <span class='ident'>Owned</span>(<span class='ident'>p</span>) }
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span>: ?<span class='ident'>Sized</span><span class='op'>&gt;</span> <span class='ident'>ToPersistent</span> <span class='kw'>for</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>ToOwned</span> {
+    <span class='kw'>type</span> <span class='ident'>Persistent</span> <span class='op'>=</span> <span class='ident'>T</span>::<span class='ident'>Owned</span>;
+    <span class='kw'>fn</span> <span class='ident'>to_persistent</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span>::<span class='ident'>Owned</span> { <span class='self'>self</span>.<span class='ident'>into_owned</span>() }
+    <span class='kw'>fn</span> <span class='ident'>from_persistent</span>(<span class='ident'>p</span>: <span class='ident'>T</span>::<span class='ident'>Owned</span>) <span class='op'>-&gt;</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>T</span><span class='op'>&gt;</span> { <span class='ident'>Owned</span>(<span class='ident'>p</span>) }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>U</span><span class='op'>&gt;</span> <span class='ident'>ToPersistant</span> <span class='kw'>for</span> (<span class='ident'>T</span>, <span class='ident'>U</span>) <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>ToPersistant</span>, <span class='ident'>U</span>: <span class='ident'>ToPersistant</span> {
-    <span class='kw'>type</span> <span class='ident'>Persistant</span> <span class='op'>=</span> (<span class='ident'>T</span>::<span class='ident'>Persistant</span>, <span class='ident'>U</span>::<span class='ident'>Persistant</span>);
-    <span class='kw'>fn</span> <span class='ident'>to_persistant</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Persistant</span> { (<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>to_persistant</span>(), <span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>to_persistant</span>()) }
-    <span class='kw'>fn</span> <span class='ident'>from_persistant</span>(<span class='ident'>p</span>: <span class='ident'>Self</span>::<span class='ident'>Persistant</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> { (<span class='ident'>ToPersistant</span>::<span class='ident'>from_persistant</span>(<span class='ident'>p</span>.<span class='number'>0</span>), <span class='ident'>ToPersistant</span>::<span class='ident'>from_persistant</span>(<span class='ident'>p</span>.<span class='number'>1</span>)) }
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>U</span><span class='op'>&gt;</span> <span class='ident'>ToPersistent</span> <span class='kw'>for</span> (<span class='ident'>T</span>, <span class='ident'>U</span>) <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>ToPersistent</span>, <span class='ident'>U</span>: <span class='ident'>ToPersistent</span> {
+    <span class='kw'>type</span> <span class='ident'>Persistent</span> <span class='op'>=</span> (<span class='ident'>T</span>::<span class='ident'>Persistent</span>, <span class='ident'>U</span>::<span class='ident'>Persistent</span>);
+    <span class='kw'>fn</span> <span class='ident'>to_persistent</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Persistent</span> { (<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>to_persistent</span>(), <span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>to_persistent</span>()) }
+    <span class='kw'>fn</span> <span class='ident'>from_persistent</span>(<span class='ident'>p</span>: <span class='ident'>Self</span>::<span class='ident'>Persistent</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> { (<span class='ident'>ToPersistent</span>::<span class='ident'>from_persistent</span>(<span class='ident'>p</span>.<span class='number'>0</span>), <span class='ident'>ToPersistent</span>::<span class='ident'>from_persistent</span>(<span class='ident'>p</span>.<span class='number'>1</span>)) }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>ToPersistant</span> <span class='kw'>for</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>ToPersistant</span> {
-    <span class='kw'>type</span> <span class='ident'>Persistant</span> <span class='op'>=</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span>::<span class='ident'>Persistant</span><span class='op'>&gt;</span>;
-    <span class='kw'>fn</span> <span class='ident'>to_persistant</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Persistant</span> { <span class='self'>self</span>.<span class='ident'>map</span>(<span class='ident'>ToPersistant</span>::<span class='ident'>to_persistant</span>) }
-    <span class='kw'>fn</span> <span class='ident'>from_persistant</span>(<span class='ident'>p</span>: <span class='ident'>Self</span>::<span class='ident'>Persistant</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> { <span class='ident'>p</span>.<span class='ident'>map</span>(<span class='ident'>ToPersistant</span>::<span class='ident'>from_persistant</span>) }
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>ToPersistent</span> <span class='kw'>for</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>ToPersistent</span> {
+    <span class='kw'>type</span> <span class='ident'>Persistent</span> <span class='op'>=</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span>::<span class='ident'>Persistent</span><span class='op'>&gt;</span>;
+    <span class='kw'>fn</span> <span class='ident'>to_persistent</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Persistent</span> { <span class='self'>self</span>.<span class='ident'>map</span>(<span class='ident'>ToPersistent</span>::<span class='ident'>to_persistent</span>) }
+    <span class='kw'>fn</span> <span class='ident'>from_persistent</span>(<span class='ident'>p</span>: <span class='ident'>Self</span>::<span class='ident'>Persistent</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> { <span class='ident'>p</span>.<span class='ident'>map</span>(<span class='ident'>ToPersistent</span>::<span class='ident'>from_persistent</span>) }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>E</span><span class='op'>&gt;</span> <span class='ident'>ToPersistant</span> <span class='kw'>for</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>E</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>ToPersistant</span>, <span class='ident'>E</span>: <span class='ident'>ToPersistant</span> {
-    <span class='kw'>type</span> <span class='ident'>Persistant</span> <span class='op'>=</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>::<span class='ident'>Persistant</span>,<span class='ident'>E</span>::<span class='ident'>Persistant</span><span class='op'>&gt;</span>;
-    <span class='kw'>fn</span> <span class='ident'>to_persistant</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Persistant</span> { <span class='self'>self</span>.<span class='ident'>map</span>(<span class='ident'>ToPersistant</span>::<span class='ident'>to_persistant</span>).<span class='ident'>map_err</span>(<span class='ident'>ToPersistant</span>::<span class='ident'>to_persistant</span>) }
-    <span class='kw'>fn</span> <span class='ident'>from_persistant</span>(<span class='ident'>p</span>: <span class='ident'>Self</span>::<span class='ident'>Persistant</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> { <span class='ident'>p</span>.<span class='ident'>map</span>(<span class='ident'>ToPersistant</span>::<span class='ident'>from_persistant</span>).<span class='ident'>map_err</span>(<span class='ident'>ToPersistant</span>::<span class='ident'>from_persistant</span>) }
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>E</span><span class='op'>&gt;</span> <span class='ident'>ToPersistent</span> <span class='kw'>for</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>,<span class='ident'>E</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>ToPersistent</span>, <span class='ident'>E</span>: <span class='ident'>ToPersistent</span> {
+    <span class='kw'>type</span> <span class='ident'>Persistent</span> <span class='op'>=</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>::<span class='ident'>Persistent</span>,<span class='ident'>E</span>::<span class='ident'>Persistent</span><span class='op'>&gt;</span>;
+    <span class='kw'>fn</span> <span class='ident'>to_persistent</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Persistent</span> { <span class='self'>self</span>.<span class='ident'>map</span>(<span class='ident'>ToPersistent</span>::<span class='ident'>to_persistent</span>).<span class='ident'>map_err</span>(<span class='ident'>ToPersistent</span>::<span class='ident'>to_persistent</span>) }
+    <span class='kw'>fn</span> <span class='ident'>from_persistent</span>(<span class='ident'>p</span>: <span class='ident'>Self</span>::<span class='ident'>Persistent</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> { <span class='ident'>p</span>.<span class='ident'>map</span>(<span class='ident'>ToPersistent</span>::<span class='ident'>from_persistent</span>).<span class='ident'>map_err</span>(<span class='ident'>ToPersistent</span>::<span class='ident'>from_persistent</span>) }
 }
 
-<span class='doccomment'>/// A marker trait for persistant data.</span>
+<span class='doccomment'>/// A marker trait for persistent data.</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// This trait is a quick way to implment `Persist` as a no-op.</span>
 
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Persistant</span> {}
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Persistent</span> {}
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>ToPersistant</span> <span class='kw'>for</span> <span class='ident'>T</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>Persistant</span> {
-    <span class='kw'>type</span> <span class='ident'>Persistant</span> <span class='op'>=</span> <span class='ident'>T</span>;
-    <span class='kw'>fn</span> <span class='ident'>to_persistant</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> { <span class='self'>self</span> }
-    <span class='kw'>fn</span> <span class='ident'>from_persistant</span>(<span class='ident'>p</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> { <span class='ident'>p</span> }
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>ToPersistent</span> <span class='kw'>for</span> <span class='ident'>T</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>Persistent</span> {
+    <span class='kw'>type</span> <span class='ident'>Persistent</span> <span class='op'>=</span> <span class='ident'>T</span>;
+    <span class='kw'>fn</span> <span class='ident'>to_persistent</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> { <span class='self'>self</span> }
+    <span class='kw'>fn</span> <span class='ident'>from_persistent</span>(<span class='ident'>p</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> { <span class='ident'>p</span> }
 }
 
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>usize</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>u8</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>u16</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>u32</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>u64</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>isize</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>i8</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>i16</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>i32</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>i64</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> () {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>bool</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>char</span> {}
-<span class='kw'>impl</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>String</span> {}
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Persistant</span> <span class='kw'>for</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>Persistant</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>usize</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>u8</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>u16</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>u32</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>u64</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>isize</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>i8</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>i16</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>i32</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>i64</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> () {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>bool</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>char</span> {}
+<span class='kw'>impl</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>String</span> {}
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Persistent</span> <span class='kw'>for</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>Persistent</span> {}
 
 <span class='doccomment'>/// An uncommitted parser that reads one character.</span>
 <span class='doccomment'>///</span>
