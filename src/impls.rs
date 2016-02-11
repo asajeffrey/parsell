@@ -8,7 +8,6 @@ use super::MaybeParseResult::{Abort, Commit, Empty};
 use self::AndThenStatefulParser::{InLhs, InRhs};
 use self::OrElseStatefulParser::{Lhs, Rhs};
 use self::OrElseCommittedParser::{Uncommit, CommitLhs, CommitRhs};
-use self::OrEmitStatefulParser::{Unresolved, Resolved};
 
 use std::borrow::Cow;
 use std::borrow::Cow::{Borrowed, Owned};
@@ -457,98 +456,6 @@ impl<P, Q, S> Stateful<S> for OrElseCommittedParser<P, P::State, Q>
             CommitLhs(lhs) => lhs.done(),
             CommitRhs(rhs) => rhs.done(),
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum OrEmitStatefulParser<P, F, R> {
-    Unresolved(P, F),
-    Resolved(R),
-}
-
-// A work around for functions implmenting copy but not clone
-// https://github.com/rust-lang/rust/issues/28229
-impl<P, F, R> Copy for OrEmitStatefulParser<P, F, R>
-    where P: Copy,
-          F: Copy,
-          R: Copy
-{}
-impl<P, F, R> Clone for OrEmitStatefulParser<P, F, R>
-    where P: Copy,
-          F: Copy,
-          R: Clone
-{
-    fn clone(&self) -> Self {
-        match *self {
-            Unresolved(parser, default) => Unresolved(parser, default),
-            Resolved(ref parser) => Resolved(parser.clone()),
-        }
-    }
-}
-
-impl<P, F, S> Stateful<S> for OrEmitStatefulParser<P, F, P::State>
-    where P: Uncommitted<S>,
-          F: Factory<Output = P::Output>
-{
-    type Output = P::Output;
-    fn parse(self, value: S) -> ParseResult<Self, S> {
-        match self {
-            Unresolved(parser, default) => {
-                match parser.parse(value) {
-                    Empty(rest) => Continue(rest, Unresolved(parser, default)),
-                    Commit(Done(rest, result)) => Done(rest, result),
-                    Commit(Continue(rest, parsing)) => Continue(rest, Resolved(parsing)),
-                    Abort(value) => Done(value, default.build()),
-                }
-            }
-            Resolved(parser) => {
-                match parser.parse(value) {
-                    Done(rest, result) => Done(rest, result),
-                    Continue(rest, parsing) => Continue(rest, Resolved(parsing)),
-                }
-            }
-        }
-    }
-    fn done(self) -> Self::Output {
-        match self {
-            Unresolved(_, default) => default.build(),
-            Resolved(parser) => parser.done(),
-        }
-    }
-}
-
-pub struct OrEmitParser<P, F>(P, F);
-
-// A work around for functions implmenting copy but not clone
-// https://github.com/rust-lang/rust/issues/28229
-impl<P, F> Copy for OrEmitParser<P, F>
-    where P: Copy,
-          F: Copy
-{}
-impl<P, F> Clone for OrEmitParser<P, F>
-    where P: Clone,
-          F: Copy
-{
-    fn clone(&self) -> Self {
-        OrEmitParser(self.0.clone(), self.1)
-    }
-}
-
-impl<P, F> Parser for OrEmitParser<P, F> {}
-impl<P, F, S> Committed<S> for OrEmitParser<P, F>
-    where P: Clone + Uncommitted<S>,
-          F: Copy + Factory<Output = P::Output>
-{
-    type Output = P::Output;
-    type State = OrEmitStatefulParser<P,F,P::State>;
-    fn init(&self) -> Self::State {
-        Unresolved(self.0.clone(), self.1)
-    }
-}
-
-impl<P, F> OrEmitParser<P, F> {
-    pub fn new(parser: P, default: F) -> Self {
-        OrEmitParser(parser, default)
     }
 }
 
