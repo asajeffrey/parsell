@@ -1,7 +1,7 @@
 //! Provide implementations of parser traits.
 
 use super::{Stateful, Parser, Uncommitted, Committed, Boxable, ParseResult, MaybeParseResult,
-            Factory, Function, Consumer};
+            Factory, Function, Consumer, ToPersistant};
 use super::ParseResult::{Continue, Done};
 use super::MaybeParseResult::{Abort, Commit, Empty};
 
@@ -250,27 +250,29 @@ pub struct AndThenParser<P, Q>(P, Q);
 impl<P, Q> Parser for AndThenParser<P, Q> {}
 impl<P, Q, S> Committed<S> for AndThenParser<P, Q>
     where P: Committed<S>,
-          Q: Committed<S>
+          Q: Committed<S>,
+          P::Output: ToPersistant,
 {
     type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
+    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToPersistant>::Persistant>;
     fn init(&self) -> Self::State {
         InLhs(self.0.init(), self.1.init())
     }
 }
 impl<P, Q, S> Uncommitted<S> for AndThenParser<P, Q>
     where P: Uncommitted<S>,
-          Q: Committed<S>
+          Q: Committed<S>,
+          P::Output: ToPersistant,
 {
     type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,P::Output>;
+    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToPersistant>::Persistant>;
     fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
         match self.0.parse(value) {
             Empty(rest) => Empty(rest),
             Commit(Done(rest, result1)) => {
                 match self.1.init().parse(rest) {
                     Done(rest, result2) => Commit(Done(rest, (result1, result2))),
-                    Continue(rest, parsing) => Commit(Continue(rest, InRhs(result1, parsing))),
+                    Continue(rest, parsing) => Commit(Continue(rest, InRhs(result1.to_persistant(), parsing))),
                 }
             }
             Commit(Continue(rest, parsing)) => {
@@ -287,9 +289,10 @@ pub enum AndThenStatefulParser<P, Q, T> {
     InRhs(T, Q),
 }
 
-impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, P::Output>
+impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToPersistant>::Persistant>
     where P: Stateful<S>,
-          Q: Stateful<S>
+          Q: Stateful<S>,
+          P::Output: ToPersistant,
 {
     type Output = (P::Output,Q::Output);
     fn parse(self, value: S) -> ParseResult<Self, S> {
@@ -299,7 +302,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, P::Output>
                     Done(rest, result1) => {
                         match rhs.parse(rest) {
                             Done(rest, result2) => Done(rest, (result1, result2)),
-                            Continue(rest, parsing) => Continue(rest, InRhs(result1, parsing)),
+                            Continue(rest, parsing) => Continue(rest, InRhs(result1.to_persistant(), parsing)),
                         }
                     }
                     Continue(rest, parsing) => Continue(rest, InLhs(parsing, rhs)),
@@ -307,7 +310,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, P::Output>
             }
             InRhs(result1, rhs) => {
                 match rhs.parse(value) {
-                    Done(rest, result2) => Done(rest, (result1, result2)),
+                    Done(rest, result2) => Done(rest, (ToPersistant::from_persistant(result1), result2)),
                     Continue(rest, parsing) => Continue(rest, InRhs(result1, parsing)),
                 }
             }
@@ -316,7 +319,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, P::Output>
     fn done(self) -> Self::Output {
         match self {
             InLhs(lhs, rhs) => (lhs.done(), rhs.done()),
-            InRhs(result1, rhs) => (result1, rhs.done()),
+            InRhs(result1, rhs) => (ToPersistant::from_persistant(result1), rhs.done()),
         }
     }
 }

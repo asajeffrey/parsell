@@ -21,7 +21,10 @@
 
 use self::MaybeParseResult::{Empty, Abort, Commit};
 use self::ParseResult::{Done, Continue};
+
 use std::fmt::{Formatter, Debug};
+use std::borrow::Cow;
+use std::borrow::Cow::Owned;
 
 pub mod impls;
 
@@ -645,7 +648,9 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// For example, consider a simple type for trees:
 ///
 /// ```
+/// # use parsell::{Persistant};
 /// struct Tree(Vec<Tree>);
+/// impl Persistant for Tree {}
 /// ```
 ///
 /// which can be parsed from a well-nested sequence of parentheses, for example
@@ -677,19 +682,21 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// `BoxableParserState` trait:
 ///
 /// ```
-/// # use parsell::{Boxable};
+/// # use parsell::{Boxable, Persistant};
 /// # struct Tree(Vec<Tree>);
+/// # impl Persistant for Tree {}
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Tree>>;
 /// ```
 ///
 /// The implementation of `Uncommitted<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistant};
 /// # use parsell::ParseResult::{Done,Continue};
 /// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
+/// impl Persistant for Tree {}
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
@@ -726,11 +733,12 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistant};
 /// # use parsell::ParseResult::{Done,Continue};
 /// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
+/// impl Persistant for Tree {}
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
@@ -922,6 +930,72 @@ impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
         *self = Err(err);
     }
 }
+
+/// A trait for data which can be saved to and restored from long-lived state.
+///
+/// The canonical example of this trait is `Cow<'a,T>` which can be saved to
+/// and restored from `T::Owned'.
+///
+/// This trait is lot like `ToOwned`, the difference is that `Cow<'a,T>::Owned`
+/// is `Cow<'a,T>`, not `T::Owned`.
+
+pub trait ToPersistant {
+    type Persistant;
+    fn to_persistant(self) -> Self::Persistant;
+    fn from_persistant(p: Self::Persistant) -> Self;
+}
+
+impl<'a, T: ?Sized> ToPersistant for Cow<'a, T> where T: ToOwned {
+    type Persistant = T::Owned;
+    fn to_persistant(self) -> T::Owned { self.into_owned() }
+    fn from_persistant(p: T::Owned) -> Cow<'a,T> { Owned(p) }
+}
+
+impl<T, U> ToPersistant for (T, U) where T: ToPersistant, U: ToPersistant {
+    type Persistant = (T::Persistant, U::Persistant);
+    fn to_persistant(self) -> Self::Persistant { (self.0.to_persistant(), self.1.to_persistant()) }
+    fn from_persistant(p: Self::Persistant) -> Self { (ToPersistant::from_persistant(p.0), ToPersistant::from_persistant(p.1)) }
+}
+
+impl<T> ToPersistant for Option<T> where T: ToPersistant {
+    type Persistant = Option<T::Persistant>;
+    fn to_persistant(self) -> Self::Persistant { self.map(ToPersistant::to_persistant) }
+    fn from_persistant(p: Self::Persistant) -> Self { p.map(ToPersistant::from_persistant) }
+}
+
+impl<T,E> ToPersistant for Result<T,E> where T: ToPersistant, E: ToPersistant {
+    type Persistant = Result<T::Persistant,E::Persistant>;
+    fn to_persistant(self) -> Self::Persistant { self.map(ToPersistant::to_persistant).map_err(ToPersistant::to_persistant) }
+    fn from_persistant(p: Self::Persistant) -> Self { p.map(ToPersistant::from_persistant).map_err(ToPersistant::from_persistant) }
+}
+
+/// A marker trait for persistant data.
+///
+/// This trait is a quick way to implment `Persist` as a no-op.
+
+pub trait Persistant {}
+
+impl<T> ToPersistant for T where T: Persistant {
+    type Persistant = T;
+    fn to_persistant(self) -> T { self }
+    fn from_persistant(p: T) -> T { p }
+}
+
+impl Persistant for usize {}
+impl Persistant for u8 {}
+impl Persistant for u16 {}
+impl Persistant for u32 {}
+impl Persistant for u64 {}
+impl Persistant for isize {}
+impl Persistant for i8 {}
+impl Persistant for i16 {}
+impl Persistant for i32 {}
+impl Persistant for i64 {}
+impl Persistant for () {}
+impl Persistant for bool {}
+impl Persistant for char {}
+impl Persistant for String {}
+impl<T> Persistant for Vec<T> where T: Persistant {}
 
 /// An uncommitted parser that reads one character.
 ///
@@ -1376,7 +1450,7 @@ fn test_pipe() {
 
 #[test]
 #[allow(non_snake_case)]
-fn test_different_lifetimes() {
+fn test_different_lifetimes1() {
     fn go<'a, 'b, P>(ab: &'a str, cd: &'b str, parser: P)
         where P: Copy + for<'c> Committed<&'c str, Output = (Option<char>, Option<char>)>
     {
@@ -1389,4 +1463,39 @@ fn test_different_lifetimes() {
     }
     let parser = CHARACTER.and_then(CHARACTER);
     go("ab", "cd", parser);
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_different_lifetimes2() {
+    use std::borrow::Cow;
+    use std::borrow::Cow::Owned;
+    fn ignore() {}
+    fn is_owned<'a,T:?Sized+ToOwned>(cow: &Cow<'a,T>) -> bool { match cow { &Owned(_) => true, _ => false } }
+    fn go<'a, 'b, P>(fst: &'a str, snd: &'b str, parser: P)
+        where P: Copy + for<'c> Committed<&'c str, Output = (Cow<'c,str>, Cow<'c,str>)>
+    {
+        match parser.init().parse(fst) {
+            Continue("", parsing) => match parsing.parse(snd) {
+                Done("!", (ref fst, ref snd)) => {
+                    assert!(is_owned(fst));
+                    assert!(is_owned(snd));
+                    assert_eq!(fst, "abc");
+                    assert_eq!(snd, "123");
+                },
+                oops => panic!("Shouldn't happen 2 {:?}", oops),
+            },
+            Done("!", (ref fst, ref snd)) => {
+                assert!(!is_owned(fst));
+                assert!(!is_owned(snd));
+                assert_eq!(fst, "abc");
+                assert_eq!(snd, "123");
+            },
+            oops => panic!("Shouldn't happen 1 {:?}", oops),
+        }
+    }
+    let parser = character(char::is_alphabetic).star(ignore).buffer()
+        .and_then(character(char::is_numeric).star(ignore).buffer());
+    go("abc123!", "!", parser);
+    go("abc1", "23!", parser);
 }
