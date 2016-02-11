@@ -1,14 +1,13 @@
 //! Provide implementations of parser traits.
 
 use super::{Stateful, Parser, Uncommitted, Committed, Boxable, ParseResult, MaybeParseResult,
-            Factory, Function, Consumer, ToPersistent};
+            Factory, Function, Consumer, ToFromOwned};
 use super::ParseResult::{Continue, Done};
 use super::MaybeParseResult::{Abort, Commit, Empty};
 
 use self::AndThenStatefulParser::{InLhs, InRhs};
 use self::OrElseStatefulParser::{Lhs, Rhs};
 use self::OrElseCommittedParser::{Uncommit, CommitLhs, CommitRhs};
-use self::OrEmitStatefulParser::{Unresolved, Resolved};
 
 use std::borrow::Cow;
 use std::borrow::Cow::{Borrowed, Owned};
@@ -251,10 +250,10 @@ impl<P, Q> Parser for AndThenParser<P, Q> {}
 impl<P, Q, S> Committed<S> for AndThenParser<P, Q>
     where P: Committed<S>,
           Q: Committed<S>,
-          P::Output: ToPersistent,
+          P::Output: ToFromOwned,
 {
     type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToPersistent>::Persistent>;
+    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToFromOwned>::Owned>;
     fn init(&self) -> Self::State {
         InLhs(self.0.init(), self.1.init())
     }
@@ -262,17 +261,17 @@ impl<P, Q, S> Committed<S> for AndThenParser<P, Q>
 impl<P, Q, S> Uncommitted<S> for AndThenParser<P, Q>
     where P: Uncommitted<S>,
           Q: Committed<S>,
-          P::Output: ToPersistent,
+          P::Output: ToFromOwned,
 {
     type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToPersistent>::Persistent>;
+    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToFromOwned>::Owned>;
     fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
         match self.0.parse(value) {
             Empty(rest) => Empty(rest),
             Commit(Done(rest, result1)) => {
                 match self.1.init().parse(rest) {
                     Done(rest, result2) => Commit(Done(rest, (result1, result2))),
-                    Continue(rest, parsing) => Commit(Continue(rest, InRhs(result1.to_persistent(), parsing))),
+                    Continue(rest, parsing) => Commit(Continue(rest, InRhs(result1.to_owned(), parsing))),
                 }
             }
             Commit(Continue(rest, parsing)) => {
@@ -289,10 +288,10 @@ pub enum AndThenStatefulParser<P, Q, T> {
     InRhs(T, Q),
 }
 
-impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToPersistent>::Persistent>
+impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToFromOwned>::Owned>
     where P: Stateful<S>,
           Q: Stateful<S>,
-          P::Output: ToPersistent,
+          P::Output: ToFromOwned,
 {
     type Output = (P::Output,Q::Output);
     fn parse(self, value: S) -> ParseResult<Self, S> {
@@ -302,7 +301,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToPersis
                     Done(rest, result1) => {
                         match rhs.parse(rest) {
                             Done(rest, result2) => Done(rest, (result1, result2)),
-                            Continue(rest, parsing) => Continue(rest, InRhs(result1.to_persistent(), parsing)),
+                            Continue(rest, parsing) => Continue(rest, InRhs(result1.to_owned(), parsing)),
                         }
                     }
                     Continue(rest, parsing) => Continue(rest, InLhs(parsing, rhs)),
@@ -310,7 +309,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToPersis
             }
             InRhs(result1, rhs) => {
                 match rhs.parse(value) {
-                    Done(rest, result2) => Done(rest, (ToPersistent::from_persistent(result1), result2)),
+                    Done(rest, result2) => Done(rest, (ToFromOwned::from_owned(result1), result2)),
                     Continue(rest, parsing) => Continue(rest, InRhs(result1, parsing)),
                 }
             }
@@ -319,7 +318,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToPersis
     fn done(self) -> Self::Output {
         match self {
             InLhs(lhs, rhs) => (lhs.done(), rhs.done()),
-            InRhs(result1, rhs) => (ToPersistent::from_persistent(result1), rhs.done()),
+            InRhs(result1, rhs) => (ToFromOwned::from_owned(result1), rhs.done()),
         }
     }
 }
@@ -457,98 +456,6 @@ impl<P, Q, S> Stateful<S> for OrElseCommittedParser<P, P::State, Q>
             CommitLhs(lhs) => lhs.done(),
             CommitRhs(rhs) => rhs.done(),
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum OrEmitStatefulParser<P, F, R> {
-    Unresolved(P, F),
-    Resolved(R),
-}
-
-// A work around for functions implmenting copy but not clone
-// https://github.com/rust-lang/rust/issues/28229
-impl<P, F, R> Copy for OrEmitStatefulParser<P, F, R>
-    where P: Copy,
-          F: Copy,
-          R: Copy
-{}
-impl<P, F, R> Clone for OrEmitStatefulParser<P, F, R>
-    where P: Copy,
-          F: Copy,
-          R: Clone
-{
-    fn clone(&self) -> Self {
-        match *self {
-            Unresolved(parser, default) => Unresolved(parser, default),
-            Resolved(ref parser) => Resolved(parser.clone()),
-        }
-    }
-}
-
-impl<P, F, S> Stateful<S> for OrEmitStatefulParser<P, F, P::State>
-    where P: Uncommitted<S>,
-          F: Factory<Output = P::Output>
-{
-    type Output = P::Output;
-    fn parse(self, value: S) -> ParseResult<Self, S> {
-        match self {
-            Unresolved(parser, default) => {
-                match parser.parse(value) {
-                    Empty(rest) => Continue(rest, Unresolved(parser, default)),
-                    Commit(Done(rest, result)) => Done(rest, result),
-                    Commit(Continue(rest, parsing)) => Continue(rest, Resolved(parsing)),
-                    Abort(value) => Done(value, default.build()),
-                }
-            }
-            Resolved(parser) => {
-                match parser.parse(value) {
-                    Done(rest, result) => Done(rest, result),
-                    Continue(rest, parsing) => Continue(rest, Resolved(parsing)),
-                }
-            }
-        }
-    }
-    fn done(self) -> Self::Output {
-        match self {
-            Unresolved(_, default) => default.build(),
-            Resolved(parser) => parser.done(),
-        }
-    }
-}
-
-pub struct OrEmitParser<P, F>(P, F);
-
-// A work around for functions implmenting copy but not clone
-// https://github.com/rust-lang/rust/issues/28229
-impl<P, F> Copy for OrEmitParser<P, F>
-    where P: Copy,
-          F: Copy
-{}
-impl<P, F> Clone for OrEmitParser<P, F>
-    where P: Clone,
-          F: Copy
-{
-    fn clone(&self) -> Self {
-        OrEmitParser(self.0.clone(), self.1)
-    }
-}
-
-impl<P, F> Parser for OrEmitParser<P, F> {}
-impl<P, F, S> Committed<S> for OrEmitParser<P, F>
-    where P: Clone + Uncommitted<S>,
-          F: Copy + Factory<Output = P::Output>
-{
-    type Output = P::Output;
-    type State = OrEmitStatefulParser<P,F,P::State>;
-    fn init(&self) -> Self::State {
-        Unresolved(self.0.clone(), self.1)
-    }
-}
-
-impl<P, F> OrEmitParser<P, F> {
-    pub fn new(parser: P, default: F) -> Self {
-        OrEmitParser(parser, default)
     }
 }
 
