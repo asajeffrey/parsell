@@ -936,7 +936,7 @@ impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
 /// The canonical example of this trait is `Cow<'a,T>` which can be saved to
 /// and restored from `T::Owned`.
 ///
-/// This trait is lot like `ToOwned`, the difference is that `Cow<'a,T>::Owned`
+/// This trait is lot like `ToOwned`, the difference is that `<Cow<'a,T> as ToOwned>::Owned`
 /// is `Cow<'a,T>`, not `T::Owned`.
 
 pub trait ToFromOwned {
