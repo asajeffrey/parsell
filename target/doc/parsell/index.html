@@ -45,7 +45,7 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-0' class='srclink' href='../src/parsell/lib.rs.html#1-1392' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-0' class='srclink' href='../src/parsell/lib.rs.html#1-1501' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Parsell: an LL(1) streaming parser combinator library for Rust</p>
 
 <p>The goal of this library is to provide parser combinators that:</p>
@@ -173,10 +173,28 @@ by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,</li>
                     </tr>
                 
                     <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Persistant.html'
+                               title='parsell::Persistant'>Persistant</a></td>
+                        <td class='docblock short'>
+                             <p>A marker trait for persistant data.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
                         <td><a class='trait' href='trait.Stateful.html'
                                title='parsell::Stateful'>Stateful</a></td>
                         <td class='docblock short'>
                              <p>A trait for stateful parsers.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.ToPersistant.html'
+                               title='parsell::ToPersistant'>ToPersistant</a></td>
+                        <td class='docblock short'>
+                             <p>A trait for data which can be saved to and restored from long-lived state.</p>
 
                         </td>
                     </tr>
