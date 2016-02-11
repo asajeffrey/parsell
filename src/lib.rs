@@ -648,9 +648,9 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// For example, consider a simple type for trees:
 ///
 /// ```
-/// # use parsell::{Persistant};
+/// # use parsell::{Persistent};
 /// struct Tree(Vec<Tree>);
-/// impl Persistant for Tree {}
+/// impl Persistent for Tree {}
 /// ```
 ///
 /// which can be parsed from a well-nested sequence of parentheses, for example
@@ -682,21 +682,21 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// `BoxableParserState` trait:
 ///
 /// ```
-/// # use parsell::{Boxable, Persistant};
+/// # use parsell::{Boxable, Persistent};
 /// # struct Tree(Vec<Tree>);
-/// # impl Persistant for Tree {}
+/// # impl Persistent for Tree {}
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Tree>>;
 /// ```
 ///
 /// The implementation of `Uncommitted<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistant};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistent};
 /// # use parsell::ParseResult::{Done,Continue};
 /// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
-/// impl Persistant for Tree {}
+/// impl Persistent for Tree {}
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
@@ -733,12 +733,12 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistant};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Persistent};
 /// # use parsell::ParseResult::{Done,Continue};
 /// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
-/// impl Persistant for Tree {}
+/// impl Persistent for Tree {}
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
@@ -939,63 +939,63 @@ impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
 /// This trait is lot like `ToOwned`, the difference is that `Cow<'a,T>::Owned`
 /// is `Cow<'a,T>`, not `T::Owned`.
 
-pub trait ToPersistant {
-    type Persistant;
-    fn to_persistant(self) -> Self::Persistant;
-    fn from_persistant(p: Self::Persistant) -> Self;
+pub trait ToPersistent {
+    type Persistent;
+    fn to_persistent(self) -> Self::Persistent;
+    fn from_persistent(p: Self::Persistent) -> Self;
 }
 
-impl<'a, T: ?Sized> ToPersistant for Cow<'a, T> where T: ToOwned {
-    type Persistant = T::Owned;
-    fn to_persistant(self) -> T::Owned { self.into_owned() }
-    fn from_persistant(p: T::Owned) -> Cow<'a,T> { Owned(p) }
+impl<'a, T: ?Sized> ToPersistent for Cow<'a, T> where T: ToOwned {
+    type Persistent = T::Owned;
+    fn to_persistent(self) -> T::Owned { self.into_owned() }
+    fn from_persistent(p: T::Owned) -> Cow<'a,T> { Owned(p) }
 }
 
-impl<T, U> ToPersistant for (T, U) where T: ToPersistant, U: ToPersistant {
-    type Persistant = (T::Persistant, U::Persistant);
-    fn to_persistant(self) -> Self::Persistant { (self.0.to_persistant(), self.1.to_persistant()) }
-    fn from_persistant(p: Self::Persistant) -> Self { (ToPersistant::from_persistant(p.0), ToPersistant::from_persistant(p.1)) }
+impl<T, U> ToPersistent for (T, U) where T: ToPersistent, U: ToPersistent {
+    type Persistent = (T::Persistent, U::Persistent);
+    fn to_persistent(self) -> Self::Persistent { (self.0.to_persistent(), self.1.to_persistent()) }
+    fn from_persistent(p: Self::Persistent) -> Self { (ToPersistent::from_persistent(p.0), ToPersistent::from_persistent(p.1)) }
 }
 
-impl<T> ToPersistant for Option<T> where T: ToPersistant {
-    type Persistant = Option<T::Persistant>;
-    fn to_persistant(self) -> Self::Persistant { self.map(ToPersistant::to_persistant) }
-    fn from_persistant(p: Self::Persistant) -> Self { p.map(ToPersistant::from_persistant) }
+impl<T> ToPersistent for Option<T> where T: ToPersistent {
+    type Persistent = Option<T::Persistent>;
+    fn to_persistent(self) -> Self::Persistent { self.map(ToPersistent::to_persistent) }
+    fn from_persistent(p: Self::Persistent) -> Self { p.map(ToPersistent::from_persistent) }
 }
 
-impl<T,E> ToPersistant for Result<T,E> where T: ToPersistant, E: ToPersistant {
-    type Persistant = Result<T::Persistant,E::Persistant>;
-    fn to_persistant(self) -> Self::Persistant { self.map(ToPersistant::to_persistant).map_err(ToPersistant::to_persistant) }
-    fn from_persistant(p: Self::Persistant) -> Self { p.map(ToPersistant::from_persistant).map_err(ToPersistant::from_persistant) }
+impl<T,E> ToPersistent for Result<T,E> where T: ToPersistent, E: ToPersistent {
+    type Persistent = Result<T::Persistent,E::Persistent>;
+    fn to_persistent(self) -> Self::Persistent { self.map(ToPersistent::to_persistent).map_err(ToPersistent::to_persistent) }
+    fn from_persistent(p: Self::Persistent) -> Self { p.map(ToPersistent::from_persistent).map_err(ToPersistent::from_persistent) }
 }
 
-/// A marker trait for persistant data.
+/// A marker trait for persistent data.
 ///
 /// This trait is a quick way to implment `Persist` as a no-op.
 
-pub trait Persistant {}
+pub trait Persistent {}
 
-impl<T> ToPersistant for T where T: Persistant {
-    type Persistant = T;
-    fn to_persistant(self) -> T { self }
-    fn from_persistant(p: T) -> T { p }
+impl<T> ToPersistent for T where T: Persistent {
+    type Persistent = T;
+    fn to_persistent(self) -> T { self }
+    fn from_persistent(p: T) -> T { p }
 }
 
-impl Persistant for usize {}
-impl Persistant for u8 {}
-impl Persistant for u16 {}
-impl Persistant for u32 {}
-impl Persistant for u64 {}
-impl Persistant for isize {}
-impl Persistant for i8 {}
-impl Persistant for i16 {}
-impl Persistant for i32 {}
-impl Persistant for i64 {}
-impl Persistant for () {}
-impl Persistant for bool {}
-impl Persistant for char {}
-impl Persistant for String {}
-impl<T> Persistant for Vec<T> where T: Persistant {}
+impl Persistent for usize {}
+impl Persistent for u8 {}
+impl Persistent for u16 {}
+impl Persistent for u32 {}
+impl Persistent for u64 {}
+impl Persistent for isize {}
+impl Persistent for i8 {}
+impl Persistent for i16 {}
+impl Persistent for i32 {}
+impl Persistent for i64 {}
+impl Persistent for () {}
+impl Persistent for bool {}
+impl Persistent for char {}
+impl Persistent for String {}
+impl<T> Persistent for Vec<T> where T: Persistent {}
 
 /// An uncommitted parser that reads one character.
 ///
