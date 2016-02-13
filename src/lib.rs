@@ -60,7 +60,7 @@ pub mod impls;
 /// }
 /// ```
 
-pub trait Stateful<S> {
+pub trait Stateful<Str> {
 
     /// The type of the data being produced by the parser.
     type Output;
@@ -101,7 +101,7 @@ pub trait Stateful<S> {
     ///
     /// This helps with parser safety, as it stops a client from calling `parse` after a
     /// a stateful parser has finished.
-    fn parse(self, value: S) -> ParseResult<Self, S> where Self: Sized;
+    fn parse(self, value: Str) -> ParseResult<Self, Str> where Self: Sized;
 
     /// Tells the parser that it will not receive any more data.
     ///
@@ -146,20 +146,20 @@ pub trait Stateful<S> {
 }
 
 /// The result of a parse.
-pub enum ParseResult<P, S>
-    where P: Stateful<S>
+pub enum ParseResult<P, Str>
+    where P: Stateful<Str>
 {
     /// The parse is finished.
-    Done(S, P::Output),
+    Done(Str, P::Output),
     /// The parse can continue.
-    Continue(S, P),
+    Continue(Str, P),
 }
 
 // Implement Debug for ParseResult<P, S> without requiring P: Debug
 
-impl<P, S> Debug for ParseResult<P, S>
-    where P: Stateful<S>,
-          S: Debug,
+impl<P, Str> Debug for ParseResult<P, Str>
+    where P: Stateful<Str>,
+          Str: Debug,
           P::Output: Debug,
 {
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
@@ -170,11 +170,11 @@ impl<P, S> Debug for ParseResult<P, S>
     }
 }
 
-impl<P, S> ParseResult<P, S> where P: Stateful<S>
+impl<P, Str> ParseResult<P, Str> where P: Stateful<Str>
 {
     /// Apply a function the the `Continue` branch of a parse result.
-    pub fn map<F, Q>(self, f: F) -> ParseResult<Q, S>
-        where Q: Stateful<S, Output = P::Output>,
+    pub fn map<F, Q>(self, f: F) -> ParseResult<Q, Str>
+        where Q: Stateful<Str, Output = P::Output>,
               F: Function<P, Output = Q>
     {
         match self {
@@ -184,8 +184,8 @@ impl<P, S> ParseResult<P, S> where P: Stateful<S>
     }
 }
 
-impl<P,S> PartialEq for ParseResult<P, S> where S: PartialEq, P: Stateful<S>, P::Output: PartialEq {
-    fn eq(&self, other: &ParseResult<P, S>) -> bool {
+impl<P, Str> PartialEq for ParseResult<P, Str> where Str: PartialEq, P: Stateful<Str>, P::Output: PartialEq {
+    fn eq(&self, other: &ParseResult<P, Str>) -> bool {
         match (self, other) {
             (&Done(ref rest1, ref result1), &Done(ref rest2, ref result2)) => (rest1 == rest2) && (result1 == result2),
             _ => false,
@@ -201,18 +201,23 @@ impl<P,S> PartialEq for ParseResult<P, S> where S: PartialEq, P: Stateful<S>, P:
 /// it will backtrack on any non-alphabetic character, but
 /// `CHARACTER` is not, because it will produce `None` rather than backtracking.
 
-pub trait Parser {
+pub trait Parser<Ch> {
+
+    type StaticOutput: 'static;
+    type State: 'static;
 
     /// Choice between parsers
     fn or_else<P>(self, other: P) -> impls::OrElseParser<Self, P>
-        where Self: Sized
+        where Self: Sized,
+              P: Parser<Ch>,
     {
         impls::OrElseParser::new(self, other)
     }
 
     /// Sequencing with a committed parser
     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self, P>
-        where Self: Sized
+        where Self: Sized,
+              P: Parser<Ch>,
     {
         impls::AndThenParser::new(self, other)
     }
@@ -221,7 +226,8 @@ pub trait Parser {
     fn try_and_then<P>(self,
                        other: P)
                        -> impls::MapParser<impls::AndThenParser<Self, P>, impls::TryZip>
-        where Self: Sized
+        where Self: Sized,
+              P: Parser<Ch>,
     {
         self.and_then(other).map(impls::TryZip)
     }
@@ -230,7 +236,9 @@ pub trait Parser {
     fn and_then_try<P>(self,
                        other: P)
                        -> impls::MapParser<impls::AndThenParser<Self, P>, impls::ZipTry>
-        where Self: Sized
+        where Self: Sized,
+              P: Parser<Ch>,
+
     {
         self.and_then(other).map(impls::ZipTry)
     }
@@ -239,56 +247,59 @@ pub trait Parser {
     fn try_and_then_try<P>(self,
                            other: P)
                            -> impls::MapParser<impls::AndThenParser<Self, P>, impls::TryZipTry>
-        where Self: Sized
+        where Self: Sized,
+              P: Parser<Ch>,
     {
         self.and_then(other).map(impls::TryZipTry)
     }
 
     /// Iterate one or more times (returns an uncommitted parser).
     fn plus<F>(self, factory: F) -> impls::PlusParser<Self, F>
-        where Self: Sized
+        where Self: Sized,
+              F: Factory,
     {
         impls::PlusParser::new(self, factory)
     }
 
     /// Iterate zero or more times (returns a committed parser).
     fn star<F>(self, factory: F) -> impls::StarParser<Self, F>
-        where Self: Sized
+        where Self: Sized,
+              F: Factory,
     {
         impls::StarParser::new(self, factory)
     }
 
     /// Apply a function to the result
     fn map<F>(self, f: F) -> impls::MapParser<Self, F>
-        where Self: Sized
+        where Self: Sized,
     {
         impls::MapParser::new(self, f)
     }
 
     /// Apply a 2-arguent function to the result
     fn map2<F>(self, f: F) -> impls::MapParser<Self, impls::Function2<F>>
-        where Self: Sized
+        where Self: Sized,
     {
         impls::MapParser::new(self, impls::Function2::new(f))
     }
 
     /// Apply a 3-arguent function to the result
     fn map3<F>(self, f: F) -> impls::MapParser<Self, impls::Function3<F>>
-        where Self: Sized
+        where Self: Sized,
     {
         impls::MapParser::new(self, impls::Function3::new(f))
     }
 
     /// Apply a 4-arguent function to the result
     fn map4<F>(self, f: F) -> impls::MapParser<Self, impls::Function4<F>>
-        where Self: Sized
+        where Self: Sized,
     {
         impls::MapParser::new(self, impls::Function4::new(f))
     }
 
     /// Apply a 5-arguent function to the result
     fn map5<F>(self, f: F) -> impls::MapParser<Self, impls::Function5<F>>
-        where Self: Sized
+        where Self: Sized,
     {
         impls::MapParser::new(self, impls::Function5::new(f))
     }
@@ -329,11 +340,11 @@ pub trait Parser {
     }
 
     /// Take the results of iterating this parser, and feed it into another parser.
-    fn pipe<P>(self, other: P) -> impls::PipeParser<Self, P>
-        where Self: Sized
-    {
-        impls::PipeParser::new(self, other)
-    }
+    // fn pipe<P>(self, other: P) -> impls::PipeParser<Self, P>
+    //     where Self: Sized
+    // {
+    //     impls::PipeParser::new(self, other)
+    // }
 
     /// A parser which produces its input.
     ///
@@ -350,12 +361,12 @@ pub trait Parser {
     /// fn ignore() {}
     /// let parser = character(char::is_alphabetic).plus(ignore).buffer();
     /// match parser.parse("abc!") {
-    ///     Commit(Done("!",result)) => assert_eq!(result,Borrowed("abc")),
+    ///     Commit(Done("!",Borrowed(result))) => assert_eq!(result,"abc"),
     ///     _ => panic!("can't happen"),
     /// }
     /// match parser.parse("abc") {
     ///     Commit(Continue("",parsing)) => match parsing.parse("def!") {
-    ///         Done("!",result) => assert_eq!(result,Owned::<'static,str>(String::from("abcdef"))),
+    ///         Done("!",Owned(result)) => assert_eq!(result,"abcdef"),
     ///         _ => panic!("can't happen"),
     ///     },
     ///     _ => panic!("can't happen"),
@@ -392,36 +403,27 @@ pub trait Parser {
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
 /// and non-empty.
 
-pub trait Committed<S>: Parser {
-
-    /// The type of the data being produced by the parser.
-    type Output;
-
-    /// The type of the parser state.
-    type State: Stateful<S,Output=Self::Output>;
+pub trait Committed<Str>: Parser<<Str::Item as ToStatic>::Static>
+    where Str: IntoPeekable,
+          Str::Item: ToStatic,
+{
 
     /// Create a stateful parser by initializing a stateless parser.
     fn init(&self) -> Self::State;
 
     /// Build an iterator from a parser and some data.
-    fn iter(self, data: S) -> impls::IterParser<Self, Self::State, S>
+    fn iter(self, data: Str) -> impls::IterParser<Self, Self::State, Str>
         where Self: Sized + Copy
     {
         impls::IterParser::new(self, data)
     }
 
     /// Short hand for calling init then parse.
-    fn init_parse(&self, data: S) -> ParseResult<Self::State, S>
-        where Self: Sized
+    fn init_parse(&self, data: Str) -> ParseResult<Self::State, Str>
+        where Self: Sized,
+              Self::State: Stateful<Str>,
     {
         self.init().parse(data)
-    }
-
-    /// Short hand for calling init then done.
-    fn init_done(&self) -> Self::Output
-        where Self: Sized
-    {
-        self.init().done()
     }
 
 }
@@ -460,13 +462,10 @@ pub trait Committed<S>: Parser {
 /// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
-pub trait Uncommitted<S>: Parser {
-
-    /// The type of the data being produced by the parser.
-    type Output;
-
-    /// The type of the parser state.
-    type State: Stateful<S,Output=Self::Output>;
+pub trait Uncommitted<Str>: Parser<<Str::Item as ToStatic>::Static>
+    where Str: IntoPeekable,
+          Str::Item: ToStatic,
+{
 
     /// Provides data to the parser.
     ///
@@ -508,7 +507,9 @@ pub trait Uncommitted<S>: Parser {
     /// token of data (since the parser only retries on empty input)
     /// so this is appropriate for LL(1) grammars that only perform one token
     /// of lookahead.
-    fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> where Self: Sized;
+    fn parse(&self, value: Str) -> MaybeParseResult<Self::State, Str>
+        where Self: Sized,
+              Self::State: Stateful<Str>;
 
 }
 
@@ -647,9 +648,9 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// For example, consider a simple type for trees:
 ///
 /// ```
-/// # use parsell::{Owned};
+/// # use parsell::{Static};
 /// struct Tree(Vec<Tree>);
-/// impl Owned for Tree {}
+/// impl Static for Tree {}
 /// ```
 ///
 /// which can be parsed from a well-nested sequence of parentheses, for example
@@ -681,28 +682,29 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// `BoxableParserState` trait:
 ///
 /// ```
-/// # use parsell::{Boxable, Owned};
+/// # use parsell::{Boxable, Static};
 /// # struct Tree(Vec<Tree>);
-/// # impl Owned for Tree {}
+/// # impl Static for Tree {}
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Tree>>;
 /// ```
 ///
 /// The implementation of `Uncommitted<&str>` for `TreeParser` is mostly straightfoward:
 ///
 /// ```
-/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Owned};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Static};
 /// # use parsell::ParseResult::{Done,Continue};
 /// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
-/// impl Owned for Tree {}
+/// impl Static for Tree {}
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
-/// impl Parser for TreeParser {}
-/// impl<'a> Uncommitted<&'a str> for TreeParser {
-///     type Output = Result<Tree,String>;
+/// impl Parser<char> for TreeParser {
+///     type StaticOutput = Result<Tree,String>;
 ///     type State = TreeParserState;
+/// }
+/// impl<'a> Uncommitted<&'a str> for TreeParser {
 ///     fn parse(&self, data: &'a str) -> MaybeParseResult<Self::State,&'a str> {
 ///         // ... parser goes here...`
 /// #       fn is_lparen(ch: char) -> bool { ch == '(' }
@@ -732,19 +734,20 @@ impl<P,S> PartialEq for MaybeParseResult<P, S> where S: PartialEq, P: Stateful<S
 /// recursively, then box up the result state:
 ///
 /// ```
-/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Owned};
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Static};
 /// # use parsell::ParseResult::{Done,Continue};
 /// # use parsell::MaybeParseResult::{Commit};
 /// # #[derive(Eq,PartialEq,Clone,Debug)]
 /// struct Tree(Vec<Tree>);
-/// impl Owned for Tree {}
+/// impl Static for Tree {}
 /// # #[derive(Copy,Clone,Debug)]
 /// struct TreeParser;
 /// type TreeParserState = Box<for<'b> Boxable<&'b str, Output=Result<Tree,String>>>;
-/// impl Parser for TreeParser {}
-/// impl<'a> Uncommitted<&'a str> for TreeParser {
-///     type Output = Result<Tree,String>;
+/// impl Parser<char> for TreeParser {
+///     type StaticOutput = Result<Tree,String>;
 ///     type State = TreeParserState;
+/// }
+/// impl<'a> Uncommitted<&'a str> for TreeParser {
 ///     fn parse(&self, data: &'a str) -> MaybeParseResult<Self::State,&'a str> {
 ///         fn is_lparen(ch: char) -> bool { ch == '(' }
 ///         fn is_rparen(ch: char) -> bool { ch == ')' }
@@ -787,6 +790,112 @@ pub trait Boxable<S> {
     fn done_boxable(&mut self) -> Self::Output;
 }
 
+/// Cut-and-paste `std::iter::Peekable`.
+///
+/// We copy this since we use access to a private field.
+
+#[derive(Clone)]
+#[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
+pub struct Peekable<I: Iterator> {
+    iter: I,
+    peeked: Option<I::Item>,
+}
+
+impl<I: Iterator> Iterator for Peekable<I> {
+    type Item = I::Item;
+
+    #[inline]
+    fn next(&mut self) -> Option<I::Item> {
+        match self.peeked {
+            Some(_) => self.peeked.take(),
+            None => self.iter.next(),
+        }
+    }
+
+    #[inline]
+    fn count(self) -> usize {
+        (if self.peeked.is_some() { 1 } else { 0 }) + self.iter.count()
+    }
+
+    #[inline]
+    fn nth(&mut self, n: usize) -> Option<I::Item> {
+        match self.peeked {
+            Some(_) if n == 0 => self.peeked.take(),
+            Some(_) => {
+                self.peeked = None;
+                self.iter.nth(n-1)
+            },
+            None => self.iter.nth(n)
+        }
+    }
+
+    #[inline]
+    fn last(self) -> Option<I::Item> {
+        self.iter.last().or(self.peeked)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (lo, hi) = self.iter.size_hint();
+        if self.peeked.is_some() {
+            let lo = lo.saturating_add(1);
+            let hi = hi.and_then(|x| x.checked_add(1));
+            (lo, hi)
+        } else {
+            (lo, hi)
+        }
+    }
+}
+
+impl<I: ExactSizeIterator> ExactSizeIterator for Peekable<I> {}
+
+impl<I: Iterator> Peekable<I> {
+
+    #[inline]
+    pub fn peek(&mut self) -> Option<&I::Item> {
+        if self.peeked.is_none() {
+            self.peeked = self.iter.next();
+        }
+        match self.peeked {
+            Some(ref value) => Some(value),
+            None => None,
+        }
+    }
+
+    #[inline]
+    pub fn is_empty(&mut self) -> bool {
+        self.peek().is_none()
+    }
+
+    #[inline]
+    pub fn new(iter: I) -> Self {
+        Peekable{ iter: iter, peeked: None }
+    }
+
+}
+
+/// A trait for data that can be coverted to a peekable iterator.
+///
+/// This is a lot like `IntoIterator`, but returns a peekable.
+
+pub trait IntoPeekable {
+    type Item;
+    type Iter: Iterator<Item = Self::Item>;
+    fn into_peekable(self) -> Peekable<Self::Iter>;
+}
+
+impl<'a> IntoPeekable for &'a str {
+    type Item = char;
+    type Iter = std::str::Chars<'a>;
+    fn into_peekable(self) -> Peekable<Self::Iter> { Peekable::new(self.chars()) }
+}
+
+impl<I> IntoPeekable for Peekable<I> where I: Iterator {
+    type Item = I::Item;
+    type Iter = I;
+    fn into_peekable(self) -> Peekable<Self::Iter> { self }
+}
+
 /// A trait for one-argument functions.
 ///
 /// This trait is just the same as `Fn(T) -> U`, but can be implemented by a struct.
@@ -810,9 +919,9 @@ pub trait Boxable<S> {
 /// At some point, Rust will probably get abstract return types,
 /// at which point the main need for this type will go away.
 
-pub trait Function<T> {
+pub trait Function<S> {
     type Output;
-    fn apply(&self, arg: T) -> Self::Output;
+    fn apply(&self, arg: S) -> Self::Output;
 }
 
 // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
@@ -938,63 +1047,63 @@ impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
 /// This trait is lot like `ToOwned`, the difference is that `<Cow<'a,T> as ToOwned>::Owned`
 /// is `Cow<'a,T>`, not `T::Owned`.
 
-pub trait ToFromOwned {
-    type Owned;
-    fn to_owned(self) -> Self::Owned;
-    fn from_owned(p: Self::Owned) -> Self;
+pub trait ToStatic {
+    type Static: 'static;
+    fn downcast(self) -> Self::Static;
+    fn upcast(p: Self::Static) -> Self;
 }
 
-impl<'a, T: ?Sized> ToFromOwned for Cow<'a, T> where T: ToOwned {
-    type Owned = T::Owned;
-    fn to_owned(self) -> T::Owned { self.into_owned() }
-    fn from_owned(p: T::Owned) -> Cow<'a,T> { Cow::Owned(p) }
+impl<'a, T: ?Sized> ToStatic for Cow<'a, T> where T: 'static + ToOwned { // TODO: allow non-static T here
+    type Static = Cow<'static, T>;
+    fn downcast(self) -> Self::Static { Cow::Owned(self.into_owned()) }
+    fn upcast(p: Self::Static) -> Self { p }
 }
 
-impl<T, U> ToFromOwned for (T, U) where T: ToFromOwned, U: ToFromOwned {
-    type Owned = (T::Owned, U::Owned);
-    fn to_owned(self) -> Self::Owned { (self.0.to_owned(), self.1.to_owned()) }
-    fn from_owned(p: Self::Owned) -> Self { (ToFromOwned::from_owned(p.0), ToFromOwned::from_owned(p.1)) }
+impl<T, U> ToStatic for (T, U) where T: ToStatic, U: ToStatic {
+    type Static = (T::Static, U::Static);
+    fn downcast(self) -> Self::Static { (self.0.downcast(), self.1.downcast()) }
+    fn upcast(p: Self::Static) -> Self { (ToStatic::upcast(p.0), ToStatic::upcast(p.1)) }
 }
 
-impl<T> ToFromOwned for Option<T> where T: ToFromOwned {
-    type Owned = Option<T::Owned>;
-    fn to_owned(self) -> Self::Owned { self.map(ToFromOwned::to_owned) }
-    fn from_owned(p: Self::Owned) -> Self { p.map(ToFromOwned::from_owned) }
+impl<T> ToStatic for Option<T> where T: ToStatic {
+    type Static = Option<T::Static>;
+    fn downcast(self) -> Self::Static { self.map(ToStatic::downcast) }
+    fn upcast(p: Self::Static) -> Self { p.map(ToStatic::upcast) }
 }
 
-impl<T,E> ToFromOwned for Result<T,E> where T: ToFromOwned, E: ToFromOwned {
-    type Owned = Result<T::Owned,E::Owned>;
-    fn to_owned(self) -> Self::Owned { self.map(ToFromOwned::to_owned).map_err(ToFromOwned::to_owned) }
-    fn from_owned(p: Self::Owned) -> Self { p.map(ToFromOwned::from_owned).map_err(ToFromOwned::from_owned) }
+impl<T,E> ToStatic for Result<T,E> where T: ToStatic, E: ToStatic {
+    type Static = Result<T::Static,E::Static>;
+    fn downcast(self) -> Self::Static { self.map(ToStatic::downcast).map_err(ToStatic::downcast) }
+    fn upcast(p: Self::Static) -> Self { p.map(ToStatic::upcast).map_err(ToStatic::upcast) }
 }
 
-/// A marker trait for owned data.
+/// A marker trait for static data.
 ///
-/// This trait is a quick way to implment `Persist` as a no-op.
+/// This trait is a quick way to implment `ToStatic` as a no-op.
 
-pub trait Owned {}
+pub trait Static where Self: 'static {}
 
-impl<T> ToFromOwned for T where T: Owned {
-    type Owned = T;
-    fn to_owned(self) -> T { self }
-    fn from_owned(p: T) -> T { p }
+impl<T> ToStatic for T where T: Static {
+    type Static = T;
+    fn downcast(self) -> T { self }
+    fn upcast(p: T) -> T { p }
 }
 
-impl Owned for usize {}
-impl Owned for u8 {}
-impl Owned for u16 {}
-impl Owned for u32 {}
-impl Owned for u64 {}
-impl Owned for isize {}
-impl Owned for i8 {}
-impl Owned for i16 {}
-impl Owned for i32 {}
-impl Owned for i64 {}
-impl Owned for () {}
-impl Owned for bool {}
-impl Owned for char {}
-impl Owned for String {}
-impl<T> Owned for Vec<T> where T: Owned {}
+impl Static for usize {}
+impl Static for u8 {}
+impl Static for u16 {}
+impl Static for u32 {}
+impl Static for u64 {}
+impl Static for isize {}
+impl Static for i8 {}
+impl Static for i16 {}
+impl Static for i32 {}
+impl Static for i64 {}
+impl Static for () {}
+impl Static for bool {}
+impl Static for char {}
+impl Static for String {}
+impl<T> Static for Vec<T> where T: Static {}
 
 /// An uncommitted parser that reads one character.
 ///
@@ -1101,11 +1210,11 @@ fn test_token() {
         *num == 0
     }
     let parser = token(is_zero);
-    let mut iter = parser.parse((1..3).peekable()).unAbort();
+    let mut iter = parser.parse(Peekable::new(1..3)).unAbort();
     assert_eq!(iter.next(), Some(1));
     assert_eq!(iter.next(), Some(2));
     assert_eq!(iter.next(), None);
-    let (mut iter, result) = parser.parse((0..3).peekable()).unCommit().unDone();
+    let (mut iter, result) = parser.parse(Peekable::new(0..3)).unCommit().unDone();
     assert_eq!(iter.next(), Some(1));
     assert_eq!(iter.next(), Some(2));
     assert_eq!(iter.next(), None);
@@ -1116,7 +1225,7 @@ fn test_token() {
 #[allow(non_snake_case)]
 fn test_TOKEN() {
     let parser = TOKEN;
-    let (mut iter, result) = parser.init_parse("abc".chars()).unDone();
+    let (mut iter, result) = parser.init_parse(Peekable::new("abc".chars())).unDone();
     assert_eq!(result, Some('a'));
     assert_eq!(iter.next(), Some('b'));
     assert_eq!(iter.next(), Some('c'));
@@ -1399,59 +1508,60 @@ fn test_iter() {
     assert_eq!(iter.next(), None);
 }
 
-#[test]
-#[allow(non_snake_case)]
-fn test_pipe() {
-    use std::borrow::{Borrow, Cow};
-    #[derive(Clone,Debug,PartialEq,Eq)]
-    enum Token {
-        Identifier(String),
-        Number(usize),
-        Other,
-    }
-    fn mk_id<'a>(string: Cow<'a, str>) -> Token {
-        Token::Identifier(string.into_owned())
-    }
-    fn mk_num<'a>(string: Cow<'a, str>) -> Token {
-        Token::Number(usize::from_str_radix(string.borrow(), 10).unwrap())
-    }
-    fn mk_other(_: Option<char>) -> Token {
-        Token::Other
-    }
-    fn ignore() {}
-    fn is_decimal(ch: char) -> bool {
-        ch.is_digit(10)
-    }
-    fn is_identifier(tok: &Token) -> bool {
-        match *tok {
-            Token::Identifier(_) => true,
-            _ => false,
-        }
-    }
-    fn is_number(tok: &Token) -> bool {
-        match *tok {
-            Token::Number(_) => true,
-            _ => false,
-        }
-    }
-    let ALPHABETIC = character(char::is_alphabetic);
-    let DIGIT = character(is_decimal);
-    let lexer = ALPHABETIC.plus(ignore)
-                          .buffer()
-                          .map(mk_id)
-                          .or_else(DIGIT.plus(ignore).buffer().map(mk_num))
-                          .or_else(CHARACTER.map(mk_other));
-    let parser = token(is_identifier).or_else(token(is_number)).star(Vec::<Token>::new);
-    assert_eq!(lexer.pipe(parser).init().parse("abc37!!").unDone(),
-               ("!",
-                vec![Token::Identifier(String::from("abc")), Token::Number(37)]));
-}
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_pipe() {
+//     use std::borrow::{Borrow, Cow};
+//     #[derive(Clone,Debug,PartialEq,Eq)]
+//     enum Token {
+//         Identifier(String),
+//         Number(usize),
+//         Other,
+//     }
+//     fn mk_id<'a>(string: Cow<'a, str>) -> Token {
+//         Token::Identifier(string.into_owned())
+//     }
+//     fn mk_num<'a>(string: Cow<'a, str>) -> Token {
+//         Token::Number(usize::from_str_radix(string.borrow(), 10).unwrap())
+//     }
+//     fn mk_other(_: Option<char>) -> Token {
+//         Token::Other
+//     }
+//     fn ignore() {}
+//     fn is_decimal(ch: char) -> bool {
+//         ch.is_digit(10)
+//     }
+//     fn is_identifier(tok: &Token) -> bool {
+//         match *tok {
+//             Token::Identifier(_) => true,
+//             _ => false,
+//         }
+//     }
+//     fn is_number(tok: &Token) -> bool {
+//         match *tok {
+//             Token::Number(_) => true,
+//             _ => false,
+//         }
+//     }
+//     let ALPHABETIC = character(char::is_alphabetic);
+//     let DIGIT = character(is_decimal);
+//     let lexer = ALPHABETIC.plus(ignore)
+//                           .buffer()
+//                           .map(mk_id)
+//                           .or_else(DIGIT.plus(ignore).buffer().map(mk_num))
+//                           .or_else(CHARACTER.map(mk_other));
+//     let parser = token(is_identifier).or_else(token(is_number)).star(Vec::<Token>::new);
+//     assert_eq!(lexer.pipe(parser).init().parse("abc37!!").unDone(),
+//                ("!",
+//                 vec![Token::Identifier(String::from("abc")), Token::Number(37)]));
+// }
 
 #[test]
 #[allow(non_snake_case)]
 fn test_different_lifetimes1() {
     fn go<'a, 'b, P>(ab: &'a str, cd: &'b str, parser: P)
-        where P: Copy + for<'c> Committed<&'c str, Output = (Option<char>, Option<char>)>
+        where P: Copy + Parser<char> + for<'c> Committed<&'c str>,
+              <P as Parser<char>>::State: for<'c> Stateful<&'c str, Output = (Option<char>, Option<char>)>,
     {
         let _: &'a str = parser.init().parse(ab).unDone().0;
         let _: &'b str = parser.init().parse(cd).unDone().0;
@@ -1471,30 +1581,24 @@ fn test_different_lifetimes2() {
     use std::borrow::Cow::Owned;
     fn ignore() {}
     fn is_owned<'a,T:?Sized+ToOwned>(cow: &Cow<'a,T>) -> bool { match cow { &Owned(_) => true, _ => false } }
-    fn go<'a, 'b, P>(fst: &'a str, snd: &'b str, parser: P)
-        where P: Copy + for<'c> Committed<&'c str, Output = (Cow<'c,str>, Cow<'c,str>)>
-    {
-        match parser.init().parse(fst) {
-            Continue("", parsing) => match parsing.parse(snd) {
-                Done("!", (ref fst, ref snd)) => {
-                    assert!(is_owned(fst));
-                    assert!(is_owned(snd));
-                    assert_eq!(fst, "abc");
-                    assert_eq!(snd, "123");
-                },
-                oops => panic!("Shouldn't happen 2 {:?}", oops),
-            },
-            Done("!", (ref fst, ref snd)) => {
-                assert!(!is_owned(fst));
-                assert!(!is_owned(snd));
-                assert_eq!(fst, "abc");
-                assert_eq!(snd, "123");
-            },
-            oops => panic!("Shouldn't happen 1 {:?}", oops),
-        }
-    }
     let parser = character(char::is_alphabetic).star(ignore).buffer()
         .and_then(character(char::is_numeric).star(ignore).buffer());
-    go("abc123!", "!", parser);
-    go("abc1", "23!", parser);
+    match parser.init().parse("abc123!") {
+        Done("!", (ref fst, ref snd)) => {
+            assert!(!is_owned(fst));
+            assert!(!is_owned(snd));
+            assert_eq!(fst, "abc");
+            assert_eq!(snd, "123");
+        },
+        oops => panic!("Shouldn't happen {:?}", oops),
+    };
+    match parser.init().parse("abc1").unContinue().parse("23!") {
+        Done("!", (ref fst, ref snd)) => {
+            assert!(is_owned(fst));
+            assert!(is_owned(snd));
+            assert_eq!(fst, "abc");
+            assert_eq!(snd, "123");
+        },
+        oops => panic!("Shouldn't happen {:?}", oops),
+    };
 }

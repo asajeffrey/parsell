@@ -1,19 +1,19 @@
 //! Provide implementations of parser traits.
 
 use super::{Stateful, Parser, Uncommitted, Committed, Boxable, ParseResult, MaybeParseResult,
-            Factory, Function, Consumer, ToFromOwned};
+            Factory, Function, Consumer, ToStatic, Peekable, IntoPeekable};
 use super::ParseResult::{Continue, Done};
 use super::MaybeParseResult::{Abort, Commit, Empty};
 
 use self::AndThenStatefulParser::{InLhs, InRhs};
-use self::OrElseStatefulParser::{Lhs, Rhs};
+// use self::OrElseStatefulParser::{Lhs, Rhs};
 use self::OrElseCommittedParser::{Uncommit, CommitLhs, CommitRhs};
 
 use std::borrow::Cow;
 use std::borrow::Cow::{Borrowed, Owned};
-use std::iter::Peekable;
 use std::fmt::{Formatter, Debug};
 use std;
+
 
 // ----------- N-argument functions ---------------
 
@@ -145,40 +145,6 @@ impl<S, T, E> Function<(Result<S, E>, Result<T, E>)> for TryZipTry {
 
 // ----------- Map ---------------
 
-#[derive(Debug)]
-pub struct MapStatefulParser<P, F>(P, F);
-
-// A work around for functions implmenting copy but not clone
-// https://github.com/rust-lang/rust/issues/28229
-impl<P, F> Copy for MapStatefulParser<P, F>
-    where P: Copy,
-          F: Copy
-{}
-impl<P, F> Clone for MapStatefulParser<P, F>
-    where P: Clone,
-          F: Copy
-{
-    fn clone(&self) -> Self {
-        MapStatefulParser(self.0.clone(), self.1)
-    }
-}
-
-impl<P, F, S, T> Stateful<S> for MapStatefulParser<P, F>
-    where P: Stateful<S, Output = T>,
-          F: Function<T>
-{
-    type Output = F::Output;
-    fn parse(self, value: S) -> ParseResult<Self, S> {
-        match self.0.parse(value) {
-            Done(rest, result) => Done(rest, self.1.apply(result)),
-            Continue(rest, parsing) => Continue(rest, MapStatefulParser(parsing, self.1)),
-        }
-    }
-    fn done(self) -> Self::Output {
-        self.1.apply(self.0.done())
-    }
-}
-
 pub struct MapParser<P, F>(P, F);
 
 // A work around for functions implmenting copy but not clone
@@ -206,32 +172,56 @@ impl<P, F> Debug for MapParser<P, F>
     }
 }
 
-impl<P, F> Parser for MapParser<P, F> {}
-impl<P, F, S> Uncommitted<S> for MapParser<P, F>
-    where P: Uncommitted<S>,
-          F: Copy + Function<P::Output>
+impl<P, F, S> Stateful<S> for MapParser<P, F>
+    where P: Stateful<S>,
+          F: Function<P::Output>
 {
     type Output = F::Output;
-    type State = MapStatefulParser<P::State,F>;
-    fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
+    fn parse(self, value: S) -> ParseResult<Self, S> {
+        match self.0.parse(value) {
+            Done(rest, result) => Done(rest, self.1.apply(result)),
+            Continue(rest, parsing) => Continue(rest, MapParser(parsing, self.1)),
+        }
+    }
+    fn done(self) -> Self::Output {
+        self.1.apply(self.0.done())
+    }
+}
+
+impl<P, F, Ch> Parser<Ch> for MapParser<P, F>
+    where P: Parser<Ch>,
+          F: 'static + Function<P::StaticOutput>,
+{
+    type StaticOutput = F::Output;
+    type State = MapParser<P::State,F>;
+}
+impl<P, F, Str> Uncommitted<Str> for MapParser<P, F>
+    where P: Uncommitted<Str>,
+          F: 'static + Copy + Function<<P::State as Stateful<Str>>::Output> + Function<P::StaticOutput>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+          P::State: Stateful<Str>,
+{
+    fn parse(&self, value: Str) -> MaybeParseResult<Self::State, Str> {
         match self.0.parse(value) {
             Empty(rest) => Empty(rest),
             Commit(Done(rest, result)) => Commit(Done(rest, self.1.apply(result))),
             Commit(Continue(rest, parsing)) => {
-                Commit(Continue(rest, MapStatefulParser(parsing, self.1)))
+                Commit(Continue(rest, MapParser(parsing, self.1)))
             }
             Abort(value) => Abort(value),
         }
     }
 }
-impl<P, F, S> Committed<S> for MapParser<P, F>
-    where P: Committed<S>,
-          F: Copy + Function<P::Output>
+impl<P, F, Str> Committed<Str> for MapParser<P, F>
+    where P: Committed<Str>,
+          F: 'static + Copy + Function<<P::State as Stateful<Str>>::Output> + Function<P::StaticOutput>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+          P::State: Stateful<Str>,
 {
-    type Output = F::Output;
-    type State = MapStatefulParser<P::State,F>;
     fn init(&self) -> Self::State {
-        MapStatefulParser(self.0.init(), self.1)
+        MapParser(self.0.init(), self.1)
     }
 }
 
@@ -246,32 +236,36 @@ impl<P, F> MapParser<P, F> {
 #[derive(Copy, Clone, Debug)]
 pub struct AndThenParser<P, Q>(P, Q);
 
-impl<P, Q> Parser for AndThenParser<P, Q> {}
-impl<P, Q, S> Committed<S> for AndThenParser<P, Q>
-    where P: Committed<S>,
-          Q: Committed<S>,
-          P::Output: ToFromOwned,
+impl<P, Q, Ch> Parser<Ch> for AndThenParser<P, Q> where P: Parser<Ch>, Q: Parser<Ch> {
+    type State = AndThenStatefulParser<P::State,Q::State,P::StaticOutput>;
+    type StaticOutput = (P::StaticOutput, Q::StaticOutput);        
+}
+impl<P, Q, Str> Committed<Str> for AndThenParser<P, Q>
+    where P: Committed<Str>,
+          Q: Committed<Str>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
 {
-    type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToFromOwned>::Owned>;
     fn init(&self) -> Self::State {
         InLhs(self.0.init(), self.1.init())
     }
 }
-impl<P, Q, S> Uncommitted<S> for AndThenParser<P, Q>
-    where P: Uncommitted<S>,
-          Q: Committed<S>,
-          P::Output: ToFromOwned,
+impl<P, Q, Str> Uncommitted<Str> for AndThenParser<P, Q>
+    where P: Uncommitted<Str>,
+          Q: Committed<Str>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+          P::State: Stateful<Str>,
+          Q::State: Stateful<Str>,
+          <P::State as Stateful<Str>>::Output: ToStatic<Static = P::StaticOutput>,
 {
-    type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToFromOwned>::Owned>;
-    fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
+    fn parse(&self, value: Str) -> MaybeParseResult<Self::State, Str> {
         match self.0.parse(value) {
             Empty(rest) => Empty(rest),
             Commit(Done(rest, result1)) => {
                 match self.1.init().parse(rest) {
                     Done(rest, result2) => Commit(Done(rest, (result1, result2))),
-                    Continue(rest, parsing) => Commit(Continue(rest, InRhs(result1.to_owned(), parsing))),
+                    Continue(rest, parsing) => Commit(Continue(rest, InRhs(result1.downcast(), parsing))),
                 }
             }
             Commit(Continue(rest, parsing)) => {
@@ -288,10 +282,10 @@ pub enum AndThenStatefulParser<P, Q, T> {
     InRhs(T, Q),
 }
 
-impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToFromOwned>::Owned>
+impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToStatic>::Static>
     where P: Stateful<S>,
           Q: Stateful<S>,
-          P::Output: ToFromOwned,
+          P::Output: ToStatic,
 {
     type Output = (P::Output,Q::Output);
     fn parse(self, value: S) -> ParseResult<Self, S> {
@@ -301,7 +295,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToFromOw
                     Done(rest, result1) => {
                         match rhs.parse(rest) {
                             Done(rest, result2) => Done(rest, (result1, result2)),
-                            Continue(rest, parsing) => Continue(rest, InRhs(result1.to_owned(), parsing)),
+                            Continue(rest, parsing) => Continue(rest, InRhs(result1.downcast(), parsing)),
                         }
                     }
                     Continue(rest, parsing) => Continue(rest, InLhs(parsing, rhs)),
@@ -309,7 +303,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToFromOw
             }
             InRhs(result1, rhs) => {
                 match rhs.parse(value) {
-                    Done(rest, result2) => Done(rest, (ToFromOwned::from_owned(result1), result2)),
+                    Done(rest, result2) => Done(rest, (ToStatic::upcast(result1), result2)),
                     Continue(rest, parsing) => Continue(rest, InRhs(result1, parsing)),
                 }
             }
@@ -318,7 +312,7 @@ impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToFromOw
     fn done(self) -> Self::Output {
         match self {
             InLhs(lhs, rhs) => (lhs.done(), rhs.done()),
-            InRhs(result1, rhs) => (ToFromOwned::from_owned(result1), rhs.done()),
+            InRhs(result1, rhs) => (ToStatic::upcast(result1), rhs.done()),
         }
     }
 }
@@ -334,33 +328,41 @@ impl<P, Q> AndThenParser<P, Q> {
 #[derive(Copy, Clone, Debug)]
 pub struct OrElseParser<P, Q>(P, Q);
 
-impl<P, Q> Parser for OrElseParser<P, Q> {}
-impl<P, Q, S> Committed<S> for OrElseParser<P, Q>
-    where P: Copy + Uncommitted<S>,
-          Q: Committed<S, Output = P::Output>
+impl<P, Q, Ch> Parser<Ch> for OrElseParser<P, Q>
+    where P: 'static + Parser<Ch>,
+          Q: Parser<Ch>,
 {
-    type Output = P::Output;
+    type StaticOutput = P::StaticOutput;
     type State = OrElseCommittedParser<P,P::State,Q::State>;
+}
+impl<P, Q, Str> Committed<Str> for OrElseParser<P, Q>
+    where P: 'static + Copy + Uncommitted<Str>,
+          Q: Committed<Str>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+{
     fn init(&self) -> Self::State {
         Uncommit(self.0, self.1.init())
     }
 }
-impl<P, Q, S> Uncommitted<S> for OrElseParser<P, Q>
-    where P: Uncommitted<S>,
-          Q: Uncommitted<S, Output = P::Output>
+impl<P, Q, Str> Uncommitted<Str> for OrElseParser<P, Q>
+    where P: 'static + Uncommitted<Str>,
+          Q: Uncommitted<Str>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+          P::State: Stateful<Str>,
+          Q::State: Stateful<Str, Output = <P::State as Stateful<Str>>::Output>,
 {
-    type Output = P::Output;
-    type State = OrElseStatefulParser<P::State,Q::State>;
-    fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
+    fn parse(&self, value: Str) -> MaybeParseResult<Self::State, Str> {
         match self.0.parse(value) {
             Empty(rest) => Empty(rest),
             Commit(Done(rest, result)) => Commit(Done(rest, result)),
-            Commit(Continue(rest, parsing)) => Commit(Continue(rest, Lhs(parsing))),
+            Commit(Continue(rest, parsing)) => Commit(Continue(rest, CommitLhs(parsing))),
             Abort(value) => {
                 match self.1.parse(value) {
                     Empty(rest) => Empty(rest),
                     Commit(Done(rest, result)) => Commit(Done(rest, result)),
-                    Commit(Continue(rest, parsing)) => Commit(Continue(rest, Rhs(parsing))),
+                    Commit(Continue(rest, parsing)) => Commit(Continue(rest, CommitRhs(parsing))),
                     Abort(value) => Abort(value),
                 }
             }
@@ -374,40 +376,40 @@ impl<P, Q> OrElseParser<P, Q> {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum OrElseStatefulParser<P, Q> {
-    Lhs(P),
-    Rhs(Q),
-}
+// #[derive(Copy, Clone, Debug)]
+// pub enum OrElseStatefulParser<P, Q> {
+//     Lhs(P),
+//     Rhs(Q),
+// }
 
-impl<P, Q, S> Stateful<S> for OrElseStatefulParser<P, Q>
-    where P: Stateful<S>,
-          Q: Stateful<S, Output = P::Output>
-{
-    type Output = P::Output;
-    fn parse(self, value: S) -> ParseResult<Self, S> {
-        match self {
-            Lhs(lhs) => {
-                match lhs.parse(value) {
-                    Done(rest, result) => Done(rest, result),
-                    Continue(rest, parsing) => Continue(rest, Lhs(parsing)),
-                }
-            }
-            Rhs(rhs) => {
-                match rhs.parse(value) {
-                    Done(rest, result) => Done(rest, result),
-                    Continue(rest, parsing) => Continue(rest, Rhs(parsing)),
-                }
-            }
-        }
-    }
-    fn done(self) -> Self::Output {
-        match self {
-            Lhs(lhs) => lhs.done(),
-            Rhs(rhs) => rhs.done(),
-        }
-    }
-}
+// impl<P, Q, Str> Stateful<Str> for OrElseStatefulParser<P, Q>
+//     where P: Stateful<Str>,
+//           Q: Stateful<Str, Output = P::Output>
+// {
+//     type Output = P::Output;
+//     fn parse(self, value: Str) -> ParseResult<Self, Str> {
+//         match self {
+//             Lhs(lhs) => {
+//                 match lhs.parse(value) {
+//                     Done(rest, result) => Done(rest, result),
+//                     Continue(rest, parsing) => Continue(rest, Lhs(parsing)),
+//                 }
+//             }
+//             Rhs(rhs) => {
+//                 match rhs.parse(value) {
+//                     Done(rest, result) => Done(rest, result),
+//                     Continue(rest, parsing) => Continue(rest, Rhs(parsing)),
+//                 }
+//             }
+//         }
+//     }
+//     fn done(self) -> Self::Output {
+//         match self {
+//             Lhs(lhs) => lhs.done(),
+//             Rhs(rhs) => rhs.done(),
+//         }
+//     }
+// }
 
 #[derive(Copy, Clone, Debug)]
 pub enum OrElseCommittedParser<P, Q, R> {
@@ -416,12 +418,15 @@ pub enum OrElseCommittedParser<P, Q, R> {
     CommitRhs(R),
 }
 
-impl<P, Q, S> Stateful<S> for OrElseCommittedParser<P, P::State, Q>
-    where P: Uncommitted<S>,
-          Q: Stateful<S, Output = P::Output>
+impl<P, Q, Str> Stateful<Str> for OrElseCommittedParser<P, P::State, Q>
+    where P: Uncommitted<Str>,
+          Q: Stateful<Str>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+          P::State: Stateful<Str, Output = Q::Output>,
 {
-    type Output = P::Output;
-    fn parse(self, value: S) -> ParseResult<Self, S> {
+    type Output = Q::Output;
+    fn parse(self, value: Str) -> ParseResult<Self, Str> {
         match self {
             Uncommit(lhs, rhs) => {
                 match lhs.parse(value) {
@@ -464,12 +469,15 @@ impl<P, Q, S> Stateful<S> for OrElseCommittedParser<P, P::State, Q>
 #[derive(Clone,Debug)]
 pub struct StarStatefulParser<P, Q, T>(P, Option<Q>, T);
 
-impl<P, T, S> Stateful<S> for StarStatefulParser<P, P::State, T>
-    where P: Copy + Uncommitted<S>,
-          T: Consumer<P::Output>
+impl<P, T, Str> Stateful<Str> for StarStatefulParser<P, P::State, T>
+    where P: Copy + Uncommitted<Str>,
+          T: Consumer<<P::State as Stateful<Str>>::Output>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+          P::State: Stateful<Str>,
 {
     type Output = T;
-    fn parse(mut self, mut value: S) -> ParseResult<Self, S> {
+    fn parse(mut self, mut value: Str) -> ParseResult<Self, Str> {
         loop {
             match self.1.take() {
                 None => {
@@ -535,15 +543,23 @@ impl<P, F> Debug for PlusParser<P, F>
     }
 }
 
-impl<P, F> Parser for PlusParser<P, F> {}
-impl<P, F, S> Uncommitted<S> for PlusParser<P, F>
-    where P: Copy + Uncommitted<S>,
+impl<P, F, Ch> Parser<Ch> for PlusParser<P, F>
+    where P: 'static + Parser<Ch>,
           F: Factory,
-          F::Output: Consumer<P::Output>
+          F::Output: 'static,
 {
-    type Output = F::Output;
     type State = StarStatefulParser<P,P::State,F::Output>;
-    fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
+    type StaticOutput = F::Output;
+}
+impl<P, F, Str> Uncommitted<Str> for PlusParser<P, F>
+    where P: 'static + Copy + Uncommitted<Str>,
+          F: 'static + Factory,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+          P::State: Stateful<Str>,
+          F::Output: Consumer<<P::State as Stateful<Str>>::Output>,
+{
+    fn parse(&self, value: Str) -> MaybeParseResult<Self::State, Str> {
         match self.0.parse(value) {
             Empty(rest) => Empty(rest),
             Abort(rest) => Abort(rest),
@@ -593,14 +609,21 @@ impl<P, F> Debug for StarParser<P, F>
     }
 }
 
-impl<P, F> Parser for StarParser<P, F> {}
-impl<P, F, S> Committed<S> for StarParser<P, F>
-    where P: Copy + Uncommitted<S>,
-          F: Factory,
-          F::Output: Consumer<P::Output>
+impl<P, F, Ch> Parser<Ch> for StarParser<P, F>
+    where P: 'static + Parser<Ch>,
+          F: 'static + Factory,
 {
-    type Output = F::Output;
+    type StaticOutput = F::Output;
     type State = StarStatefulParser<P,P::State,F::Output>;
+}
+impl<P, F, Str> Committed<Str> for StarParser<P, F>
+    where P: 'static + Copy + Uncommitted<Str>,
+          F: 'static + Factory,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+          P::State: Stateful<Str>,
+          F::Output: Consumer<<P::State as Stateful<Str>>::Output>
+{
     fn init(&self) -> Self::State {
         StarStatefulParser(self.0, None, self.1.build())
     }
@@ -615,7 +638,7 @@ impl<P, F> StarParser<P, F> {
 // ----------- A type for empty parsers -------------
 
 #[derive(Copy, Clone, Debug)]
-enum Impossible {}
+pub enum Impossible {}
 
 impl Impossible {
     fn cant_happen<T>(&self) -> T {
@@ -623,16 +646,13 @@ impl Impossible {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct ImpossibleStatefulParser<T>(Impossible, T);
-
-impl<T, S> Stateful<S> for ImpossibleStatefulParser<T> {
-    type Output = T;
-    fn parse(self, _: S) -> ParseResult<Self, S> {
-        self.0.cant_happen()
+impl<Str> Stateful<Str> for Impossible where Str: IntoPeekable {
+    type Output = Str::Item;
+    fn parse(self, _: Str) -> ParseResult<Self, Str> {
+        self.cant_happen()
     }
-    fn done(self) -> T {
-        self.0.cant_happen()
+    fn done(self) -> Str::Item {
+        self.cant_happen()
     }
 }
 
@@ -660,11 +680,12 @@ impl<F> Debug for CharacterParser<F>
     }
 }
 
-impl<F> Parser for CharacterParser<F> {}
+impl<F> Parser<char> for CharacterParser<F> {
+    type StaticOutput = char;
+    type State = Impossible;
+}
 impl<'a, F> Uncommitted<&'a str> for CharacterParser<F> where F: Function<char, Output = bool>
 {
-    type Output = char;
-    type State = ImpossibleStatefulParser<char>;
     fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State, &'a str> {
         match value.chars().next() {
             None => Empty(value),
@@ -686,7 +707,6 @@ impl<F> CharacterParser<F> {
 #[derive(Copy,Clone,Debug)]
 pub struct AnyCharacterParser;
 
-impl Parser for AnyCharacterParser {}
 impl<'a> Stateful<&'a str> for AnyCharacterParser {
     type Output = Option<char>;
     fn parse(self, value: &'a str) -> ParseResult<Self, &'a str> {
@@ -702,9 +722,11 @@ impl<'a> Stateful<&'a str> for AnyCharacterParser {
         None
     }
 }
-impl<'a> Committed<&'a str> for AnyCharacterParser {
-    type Output = Option<char>;
+impl Parser<char> for AnyCharacterParser {
+    type StaticOutput = Option<char>;
     type State = Self;
+}
+impl<'a> Committed<&'a str> for AnyCharacterParser {
     fn init(&self) -> Self {
         AnyCharacterParser
     }
@@ -734,14 +756,17 @@ impl<F> Debug for TokenParser<F>
     }
 }
 
-impl<F> Parser for TokenParser<F> {}
-impl<F, I> Uncommitted<Peekable<I>> for TokenParser<F>
-    where F: for<'a> Function<&'a I::Item, Output = bool>,
-          I: Iterator
+impl<F, Ch> Parser<Ch> for TokenParser<F> where Ch: 'static
 {
-    type Output = I::Item;
-    type State = ImpossibleStatefulParser<I::Item>;
-    fn parse(&self, mut iterator: Peekable<I>) -> MaybeParseResult<Self::State, Peekable<I>> {
+    type StaticOutput = Ch;
+    type State = Impossible;
+}
+impl<F, Iter> Uncommitted<Peekable<Iter>> for TokenParser<F>
+    where F: for<'a> Function<&'a Iter::Item, Output = bool>,
+          Iter: Iterator,
+          Iter::Item: ToStatic,
+{
+    fn parse(&self, mut iterator: Peekable<Iter>) -> MaybeParseResult<Self::State, Peekable<Iter>> {
         let matched = match iterator.peek() {
             None => None,
             Some(tok) => Some(self.0.apply(tok)),
@@ -766,24 +791,29 @@ impl<F> TokenParser<F> {
 #[derive(Copy,Clone,Debug)]
 pub struct AnyTokenParser;
 
-impl Parser for AnyTokenParser {}
-impl<I> Stateful<I> for AnyTokenParser where I: Iterator
+impl<Ch> Parser<Ch> for AnyTokenParser where Ch: 'static {
+    type StaticOutput = Option<Ch>;
+    type State = Self;
+}
+impl<Iter> Stateful<Peekable<Iter>> for AnyTokenParser
+    where Iter: Iterator,
+          Iter::Item: ToStatic,
 {
-    type Output = Option<I::Item>;
-    fn parse(self, mut iter: I) -> ParseResult<Self, I> {
-        match iter.next() {
-            None => Continue(iter, AnyTokenParser),
-            Some(tok) => Done(iter, Some(tok)),
+    type Output = Option<Iter::Item>;
+    fn parse(self, mut iterator: Peekable<Iter>) -> ParseResult<Self, Peekable<Iter>> {
+        match iterator.next() {
+            None => Continue(iterator, AnyTokenParser),
+            Some(tok) => Done(iterator, Some(tok)),
         }
     }
     fn done(self) -> Self::Output {
         None
     }
 }
-impl<I> Committed<I> for AnyTokenParser where I: Iterator
+impl<Str> Committed<Str> for AnyTokenParser
+    where Str: IntoPeekable,
+          Str::Item: ToStatic,
 {
-    type Output = Option<I::Item>;
-    type State = Self;
     fn init(&self) -> Self {
         AnyTokenParser
     }
@@ -803,11 +833,14 @@ impl<I> Committed<I> for AnyTokenParser where I: Iterator
 #[derive(Copy, Clone, Debug)]
 pub struct BufferedParser<P>(P);
 
-impl<P> Parser for BufferedParser<P> {}
-impl<'a, P> Uncommitted<&'a str> for BufferedParser<P> where P: Uncommitted<&'a str>
-{
-    type Output = Cow<'a,str>;
+impl<P> Parser<char> for BufferedParser<P> where P: Parser<char> {
+    type StaticOutput = Cow<'static,str>;
     type State = BufferedStatefulParser<P::State>;
+}
+impl<'a, P, Q> Uncommitted<&'a str> for BufferedParser<P>
+    where P: Parser<char> + Uncommitted<&'a str, State=Q>, // TODO: Figure out why Parser is required here
+          Q: 'static+Stateful<&'a str>,
+{
     fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State, &'a str> {
         match self.0.parse(value) {
             Empty(rest) => Empty(rest),
@@ -823,8 +856,6 @@ impl<'a, P> Uncommitted<&'a str> for BufferedParser<P> where P: Uncommitted<&'a 
 }
 impl<'a, P> Committed<&'a str> for BufferedParser<P> where P: Committed<&'a str>
 {
-    type Output = Cow<'a,str>;
-    type State = BufferedStatefulParser<P::State>;
     fn init(&self) -> Self::State {
         BufferedStatefulParser(self.0.init(), String::new())
     }
@@ -908,10 +939,14 @@ impl<P> BoxableParser<P> {
 #[derive(Copy, Clone, Debug)]
 pub struct IterParser<P, Q, S>(P, Option<(Q, S)>);
 
-impl<P, S> Iterator for IterParser<P, P::State, S> where P: Copy + Committed<S>
+impl<P, Str> Iterator for IterParser<P, P::State, Str>
+    where P: Copy + Committed<Str>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
+          P::State: Stateful<Str>,
 {
-    type Item = P::Output;
-    fn next(&mut self) -> Option<P::Output> {
+    type Item = <P::State as Stateful<Str>>::Output;
+    fn next(&mut self) -> Option<Self::Item> {
         let (state, result) = match self.1.take() {
             None => (None, None),
             Some((parsing, data)) => {
@@ -926,61 +961,74 @@ impl<P, S> Iterator for IterParser<P, P::State, S> where P: Copy + Committed<S>
     }
 }
 
-impl<P, S> IterParser<P, P::State, S> where P: Copy + Committed<S>
+impl<P, Str> IterParser<P, P::State, Str>
+    where P: Copy + Committed<Str>,
+          Str: IntoPeekable,
+          Str::Item: ToStatic,
 {
-    pub fn new(parser: P, data: S) -> Self {
+    pub fn new(parser: P, data: Str) -> Self {
         IterParser(parser, Some((parser.init(), data)))
     }
 }
 
 // ----------- Pipe parsers -------------
 
-#[derive(Copy, Clone, Debug)]
-pub struct PipeStateful<P, Q, R>(P, Q, R);
+// TODO: restore these
 
-impl<P, Q, S, T> Stateful<S> for PipeStateful<P, P::State, Q>
-    where P: Copy + Committed<S>,
-          Q: for<'a> Stateful<Peekable<&'a mut IterParser<P, P::State, S>>, Output = T>
-{
-    type Output = T;
-    fn parse(self, data: S) -> ParseResult<Self, S> {
-        let mut iter = IterParser(self.0, Some((self.1, data)));
-        match self.2.parse(iter.by_ref().peekable()) {
-            Done(_, result) => Done(iter.1.unwrap().1, result),
-            Continue(_, parsing2) => {
-                let (parsing1, data) = iter.1.unwrap();
-                Continue(data, PipeStateful(self.0, parsing1, parsing2))
-            }
-        }
-    }
-    fn done(self) -> T {
-        // TODO: feed the output of self.1.done() into self.2.
-        self.1.done();
-        self.2.done()
-    }
-}
+// #[derive(Copy, Clone, Debug)]
+// pub struct PipeStateful<P, Q, R>(P, Q, R);
 
-#[derive(Copy, Clone, Debug)]
-pub struct PipeParser<P, Q>(P, Q);
+// impl<P, Q, Str> Stateful<Str> for PipeStateful<P, P::State, Q>
+//     where P: Copy + Committed<Str>,
+//           Q: Stateful<Peekable<IterParser<P, P::State, Str>>>,
+//           Str: IntoPeekable,
+//           Str::Item: ToStatic,
+//           P::State: Stateful<Str>,
+// {
+//     type Output = Q::Output;
+//     fn parse(self, data: Str) -> ParseResult<Self, Str> {
+//         let iterator = Peekable::new(IterParser(self.0, Some((self.1, data))));
+//         match self.2.parse(iterator) {
+//             Done(rest, result) => Done(rest.iter.1.unwrap().1, result),
+//             Continue(rest, parsing2) => {
+//                 let (parsing1, data) = rest.iter.1.unwrap();
+//                 Continue(data, PipeStateful(self.0, parsing1, parsing2))
+//             }
+//         }
+//     }
+//     fn done(self) -> Q::Output {
+//         // TODO: feed the output of self.1.done() into self.2.
+//         self.1.done();
+//         self.2.done()
+//     }
+// }
 
-impl<P, Q> Parser for PipeParser<P, Q> {}
-impl<P, Q, R, S, T> Committed<S> for PipeParser<P, Q>
-    where P: Copy + Committed<S>,
-          Q: for<'a> Committed<Peekable<&'a mut IterParser<P, P::State, S>>,
-                               State = R,
-                               Output = T>,
-          R: for<'a> Stateful<Peekable<&'a mut IterParser<P, P::State, S>>, Output = T>
-{
-    type State = PipeStateful<P,P::State,R>;
-    type Output = T;
-    fn init(&self) -> Self::State {
-        PipeStateful(self.0, self.0.init(), self.1.init())
-    }
-}
+// #[derive(Copy, Clone, Debug)]
+// pub struct PipeParser<P, Q>(P, Q);
 
-impl<P, Q> PipeParser<P, Q> {
-    pub fn new(lhs: P, rhs: Q) -> Self {
-        PipeParser(lhs, rhs)
-    }
-}
+// impl<P, Q, Ch> Parser<Ch> for PipeParser<P, Q>
+//     where P: 'static + Parser<Ch>,
+//           Q: Parser<Ch>,
+// {
+//     type State = PipeStateful<P,P::State,Q::State>;
+//     type StaticOutput = Q::StaticOutput;
+// }
+
+// impl<P, Q, Str> Committed<Str> for PipeParser<P, Q>
+//     where P: 'static + Copy + Committed<Str>,
+//           Q: for<'a> Committed<Peekable<&'a mut IterParser<P, P::State, Str>>>,
+//           Str: IntoPeekable,
+//           Str::Item: ToStatic,
+//           P::State: Stateful<Str>,
+// {
+//     fn init(&self) -> Self::State {
+//         PipeStateful(self.0, self.0.init(), self.1.init())
+//     }
+// }
+
+// impl<P, Q> PipeParser<P, Q> {
+//     pub fn new(lhs: P, rhs: Q) -> Self {
+//         PipeParser(lhs, rhs)
+//     }
+// }
 
