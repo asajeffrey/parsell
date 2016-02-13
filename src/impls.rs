@@ -1,9 +1,18 @@
-// //! Provide implementations of parser traits.
+//! Provide implementations of parser traits.
 
 // use super::{Stateful, Parser, Uncommitted, Committed, Boxable, ParseResult, MaybeParseResult,
 //             Factory, Function, Consumer, ToStatic, Peekable, IntoPeekable};
 // use super::ParseResult::{Continue, Done};
 // use super::MaybeParseResult::{Abort, Commit, Empty};
+
+use super::{Parser, ParserOutput};
+use super::{Stateful, StatefulOutput, StatefulParseChResult, StatefulParseStrResult};
+use super::{Committed, CommittedOutput, CommittedParseChResult};
+use super::{Uncommitted, UncommittedOutput, UncommittedParseChResult};
+use super::{Function};
+use super::{Impossible};
+use super::Maybe::{Empty, Backtrack, Commit};
+use super::ParseResult::{Done, Continue};
 
 // use self::AndThenStatefulParser::{InLhs, InRhs};
 // // use self::OrElseStatefulParser::{Lhs, Rhs};
@@ -11,8 +20,9 @@
 
 // use std::borrow::Cow;
 // use std::borrow::Cow::{Borrowed, Owned};
-// use std::fmt::{Formatter, Debug};
-// use std;
+// use std::str::Chars;
+use std::fmt::{Formatter, Debug};
+use std;
 
 
 // // ----------- N-argument functions ---------------
@@ -143,93 +153,114 @@
 //     }
 // }
 
-// // ----------- Map ---------------
+// ----------- Map ---------------
 
-// pub struct MapParser<P, F>(P, F);
+pub struct Map<P, F>(P, F);
 
-// // A work around for functions implmenting copy but not clone
-// // https://github.com/rust-lang/rust/issues/28229
-// impl<P, F> Copy for MapParser<P, F>
-//     where P: Copy,
-//           F: Copy
-// {}
-// impl<P, F> Clone for MapParser<P, F>
-//     where P: Clone,
-//           F: Copy
-// {
-//     fn clone(&self) -> Self {
-//         MapParser(self.0.clone(), self.1)
-//     }
-// }
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P, F> Copy for Map<P, F>
+    where P: Copy,
+          F: Copy
+{}
+impl<P, F> Clone for Map<P, F>
+    where P: Clone,
+          F: Copy
+{
+    fn clone(&self) -> Self {
+        Map(self.0.clone(), self.1)
+    }
+}
 
-// // A work around for named functions not implmenting Debug
-// // https://github.com/rust-lang/rust/issues/31522
-// impl<P, F> Debug for MapParser<P, F>
-//     where P: Debug
-// {
-//     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-//         write!(fmt, "MapParser({:?}, ...)", self.0)
-//     }
-// }
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<P, F> Debug for Map<P, F>
+    where P: Debug
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "Map({:?}, ...)", self.0)
+    }
+}
 
-// impl<P, F, S> Stateful<S> for MapParser<P, F>
-//     where P: Stateful<S>,
-//           F: Function<P::Output>
-// {
-//     type Output = F::Output;
-//     fn parse(self, value: S) -> ParseResult<Self, S> {
-//         match self.0.parse(value) {
-//             Done(rest, result) => Done(rest, self.1.apply(result)),
-//             Continue(rest, parsing) => Continue(rest, MapParser(parsing, self.1)),
-//         }
-//     }
-//     fn done(self) -> Self::Output {
-//         self.1.apply(self.0.done())
-//     }
-// }
+impl<P, F, Str> Parser<Str> for Map<P, F>
+    where P: Parser<Str>,
+          F: Function<ParserOutput<P, Str>>,
+{
+    type Output = F::Output;
+}
 
-// impl<P, F, Ch> Parser<Ch> for MapParser<P, F>
-//     where P: Parser<Ch>,
-//           F: 'static + Function<P::StaticOutput>,
-// {
-//     type StaticOutput = F::Output;
-//     type State = MapParser<P::State,F>;
-// }
-// impl<P, F, Str> Uncommitted<Str> for MapParser<P, F>
-//     where P: Uncommitted<Str>,
-//           F: 'static + Copy + Function<<P::State as Stateful<Str>>::Output> + Function<P::StaticOutput>,
-//           Str: IntoPeekable,
-//           Str::Item: ToStatic,
-//           P::State: Stateful<Str>,
-// {
-//     fn parse(&self, value: Str) -> MaybeParseResult<Self::State, Str> {
-//         match self.0.parse(value) {
-//             Empty(rest) => Empty(rest),
-//             Commit(Done(rest, result)) => Commit(Done(rest, self.1.apply(result))),
-//             Commit(Continue(rest, parsing)) => {
-//                 Commit(Continue(rest, MapParser(parsing, self.1)))
-//             }
-//             Abort(value) => Abort(value),
-//         }
-//     }
-// }
-// impl<P, F, Str> Committed<Str> for MapParser<P, F>
-//     where P: Committed<Str>,
-//           F: 'static + Copy + Function<<P::State as Stateful<Str>>::Output> + Function<P::StaticOutput>,
-//           Str: IntoPeekable,
-//           Str::Item: ToStatic,
-//           P::State: Stateful<Str>,
-// {
-//     fn init(&self) -> Self::State {
-//         MapParser(self.0.init(), self.1)
-//     }
-// }
+impl<P, F, Str> Stateful<Str> for Map<P, F>
+    where P: Stateful<Str>,
+          F: Function<StatefulOutput<P, Str>>,
+          Str: Iterator,
+{
+    
+    type Output = F::Output;
 
-// impl<P, F> MapParser<P, F> {
-//     pub fn new(parser: P, function: F) -> Self {
-//         MapParser(parser, function)
-//     }
-// }
+    fn parse_ch(self, ch: Str::Item) -> StatefulParseChResult<Self, Str> {
+        match self.0.parse_ch(ch) {
+            Done((ch, result)) => Done((ch, self.1.apply(result))),
+            Continue(parsing) => Continue(Map(parsing, self.1)),
+        }
+    }
+
+    fn parse_eof(self) -> StatefulOutput<Self, Str> {
+        self.1.apply(self.0.parse_eof())
+    }
+
+    fn parse_str(self, string: Str) -> StatefulParseStrResult<Self, Str>  {
+        match self.0.parse_str(string) {
+            Done((ch, rest, result)) => Done((ch, rest, self.1.apply(result))),
+            Continue((empty, parsing)) => Continue((empty, Map(parsing, self.1))),
+        }
+    }
+
+}
+
+impl<P, F, Str> Committed<Str> for Map<P, F>
+    where P: Committed<Str>,
+          F: Copy + Function<CommittedOutput<P, Str>>,
+          Str: Iterator,
+{
+
+    type State = Map<P::State, F>;
+    
+    fn parse_ch(&self, ch: Str::Item) -> CommittedParseChResult<Self, Str> {
+        match self.0.parse_ch(ch) {
+            Done((ch, result)) => Done((ch, self.1.apply(result))),
+            Continue(parsing) => Continue(Map(parsing, self.1)),
+        }
+    }
+
+    fn parse_eof(&self) -> CommittedOutput<Self, Str> {
+        self.1.apply(self.0.parse_eof())
+    }
+
+}
+
+impl<P, F, Str> Uncommitted<Str> for Map<P, F>
+    where P: Uncommitted<Str>,
+          F: Copy + Function<UncommittedOutput<P, Str>>,
+          Str: Iterator,
+{
+
+    type State = Map<P::State, F>;
+    
+    fn parse_ch(&self, ch: Str::Item) -> UncommittedParseChResult<Self, Str> {
+        match self.0.parse_ch(ch) {
+            Empty(impossible) => Empty(impossible),
+            Backtrack(ch) => Backtrack(ch),
+            Commit(parsing) => Commit(Map(parsing, self.1)),
+        }
+    }
+
+}
+
+impl<P, F> Map<P, F> {
+    pub fn new(p: P, f: F) -> Self {
+        Map(p, f)
+    }
+}
 
 // // ----------- Sequencing ---------------
 
@@ -635,74 +666,94 @@
 //     }
 // }
 
-// // ----------- A type for empty parsers -------------
+// ----------- A type for parsers which don't exist -------------
 
-// #[derive(Copy, Clone, Debug)]
-// pub enum Impossible {}
+impl<Str> Stateful<Str> for Impossible where Str: Iterator {
 
-// impl Impossible {
-//     fn cant_happen<T>(&self) -> T {
-//         match *self {}
-//     }
-// }
+    type Output = Str::Item;
+    
+    fn parse_ch(self, _: Str::Item) -> StatefulParseChResult<Self, Str> {
+        self.cant_happen()
+    }
+    
+    fn parse_eof(self) -> Str::Item {
+        self.cant_happen()
+    }
+    
+}
 
-// impl<Str> Stateful<Str> for Impossible where Str: IntoPeekable {
-//     type Output = Str::Item;
-//     fn parse(self, _: Str) -> ParseResult<Self, Str> {
-//         self.cant_happen()
-//     }
-//     fn done(self) -> Str::Item {
-//         self.cant_happen()
-//     }
-// }
+// ----------- A type for parsers which immediately return -------------
 
-// // ----------- Character parsers -------------
+#[derive(Copy, Clone, Debug)]
+pub struct Return<T>(T);
 
-// pub struct CharacterParser<F>(F);
+impl<T, Str> Stateful<Str> for Return<T> where Str: Iterator {
 
-// // A work around for functions implmenting copy but not clone
-// // https://github.com/rust-lang/rust/issues/28229
-// impl<F> Copy for CharacterParser<F> where F: Copy
-// {}
-// impl<F> Clone for CharacterParser<F> where F: Copy
-// {
-//     fn clone(&self) -> Self {
-//         CharacterParser(self.0)
-//     }
-// }
+    type Output = T;
+    
+    fn parse_ch(self, ch: Str::Item) -> StatefulParseChResult<Self, Str> {
+        Done((ch, self.0))
+    }
+    
+    fn parse_eof(self) -> T {
+        self.0
+    }
+    
+}
 
-// // A work around for named functions not implmenting Debug
-// // https://github.com/rust-lang/rust/issues/31522
-// impl<F> Debug for CharacterParser<F>
-// {
-//     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-//         write!(fmt, "CharacterParser(...)")
-//     }
-// }
+// ----------- Character parsers -------------
 
-// impl<F> Parser<char> for CharacterParser<F> {
-//     type StaticOutput = char;
-//     type State = Impossible;
-// }
-// impl<'a, F> Uncommitted<&'a str> for CharacterParser<F> where F: Function<char, Output = bool>
-// {
-//     fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State, &'a str> {
-//         match value.chars().next() {
-//             None => Empty(value),
-//             Some(ch) if self.0.apply(ch) => {
-//                 let len = ch.len_utf8();
-//                 Commit(Done(&value[len..], ch))
-//             }
-//             Some(_) => Abort(value),
-//         }
-//     }
-// }
+pub struct Character<F>(F);
 
-// impl<F> CharacterParser<F> {
-//     pub fn new(function: F) -> Self {
-//         CharacterParser(function)
-//     }
-// }
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<F> Copy for Character<F> where F: Copy
+{}
+impl<F> Clone for Character<F> where F: Copy
+{
+    fn clone(&self) -> Self {
+        Character(self.0)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<F> Debug for Character<F>
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "Character(...)")
+    }
+}
+
+impl<F, Str> Parser<Str> for Character<F>
+    where Str: Iterator,
+{
+    type Output = Str::Item;
+}
+
+impl<F, Str> Uncommitted<Str> for Character<F>
+    where Str: Iterator,
+          F: Function<Str::Item, Output = bool>,
+          Str::Item: Copy,
+{
+    
+    type State = Return<Str::Item>;
+    
+    fn parse_ch(&self, ch: Str::Item) -> UncommittedParseChResult<Self, Str> {
+        if self.0.apply(ch) {
+            Commit(Return(ch))
+        } else {
+            Backtrack(ch)
+        }
+    }
+    
+}
+
+impl<F> Character<F> {
+    pub fn new(function: F) -> Self {
+        Character(function)
+    }
+}
 
 // #[derive(Copy,Clone,Debug)]
 // pub struct AnyCharacterParser;

@@ -25,7 +25,7 @@ use self::ParseResult::{Done, Continue};
 // use std::fmt::{Formatter, Debug};
 // use std::borrow::Cow;
 
-// pub mod impls;
+pub mod impls;
 
 
 // ----------- Types for parsers ------------
@@ -60,33 +60,34 @@ use self::ParseResult::{Done, Continue};
 /// }
 /// ```
 
-pub trait Stateful1<Ch> {
+pub trait Parser<Str> {
 
     /// The type of the data being produced by the parser.
-    type Output1;
+    type Output;
 
-    /// Parse one character of data.
-    fn parse_ch(self, ch: Ch) -> Stateful1Result<Self, Ch>
-        where Self: Sized;
-    
-    /// Parse an EOF.
-    fn parse_eof(self) -> Stateful1Output<Self, Ch>
-        where Self: Sized;
+    fn map<F>(self, f: F) -> impls::Map<Self, F> where Self: Sized { impls::Map::new(self ,f) }
 
 }
 
-pub type Stateful1Output<P, Ch> where P: Stateful1<Ch> = P::Output1;
-pub type Stateful1Result<P, Ch> where P: Stateful1<Ch> = ParseResult<P, (Ch, Stateful1Output<P, Ch>)>;
+pub type ParserOutput<P, Str> where P: Parser<Str> = P::Output;
 
-pub trait Stateful<Str>: Stateful1<Str::Item>
-    where Str: Iterator
+pub trait Stateful<Str> 
+    where Str: Iterator,
 {
     
     /// The type of the data being produced by the parser.
-    type Output: From<Stateful1Output<Self, Str::Item>>;
+    type Output;
+
+    /// Parse one character of data.
+    fn parse_ch(self, ch: Str::Item) -> StatefulParseChResult<Self, Str>
+        where Self: Sized;
+    
+    /// Parse an EOF.
+    fn parse_eof(self) -> StatefulOutput<Self, Str>
+        where Self: Sized;
 
     /// Parse a string of data.
-    fn parse_str(self, mut string: Str) ->  StatefulResult<Self, Str>
+    fn parse_str(self, mut string: Str) ->  StatefulParseStrResult<Self, Str>
         where Self: Sized,
     {
         match string.next() {
@@ -96,7 +97,7 @@ pub trait Stateful<Str>: Stateful1<Str::Item>
     }
     
     /// Parse a non-empty string of data.
-    fn parse_ch_str(self, ch: Str::Item, string: Str) -> StatefulResult<Self, Str>
+    fn parse_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>
         where Self: Sized,
     {
         match self.parse_ch(ch) {
@@ -108,7 +109,9 @@ pub trait Stateful<Str>: Stateful1<Str::Item>
 }
 
 pub type StatefulOutput<P, Str> where P: Stateful<Str> = P::Output;
-pub type StatefulResult<P, Str> where P: Stateful<Str>, Str: Iterator = ParseResult<(Str, P), (Str::Item, Str, StatefulOutput<P, Str>)>;
+pub type StatefulParseChResult<P, Str> where P: Stateful<Str>, Str: Iterator = ParseResult<P, (Str::Item, StatefulOutput<P, Str>)>;
+pub type StatefulParseStrResult<P, Str> where P: Stateful<Str>, Str: Iterator = ParseResult<(Str, P), (Str::Item, Str, StatefulOutput<P, Str>)>;
+pub type StatefulParseChStrResult<P, Str> where P: Stateful<Str>, Str: Iterator = StatefulParseStrResult<P, Str>;
 
 //     /// Provides data to the parser.
 //     ///
@@ -248,41 +251,32 @@ pub enum ParseResult<Parser, Output>
 // /// it will backtrack on any non-alphabetic character, but
 // /// `CHARACTER` is not, because it will produce `None` rather than backtracking.
 
-pub trait Committed1<Ch> {
+pub trait Committed<Str>
+    where Str: Iterator,
+{
 
-    type State: Stateful1<Ch>;
+    type State: Stateful<Str>;
 
     /// Parse one character of data.
-    fn parse_char(&self, ch: Ch) -> Committed1Result<Self , Ch>
+    fn parse_ch(&self, ch: Str::Item) -> CommittedParseChResult<Self, Str>
         where Self: Sized;
     
     /// Parse an EOF.
-    fn parse_eof(&self) -> Committed1Output<Self, Ch>
+    fn parse_eof(&self) -> CommittedOutput<Self, Str>
         where Self: Sized;
 
-}
-
-pub type Committed1State<P, Ch> where P: Committed1<Ch> = P::State;
-pub type Committed1Output<P, Ch> where P: Committed1<Ch> = Stateful1Output<Committed1State<P, Ch>, Ch>;
-pub type Committed1Result<P, Ch> where P: Committed1<Ch> = ParseResult<P::State, (Ch, Committed1Output<P, Ch>)>;
-
-pub trait Committed<Str>: Committed1<Str::Item>
-    where Str: Iterator,
-          CommittedState<Self, Str>: Stateful<Str>,
-{
-
     /// Parse a non-empty string of data.
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> CommittedResult<Self, Str>
+    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str>
         where Self: Sized,
     {
-        match self.parse_char(ch) {
-            Done((ch, result)) => Done((ch, string, From::from(result))),
+        match self.parse_ch(ch) {
+            Done((ch, result)) => Done((ch, string, result)),
             Continue(parsing) => parsing.parse_str(string),
         }
     }
     
     /// Parse a string of data.
-    fn parse_str(&self, mut string: Str) -> Maybe<Str, Impossible, CommittedResult<Self, Str>>
+    fn parse_str(&self, mut string: Str) ->  CommittedParseStrResult<Self, Str>
         where Self: Sized,
     {
         match string.next() {
@@ -293,15 +287,22 @@ pub trait Committed<Str>: Committed1<Str::Item>
     
 }
 
-pub type CommittedState<P, Str> where P: Committed<Str>, Str: Iterator
-    = Committed1State<P, Str::Item>;
+pub type CommittedState<P, Str> where P: Committed<Str>
+    = P::State;
 
 pub type CommittedOutput<P, Str> where P: Committed<Str>
     = StatefulOutput<CommittedState<P, Str>, Str>;
 
-pub type CommittedResult<P, Str> where P: Committed<Str>
-    = StatefulResult<CommittedState<P, Str>, Str>;
+pub type CommittedParseChResult<P, Str> where P: Committed<Str>, Str: Iterator
+    = StatefulParseChResult<CommittedState<P, Str>, Str>;
 
+pub type CommittedParseChStrResult<P, Str> where P: Committed<Str>
+    = StatefulParseChStrResult<CommittedState<P, Str>, Str>;
+
+pub type CommittedParseStrResult<P, Str> where P: Committed<Str>
+    = Maybe<Str, Impossible, StatefulParseChStrResult<CommittedState<P, Str>, Str>>;
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Maybe<E, B, C> {
     Empty(E),
     Backtrack(B),
@@ -314,43 +315,29 @@ impl Impossible {
     fn cant_happen<T>(&self) -> T { match *self {} }
 }
 
-pub trait Uncommitted1<Ch> {
-
-    type State: Stateful1<Ch>;
-
-    /// Parse one character of data.
-    fn parse_char(&self, ch: Ch) -> Maybe<Impossible, Ch, Uncommitted1Result<Self, Ch>>
-        where Self: Sized;
-    
-    /// Parse an EOF.
-    fn parse_eof(&self) -> Uncommitted1Output<Self, Ch>
-        where Self: Sized;
-
-}
-
-pub type Uncommitted1State<P, Ch> where P: Uncommitted1<Ch> = P::State;
-pub type Uncommitted1Output<P, Ch> where P: Uncommitted1<Ch> = Stateful1Output<Uncommitted1State<P, Ch>, Ch>;
-pub type Uncommitted1Result<P, Ch> where P: Uncommitted1<Ch> = ParseResult<P::State, (Ch, Uncommitted1Output<P, Ch>)>;
-
-pub trait Uncommitted<Str>: Uncommitted1<Str::Item>
+pub trait Uncommitted<Str>
     where Str: Iterator,
-          UncommittedState<Self, Str>: Stateful<Str>,
 {
 
+    type State: Stateful<Str>;
+
+    /// Parse one character of data.
+    fn parse_ch(&self, ch: Str::Item) -> UncommittedParseChResult<Self, Str>
+        where Self: Sized;
+    
     /// Parse a non-empty string of data.
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> Maybe<Impossible, (Str::Item, Str), UncommittedResult<Self, Str>>
+    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str>
         where Self: Sized,
     {
-        match self.parse_char(ch) {
+        match self.parse_ch(ch) {
             Empty(impossible) => impossible.cant_happen(),
             Backtrack(ch) => Backtrack((ch, string)),
-            Commit(Done((ch, result))) => Commit(Done((ch, string, From::from(result)))),
-            Commit(Continue(parsing)) => Commit(parsing.parse_str(string)),
+            Commit(parsing) => Commit(parsing.parse_str(string)),
         }
     }
     
     /// Parse a string of data.
-    fn parse_str(&self, mut string: Str) -> Maybe<Str, (Str::Item, Str), UncommittedResult<Self, Str>>
+    fn parse_str(&self, mut string: Str) ->  UncommittedParseStrResult<Self, Str>
         where Self: Sized,
     {
         match string.next() {
@@ -365,14 +352,20 @@ pub trait Uncommitted<Str>: Uncommitted1<Str::Item>
     
 }
 
-pub type UncommittedState<P, Str> where P: Uncommitted<Str>, Str: Iterator
-    = Uncommitted1State<P, Str::Item>;
+pub type UncommittedState<P, Str> where P: Uncommitted<Str>
+    = P::State;
 
 pub type UncommittedOutput<P, Str> where P: Uncommitted<Str>
     = StatefulOutput<UncommittedState<P, Str>, Str>;
 
-pub type UncommittedResult<P, Str> where P: Uncommitted<Str>
-    = StatefulResult<UncommittedState<P, Str>, Str>;
+pub type UncommittedParseChResult<P, Str> where P: Uncommitted<Str>, Str: Iterator
+    = Maybe<Impossible, Str::Item, UncommittedState<P, Str>>;
+
+pub type UncommittedParseChStrResult<P, Str> where P: Uncommitted<Str>, Str: Iterator
+    = Maybe<Impossible, (Str::Item, Str), StatefulParseStrResult<UncommittedState<P, Str>, Str>>;
+
+pub type UncommittedParseStrResult<P, Str> where P: Uncommitted<Str>, Str: Iterator
+    = Maybe<Str, (Str::Item, Str), StatefulParseStrResult<UncommittedState<P, Str>, Str>>;
 
 // pub trait Parser<Ch> {
 
@@ -1069,58 +1062,60 @@ pub type UncommittedResult<P, Str> where P: Uncommitted<Str>
 //     fn into_peekable(self) -> Peekable<Self::Iter> { self }
 // }
 
-// /// A trait for one-argument functions.
-// ///
-// /// This trait is just the same as `Fn(T) -> U`, but can be implemented by a struct.
-// /// This is useful, as it allows the function type to be named, for example
-// ///
-// /// ```
-// /// # use parsell::{Function,character};
-// /// # use parsell::impls::{CharacterParser};
-// /// struct AlphaNumeric;
-// /// impl Function<char> for AlphaNumeric {
-// ///     type Output = bool;
-// ///     fn apply(&self, arg: char) -> bool { arg.is_alphanumeric() }
-// /// }
-// /// let parser: CharacterParser<AlphaNumeric> =
-// ///     character(AlphaNumeric);
-// /// ```
-// ///
-// /// Here, we can name the type of the parser `CharacterParser<AlphaNumeric>`,
-// /// which would not be possible if `character` took its argument as a `Fn(T) -> U`,
-// /// since `typeof` is not implemented in Rust.
-// /// At some point, Rust will probably get abstract return types,
-// /// at which point the main need for this type will go away.
+/// A trait for one-argument functions.
+///
+/// This trait is just the same as `Fn(T) -> U`, but can be implemented by a struct.
+/// This is useful, as it allows the function type to be named, for example
+///
+/// ```
+/// # use parsell::{Function,character};
+/// # use parsell::impls::{Character};
+/// struct AlphaNumeric;
+/// impl Function<char> for AlphaNumeric {
+///     type Output = bool;
+///     fn apply(&self, arg: char) -> bool { arg.is_alphanumeric() }
+/// }
+/// let parser: Character<AlphaNumeric> =
+///     character(AlphaNumeric);
+/// ```
+///
+/// Here, we can name the type of the parser `CharacterParser<AlphaNumeric>`,
+/// which would not be possible if `character` took its argument as a `Fn(T) -> U`,
+/// since `typeof` is not implemented in Rust.
+/// At some point, Rust will probably get abstract return types,
+/// at which point the main need for this type will go away.
 
-// pub trait Function<S> {
-//     type Output;
-//     fn apply(&self, arg: S) -> Self::Output;
-// }
+pub trait Function<S> {
+    type Output;
+    fn apply(&self, arg: S) -> Self::Output;
+}
 
-// // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
-// // See https://github.com/rust-lang/rust/issues/30867 for more details.
-// impl<F, S> Function<S> for F where F: Fn<(S, )>
-// {
-//     type Output = F::Output;
-//     fn apply(&self, arg: S) -> F::Output {
-//         self(arg)
-//     }
-// }
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S> Function<S> for F where F: Fn<(S, )>
+{
+    type Output = F::Output;
+    fn apply(&self, arg: S) -> F::Output {
+        self(arg)
+    }
+}
 
-// /// A trait for factories.
+pub type FunctionOutput<F, S> where F: Function<S> = F::Output;
 
-// pub trait Factory {
-//     type Output;
-//     fn build(&self) -> Self::Output;
-// }
+/// A trait for factories.
 
-// impl<F, T> Factory for F where F: Fn() -> T
-// {
-//     type Output = T;
-//     fn build(&self) -> T {
-//         self()
-//     }
-// }
+pub trait Factory {
+    type Output;
+    fn build(&self) -> Self::Output;
+}
+
+impl<F, T> Factory for F where F: Fn() -> T
+{
+    type Output = T;
+    fn build(&self) -> T {
+        self()
+    }
+}
 
 // /// A trait for consumers of data, typically buffers.
 // ///
@@ -1226,6 +1221,8 @@ pub trait ToStatic {
     fn from_static(stat: Self::Static) -> Self where Self: Sized;
 }
 
+type Static<T> where T: ToStatic = T::Static;
+
 // impl<'a, T: ?Sized> ToStatic for Cow<'a, T> where T: 'static + ToOwned { // TODO: allow non-static T here
 //     type Static = Cow<'static, T>;
 //     fn downcast(self) -> Self::Static { Cow::Owned(self.into_owned()) }
@@ -1278,17 +1275,15 @@ pub trait ToStatic {
 // impl Static for String {}
 // impl<T> Static for Vec<T> where T: Static {}
 
-// /// An uncommitted parser that reads one character.
-// ///
-// /// The parser `character(f)` reads one character `ch` from the input,
-// /// if `f(ch)` is `true` then it commits and the result is `ch`,
-// /// otherwise it backtracks.
+/// An uncommitted parser that reads one character.
+///
+/// The parser `character(f)` reads one character `ch` from the input,
+/// if `f(ch)` is `true` then it commits and the result is `ch`,
+/// otherwise it backtracks.
 
-// pub fn character<F>(f: F) -> impls::CharacterParser<F>
-//     where F: Function<char, Output = bool>
-// {
-//     impls::CharacterParser::new(f)
-// }
+pub fn character<F>(f: F) -> impls::Character<F> {
+    impls::Character::new(f)
+}
 
 // /// A committed parser that reads one character.
 // ///
@@ -1341,31 +1336,62 @@ pub trait ToStatic {
 //     }
 // }
 
-// #[allow(non_snake_case,dead_code)]
-// impl<P, S> ParseResult<P, S> where P: Stateful<S>
-// {
-//     fn unDone(self) -> (S, P::Output) {
-//         match self {
-//             Done(s, t) => (s, t),
-//             _ => panic!("ParseResult is not done"),
-//         }
-//     }
+#[allow(non_snake_case,dead_code)]
+impl<P, S> ParseResult<P, S> 
+{
+    fn unDone(self) -> S {
+        match self {
+            Done(s) => s,
+            _ => panic!("Not done"),
+        }
+    }
 
-//     fn unContinue(self) -> P {
-//         match self {
-//             Continue(_, p) => p,
-//             _ => panic!("ParseResult is not continue"),
-//         }
-//     }
-// }
+    fn unContinue(self) -> P {
+        match self {
+            Continue(p) => p,
+            _ => panic!("Not continue"),
+        }
+    }
+}
 
-// #[test]
-// fn test_character() {
-//     let parser = character(char::is_alphabetic);
-//     parser.parse("").unEmpty();
-//     assert_eq!(parser.parse("989").unAbort(), "989");
-//     assert_eq!(parser.parse("abc").unCommit().unDone(), ("bc", 'a'));
-// }
+#[allow(non_snake_case,dead_code)]
+impl<E, B, C> Maybe<E, B, C>  {
+
+    fn unEmpty(self) -> E {
+        match self {
+            Empty(e) => e,
+            _ => panic!("Not empty."),
+        }
+    }
+
+    fn unBacktrack(self) -> B {
+        match self { 
+            Backtrack(b) => b,
+            _ => panic!("Not backtracking."),
+        }
+    }
+
+    fn unCommit(self) -> C {
+        match self { 
+            Commit(c) => c,
+            _ => panic!("Not committed."),
+        }
+    }
+
+}
+
+#[test]
+fn test_character() {
+    let parser = character(char::is_alphabetic);
+    parser.parse_str("".chars()).unEmpty();
+    let (ch, iter) = parser.parse_str("989".chars()).unBacktrack();
+    assert_eq!(ch, '9');
+    assert_eq!(iter.as_str(), "89");
+    let (ch, iter, res) = parser.parse_str("abcd".chars()).unCommit().unDone();
+    assert_eq!(res, 'a');
+    assert_eq!(ch, 'b');
+    assert_eq!(iter.as_str(), "cd");
+}
 
 // #[test]
 // #[allow(non_snake_case)]
