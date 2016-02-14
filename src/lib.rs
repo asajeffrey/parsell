@@ -84,6 +84,13 @@ pub trait Stateful<Str>
             Some(ch) => self.more_ch_str(ch, string),
         }
     }
+
+    /// Make this parser boxable.
+    fn boxable(self) -> impls::BoxableState<Self>
+        where Self: Sized
+    {
+        impls::BoxableState::new(self)
+    }
     
 }
 
@@ -194,7 +201,7 @@ pub trait Committed<Str>
     where Str: Iterator,
 {
 
-    type State: Stateful<Str>;
+    type State: 'static + Stateful<Str>;
 
     /// Parse a non-empty string of data.
     fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str>
@@ -245,19 +252,19 @@ pub trait Uncommitted<Str>
     where Str: Iterator,
 {
 
-    type State: Stateful<Str>;
+    type State: 'static + Stateful<Str>;
 
     /// Parse a non-empty string of data.
-    fn init_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str>
+    fn maybe_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str>
         where Self: Sized;
 
     /// Parse a string of data.
-    fn init_str(&self, mut string: Str) ->  UncommittedParseStrResult<Self, Str>
+    fn maybe_str(&self, mut string: Str) ->  UncommittedParseStrResult<Self, Str>
         where Self: Sized,
     {
         match string.next() {
             None => Empty(string),
-            Some(ch) => match self.init_ch_str(ch, string) {
+            Some(ch) => match self.maybe_ch_str(ch, string) {
                 Empty(impossible) => impossible.cant_happen(),
                 Backtrack((ch, string)) => Backtrack((ch, string)),
                 Commit(result) => Commit(result),
@@ -863,7 +870,7 @@ pub trait Boxable<Str>
     where Str: Iterator
 {
     type Output;
-    fn more_str_boxable(&mut self, string: Str) -> ParseResult<Str, (Str::Item, Str, Self::Output)>;
+    fn more_ch_str_boxable(&mut self, ch: Str::Item, string: Str) -> ParseResult<Str, (Str::Item, Str, Self::Output)>;
     fn more_eof_boxable(&mut self) -> Self::Output;
 }
 
@@ -1269,12 +1276,12 @@ impl<E, B, C> Maybe<E, B, C>  {
 #[test]
 fn test_character() {
     let parser = character(char::is_alphabetic);
-    let iter = parser.init_str("".chars()).unEmpty();
+    let iter = parser.maybe_str("".chars()).unEmpty();
     assert_eq!(iter.as_str(), "");
-    let (ch, iter) = parser.init_str("989".chars()).unBacktrack();
+    let (ch, iter) = parser.maybe_str("989".chars()).unBacktrack();
     assert_eq!(ch, '9');
     assert_eq!(iter.as_str(), "89");
-    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+    let (ch, iter, res) = parser.maybe_str("abcd".chars()).unCommit().unDone();
     assert_eq!(res, 'a');
     assert_eq!(ch, 'b');
     assert_eq!(iter.as_str(), "cd");
@@ -1284,12 +1291,12 @@ fn test_character() {
 fn test_character_ref() {
     fn is_alphabetic<'a>(ch: &'a char) -> bool { ch.is_alphabetic() }
     let parser = character_ref(is_alphabetic);
-    let iter = parser.init_str("".chars()).unEmpty();
+    let iter = parser.maybe_str("".chars()).unEmpty();
     assert_eq!(iter.as_str(), "");
-    let (ch, iter) = parser.init_str("989".chars()).unBacktrack();
+    let (ch, iter) = parser.maybe_str("989".chars()).unBacktrack();
     assert_eq!(ch, '9');
     assert_eq!(iter.as_str(), "89");
-    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+    let (ch, iter, res) = parser.maybe_str("abcd".chars()).unCommit().unDone();
     assert_eq!(res, 'a');
     assert_eq!(ch, 'b');
     assert_eq!(iter.as_str(), "cd");
@@ -1319,15 +1326,26 @@ fn test_CHARACTER() {
 }
 
 #[test]
-fn test_map() {
+fn test_map1() {
     let parser = character(char::is_alphabetic).map(Some);
-    let iter = parser.init_str("".chars()).unEmpty();
+    let iter = parser.maybe_str("".chars()).unEmpty();
     assert_eq!(iter.as_str(), "");
-    let (ch, iter) = parser.init_str("989".chars()).unBacktrack();
+    let (ch, iter) = parser.maybe_str("989".chars()).unBacktrack();
     assert_eq!(ch, '9');
     assert_eq!(iter.as_str(), "89");
-    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+    let (ch, iter, res) = parser.maybe_str("abcd".chars()).unCommit().unDone();
     assert_eq!(res, Some('a'));
+    assert_eq!(ch, 'b');
+    assert_eq!(iter.as_str(), "cd");
+}
+
+#[test]
+fn test_map2() {
+    let parser = CHARACTER.map(Some);
+    let iter = parser.init_str("".chars()).unEmpty();
+    assert_eq!(iter.as_str(), "");
+    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+    assert_eq!(res, Some(Some('a')));
     assert_eq!(ch, 'b');
     assert_eq!(iter.as_str(), "cd");
 }
@@ -1439,8 +1457,8 @@ fn test_map() {
 #[allow(non_snake_case)]
 fn test_and_then() {
     let parser = character(char::is_alphanumeric).and_then(emit(true));
-    parser.init_str("".chars()).unEmpty();
-    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+    parser.maybe_str("".chars()).unEmpty();
+    let (ch, iter, res) = parser.maybe_str("abcd".chars()).unCommit().unDone();
     assert_eq!(res, ('a', true));
     assert_eq!(ch, 'b');
     assert_eq!(iter.as_str(), "cd");
@@ -1590,6 +1608,129 @@ fn test_and_then() {
 //     assert_eq!(parsing.parse("bc!").unDone(),
 //                ("!", Owned(String::from("abc"))));
 // }
+
+#[test]
+#[allow(non_snake_case)]
+
+fn test_cow() {
+    fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
+    fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
+    fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
+    let ONE = character_ref(is_foo);
+    let OTHER = CHARACTER.map(mk_other);
+    let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+    let mut data = vec!["foo","bar","foo","baz"];
+    let (ch, _, ((fst, snd), thd)) = parser.maybe_str(data.drain(..).map(Cow::Borrowed)).unCommit().unDone();
+    assert_eq!(ch, "baz");
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(!is_owned(fst));
+    assert!(!is_owned(snd));
+    assert!(!is_owned(thd));
+    let mut data1 = vec!["foo","bar"];
+    let mut data2 = vec!["foo","baz"];
+    let (_, parsing) = parser.maybe_str(data1.drain(..).map(Cow::Borrowed)).unCommit().unContinue();
+    let (ch, _, ((fst, snd), thd)) = parsing.more_str(data2.drain(..).map(Cow::Borrowed)).unDone();
+    assert_eq!(ch, "baz");
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(is_owned(fst));
+    assert!(!is_owned(snd));
+    assert!(!is_owned(thd));
+    let mut data1 = vec!["foo","foo"];
+    let mut data2 = vec!["foo","baz"];
+    let (_, parsing) = parser.maybe_str(data1.drain(..).map(Cow::Borrowed)).unCommit().unContinue();
+    let (ch, _, ((fst, snd), thd)) = parsing.more_str(data2.drain(..).map(Cow::Borrowed)).unDone();
+    assert_eq!(ch, "baz");
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "foo");
+    assert_eq!(thd, "foo");
+    assert!(is_owned(fst));
+    assert!(is_owned(snd));
+    assert!(!is_owned(thd));
+    let mut data1 = vec!["foo","bar","foo"];
+    let mut data2 = vec!["baz"];
+    let (_, parsing) = parser.maybe_str(data1.drain(..).map(Cow::Borrowed)).unCommit().unContinue();
+    let (ch, _, ((fst, snd), thd)) = parsing.more_str(data2.drain(..).map(Cow::Borrowed)).unDone();
+    assert_eq!(ch, "baz");
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(is_owned(fst));
+    assert!(is_owned(snd));
+    assert!(is_owned(thd));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_boxable() {
+    // use std::slice::Iter;
+    // #[derive(Copy, Clone, Debug)]
+    // struct Test;
+    // // type TestOutput<'a> = ((Cow<'a,str>, Cow<'a,str>), Cow<'a,str>);
+    // type TestOutput<'a> = Option<&'a usize>;
+    // type TestState = Box<for<'a> Boxable<Iter<'a,usize>, Output=TestOutput<'a>>>;
+    // impl Parser for Test {}
+    // impl<'a> Uncommitted<Iter<'a,usize>> for Test {
+    //     type State = TestState;
+    //     fn maybe_ch_str(&self, ch: &'a usize, string: Iter<'a,usize>) -> UncommittedParseChStrResult<Self, Iter<'a,usize>> {
+    //         fn is_one<'a>(num: &'a usize) -> bool { *num == 1 }
+    //         fn mk_one<'a>(_: &'a usize) -> Cow<'a,str> { Cow::Borrowed("one") }
+    //         fn mk_other<'a>(_: Option<&'a usize>) -> Cow<'a,str> { Cow::Borrowed("other") }
+    //         fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
+    //         let ONE = character(is_one).map(mk_one);
+    //         let OTHER = CHARACTER.map(mk_other);
+    //         let parser = CHARACTER;//;ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+    //         fn mk_box<P>(parsing: P) -> TestState
+    //             where P: 'static+for<'a> Stateful<Iter<'a,usize>, Output=TestOutput<'a>>
+    //         {
+    //             Box::new(parsing.boxable())
+    //         }
+    //         // This bit should be in the APIG
+    //         match parser.init_ch_str(ch, string) {
+    //             // Empty(impossible) => Empty(impossible),
+    //             // Backtrack((ch, string)) => Backtrack((ch, string)),
+    //             // Commit(Done((ch, string, result))) => Commit(Done((ch, string, result))),
+    //             // Commit(Continue((empty, parsing))) => Commit(Continue((empty, mk_box(parsing)))),
+    //             Done((ch, string, result)) => Commit(Done((ch, string, result))),
+    //             Continue((empty, parsing)) => Commit(Continue((empty, mk_box(parsing)))),
+    //         }
+    //     }
+    // }
+    // let data = [1,2,1,4];
+    // let (ch, _, ((fst, snd), thd)) = parser.maybe_str(data.iter()).unCommit().unDone();
+    // assert_eq!(*ch, 4);
+    // assert_eq!(fst, "one");
+    // assert_eq!(snd, "other");
+    // assert_eq!(thd, "one");
+    // assert!(!is_owned(fst));
+    // assert!(!is_owned(snd));
+    // assert!(!is_owned(thd));
+    // let data1 = [1,2];
+    // let data2 = [1,4];
+    // let (_, parsing) = parser.maybe_str(data1.iter()).unCommit().unContinue();
+    // let (ch, _, ((fst, snd), thd)) = parsing.more_str(data2.iter()).unDone();
+    // assert_eq!(*ch, 4);
+    // assert_eq!(fst, "one");
+    // assert_eq!(snd, "other");
+    // assert_eq!(thd, "one");
+    // assert!(is_owned(fst));
+    // assert!(!is_owned(snd));
+    // assert!(!is_owned(thd));
+    // let data1 = [1,2,1];
+    // let data2 = [4];
+    // let (_, parsing) = parser.maybe_str(data1.iter()).unCommit().unContinue();
+    // let (ch, _, ((fst, snd), thd)) = parsing.more_str(data2.iter()).unDone();
+    // assert_eq!(*ch, 4);
+    // assert_eq!(fst, "one");
+    // assert_eq!(snd, "other");
+    // assert_eq!(thd, "one");
+    // assert!(is_owned(fst));
+    // assert!(is_owned(snd));
+    // assert!(!is_owned(thd));
+}
 
 // #[test]
 // #[allow(non_snake_case)]
