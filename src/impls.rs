@@ -15,8 +15,7 @@ use super::{ToStatic, Static};
 use super::Maybe::{Empty, Backtrack, Commit};
 use super::ParseResult::{Done, Continue};
 
-// // use self::OrElseStatefulParser::{Lhs, Rhs};
-// use self::OrElseCommittedParser::{Uncommit, CommitLhs, CommitRhs};
+use self::OrElseState::{Lhs, Rhs};
 use self::AndThenState::{InLhs, InRhs};
 
 // use std::borrow::Cow;
@@ -25,134 +24,133 @@ use self::AndThenState::{InLhs, InRhs};
 use std::fmt::{Formatter, Debug};
 use std;
 
+// ----------- N-argument functions ---------------
 
-// // ----------- N-argument functions ---------------
+#[derive(Copy, Clone, Debug)]
+pub struct Function2<F>(F);
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct Function2<F>(F);
+impl<F> Function2<F> {
+    pub fn new(f: F) -> Self {
+        Function2(f)
+    }
+}
 
-// impl<F> Function2<F> {
-//     pub fn new(f: F) -> Self {
-//         Function2(f)
-//     }
-// }
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S1, S2> Function<(S1, S2)> for Function2<F> where F: Fn<(S1, S2, )>
+{
+    type Output = F::Output;
+    fn apply(&self, args: (S1, S2)) -> F::Output {
+        (self.0)(args.0, args.1)
+    }
+}
 
-// // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
-// // See https://github.com/rust-lang/rust/issues/30867 for more details.
-// impl<F, S1, S2> Function<(S1, S2)> for Function2<F> where F: Fn<(S1, S2, )>
-// {
-//     type Output = F::Output;
-//     fn apply(&self, args: (S1, S2)) -> F::Output {
-//         (self.0)(args.0, args.1)
-//     }
-// }
+#[derive(Copy, Clone, Debug)]
+pub struct Function3<F>(F);
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct Function3<F>(F);
+impl<F> Function3<F> {
+    pub fn new(f: F) -> Self {
+        Function3(f)
+    }
+}
 
-// impl<F> Function3<F> {
-//     pub fn new(f: F) -> Self {
-//         Function3(f)
-//     }
-// }
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S1, S2, S3> Function<((S1, S2), S3)> for Function3<F> where F: Fn<(S1, S2, S3, )>
+{
+    type Output = F::Output;
+    fn apply(&self, args: ((S1, S2), S3)) -> F::Output {
+        (self.0)((args.0).0, (args.0).1, args.1)
+    }
+}
 
-// // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
-// // See https://github.com/rust-lang/rust/issues/30867 for more details.
-// impl<F, S1, S2, S3> Function<((S1, S2), S3)> for Function3<F> where F: Fn<(S1, S2, S3, )>
-// {
-//     type Output = F::Output;
-//     fn apply(&self, args: ((S1, S2), S3)) -> F::Output {
-//         (self.0)((args.0).0, (args.0).1, args.1)
-//     }
-// }
+#[derive(Copy, Clone, Debug)]
+pub struct Function4<F>(F);
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct Function4<F>(F);
+impl<F> Function4<F> {
+    pub fn new(f: F) -> Self {
+        Function4(f)
+    }
+}
 
-// impl<F> Function4<F> {
-//     pub fn new(f: F) -> Self {
-//         Function4(f)
-//     }
-// }
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S1, S2, S3, S4> Function<(((S1, S2), S3), S4)> for Function4<F>
+    where F: Fn<(S1, S2, S3, S4, )>
+{
+    type Output = F::Output;
+    fn apply(&self, args: (((S1, S2), S3), S4)) -> F::Output {
+        (self.0)(((args.0).0).0, ((args.0).0).1, (args.0).1, args.1)
+    }
+}
 
-// // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
-// // See https://github.com/rust-lang/rust/issues/30867 for more details.
-// impl<F, S1, S2, S3, S4> Function<(((S1, S2), S3), S4)> for Function4<F>
-//     where F: Fn<(S1, S2, S3, S4, )>
-// {
-//     type Output = F::Output;
-//     fn apply(&self, args: (((S1, S2), S3), S4)) -> F::Output {
-//         (self.0)(((args.0).0).0, ((args.0).0).1, (args.0).1, args.1)
-//     }
-// }
+#[derive(Copy, Clone, Debug)]
+pub struct Function5<F>(F);
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct Function5<F>(F);
+impl<F> Function5<F> {
+    pub fn new(f: F) -> Self {
+        Function5(f)
+    }
+}
 
-// impl<F> Function5<F> {
-//     pub fn new(f: F) -> Self {
-//         Function5(f)
-//     }
-// }
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S1, S2, S3, S4, S5> Function<((((S1, S2), S3), S4), S5)> for Function5<F>
+    where F: Fn<(S1, S2, S3, S4, S5, )>
+{
+    type Output = F::Output;
+    fn apply(&self, args: ((((S1, S2), S3), S4), S5)) -> F::Output {
+        (self.0)((((args.0).0).0).0,
+                 (((args.0).0).0).1,
+                 ((args.0).0).1,
+                 (args.0).1,
+                 args.1)
+    }
+}
 
-// // NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
-// // See https://github.com/rust-lang/rust/issues/30867 for more details.
-// impl<F, S1, S2, S3, S4, S5> Function<((((S1, S2), S3), S4), S5)> for Function5<F>
-//     where F: Fn<(S1, S2, S3, S4, S5, )>
-// {
-//     type Output = F::Output;
-//     fn apply(&self, args: ((((S1, S2), S3), S4), S5)) -> F::Output {
-//         (self.0)((((args.0).0).0).0,
-//                  (((args.0).0).0).1,
-//                  ((args.0).0).1,
-//                  (args.0).1,
-//                  args.1)
-//     }
-// }
+// ----------- Deal with errors ---------------
 
-// // ----------- Deal with errors ---------------
+#[derive(Copy, Clone, Debug)]
+pub struct Try<F>(F);
+impl<F, S, E> Function<Result<S, E>> for Try<F> where F: Function<S>
+{
+    type Output = Result<F::Output,E>;
+    fn apply(&self, args: Result<S, E>) -> Result<F::Output, E> {
+        Ok(self.0.apply(try!(args)))
+    }
+}
+impl<F> Try<F> {
+    pub fn new(f: F) -> Try<F> {
+        Try(f)
+    }
+}
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct Try<F>(F);
-// impl<F, S, E> Function<Result<S, E>> for Try<F> where F: Function<S>
-// {
-//     type Output = Result<F::Output,E>;
-//     fn apply(&self, args: Result<S, E>) -> Result<F::Output, E> {
-//         Ok(self.0.apply(try!(args)))
-//     }
-// }
-// impl<F> Try<F> {
-//     pub fn new(f: F) -> Try<F> {
-//         Try(f)
-//     }
-// }
+#[derive(Copy, Clone, Debug)]
+pub struct TryZip;
+impl<S, T, E> Function<(Result<S, E>, T)> for TryZip {
+    type Output = Result<(S,T),E>;
+    fn apply(&self, args: (Result<S, E>, T)) -> Result<(S, T), E> {
+        Ok((try!(args.0), args.1))
+    }
+}
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct TryZip;
-// impl<S, T, E> Function<(Result<S, E>, T)> for TryZip {
-//     type Output = Result<(S,T),E>;
-//     fn apply(&self, args: (Result<S, E>, T)) -> Result<(S, T), E> {
-//         Ok((try!(args.0), args.1))
-//     }
-// }
+#[derive(Copy, Clone, Debug)]
+pub struct ZipTry;
+impl<S, T, E> Function<(S, Result<T, E>)> for ZipTry {
+    type Output = Result<(S,T),E>;
+    fn apply(&self, args: (S, Result<T, E>)) -> Result<(S, T), E> {
+        Ok((args.0, try!(args.1)))
+    }
+}
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct ZipTry;
-// impl<S, T, E> Function<(S, Result<T, E>)> for ZipTry {
-//     type Output = Result<(S,T),E>;
-//     fn apply(&self, args: (S, Result<T, E>)) -> Result<(S, T), E> {
-//         Ok((args.0, try!(args.1)))
-//     }
-// }
-
-// #[derive(Copy, Clone, Debug)]
-// pub struct TryZipTry;
-// impl<S, T, E> Function<(Result<S, E>, Result<T, E>)> for TryZipTry {
-//     type Output = Result<(S,T),E>;
-//     fn apply(&self, args: (Result<S, E>, Result<T, E>)) -> Result<(S, T), E> {
-//         Ok((try!(args.0), try!(args.1)))
-//     }
-// }
+#[derive(Copy, Clone, Debug)]
+pub struct TryZipTry;
+impl<S, T, E> Function<(Result<S, E>, Result<T, E>)> for TryZipTry {
+    type Output = Result<(S,T),E>;
+    fn apply(&self, args: (Result<S, E>, Result<T, E>)) -> Result<(S, T), E> {
+        Ok((try!(args.0), try!(args.1)))
+    }
+}
 
 // ----------- Map ---------------
 
@@ -359,152 +357,103 @@ impl<P, Q, Str> Stateful<Str> for AndThenState<(P, Q), (Static<StatefulOutput<P,
    
 }
 
-// impl<P, Q> AndThenParser<P, Q> {
-//     pub fn new(lhs: P, rhs: Q) -> Self {
-//         AndThenParser(lhs, rhs)
-//     }
-// }
+// ----------- Choice ---------------
 
-// // ----------- Choice ---------------
+#[derive(Copy, Clone, Debug)]
+pub struct OrElse<P, Q>(P, Q);
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct OrElseParser<P, Q>(P, Q);
+impl<P, Q> Parser for OrElse<P, Q> {}
 
-// impl<P, Q, Ch> Parser<Ch> for OrElseParser<P, Q>
-//     where P: 'static + Parser<Ch>,
-//           Q: Parser<Ch>,
-// {
-//     type StaticOutput = P::StaticOutput;
-//     type State = OrElseCommittedParser<P,P::State,Q::State>;
-// }
-// impl<P, Q, Str> Committed<Str> for OrElseParser<P, Q>
-//     where P: 'static + Copy + Uncommitted<Str>,
-//           Q: Committed<Str>,
-//           Str: IntoPeekable,
-//           Str::Item: ToStatic,
-// {
-//     fn init(&self) -> Self::State {
-//         Uncommit(self.0, self.1.init())
-//     }
-// }
-// impl<P, Q, Str> Uncommitted<Str> for OrElseParser<P, Q>
-//     where P: 'static + Uncommitted<Str>,
-//           Q: Uncommitted<Str>,
-//           Str: IntoPeekable,
-//           Str::Item: ToStatic,
-//           P::State: Stateful<Str>,
-//           Q::State: Stateful<Str, Output = <P::State as Stateful<Str>>::Output>,
-// {
-//     fn parse(&self, value: Str) -> MaybeParseResult<Self::State, Str> {
-//         match self.0.parse(value) {
-//             Empty(rest) => Empty(rest),
-//             Commit(Done(rest, result)) => Commit(Done(rest, result)),
-//             Commit(Continue(rest, parsing)) => Commit(Continue(rest, CommitLhs(parsing))),
-//             Abort(value) => {
-//                 match self.1.parse(value) {
-//                     Empty(rest) => Empty(rest),
-//                     Commit(Done(rest, result)) => Commit(Done(rest, result)),
-//                     Commit(Continue(rest, parsing)) => Commit(Continue(rest, CommitRhs(parsing))),
-//                     Abort(value) => Abort(value),
-//                 }
-//             }
-//         }
-//     }
-// }
+impl<P, Q, Str> Committed<Str> for OrElse<P, Q>
+    where P: Uncommitted<Str>,
+          Q: Committed<Str>,
+          Str: Iterator,
+          Q::State: Stateful<Str, Output = UncommittedOutput<P, Str>>,
+{
+    type State = OrElseState<P::State, Q::State>;
 
-// impl<P, Q> OrElseParser<P, Q> {
-//     pub fn new(lhs: P, rhs: Q) -> Self {
-//         OrElseParser(lhs, rhs)
-//     }
-// }
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
+        match self.0.init_ch_str(ch, string) {
+            Empty(impossible) => impossible.cant_happen(),
+            Commit(Done((ch, string, result))) => Done((ch, string, result)),
+            Commit(Continue((empty, lhs))) => Continue((empty, Lhs(lhs))),
+            Backtrack((ch, string)) => match self.1.init_ch_str(ch, string) {
+                Done((ch, string, result)) => Done((ch, string, result)),
+                Continue((empty, rhs)) => Continue((empty, Rhs(rhs))),
+            },
+        }
+    }
+    
+    fn init_eof(&self) -> CommittedOutput<Q, Str> {
+        self.1.init_eof()
+    }
+    
+}
 
-// // #[derive(Copy, Clone, Debug)]
-// // pub enum OrElseStatefulParser<P, Q> {
-// //     Lhs(P),
-// //     Rhs(Q),
-// // }
+impl<P, Q, Str> Uncommitted<Str> for OrElse<P, Q>
+    where P: Uncommitted<Str>,
+          Q: Uncommitted<Str>,
+          Str: Iterator,
+          Q::State: Stateful<Str, Output = UncommittedOutput<P, Str>>,
+{
+    type State = OrElseState<P::State, Q::State>;
 
-// // impl<P, Q, Str> Stateful<Str> for OrElseStatefulParser<P, Q>
-// //     where P: Stateful<Str>,
-// //           Q: Stateful<Str, Output = P::Output>
-// // {
-// //     type Output = P::Output;
-// //     fn parse(self, value: Str) -> ParseResult<Self, Str> {
-// //         match self {
-// //             Lhs(lhs) => {
-// //                 match lhs.parse(value) {
-// //                     Done(rest, result) => Done(rest, result),
-// //                     Continue(rest, parsing) => Continue(rest, Lhs(parsing)),
-// //                 }
-// //             }
-// //             Rhs(rhs) => {
-// //                 match rhs.parse(value) {
-// //                     Done(rest, result) => Done(rest, result),
-// //                     Continue(rest, parsing) => Continue(rest, Rhs(parsing)),
-// //                 }
-// //             }
-// //         }
-// //     }
-// //     fn done(self) -> Self::Output {
-// //         match self {
-// //             Lhs(lhs) => lhs.done(),
-// //             Rhs(rhs) => rhs.done(),
-// //         }
-// //     }
-// // }
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
+        match self.0.init_ch_str(ch, string) {
+            Empty(impossible) => Empty(impossible),
+            Commit(Done((ch, string, result))) => Commit(Done((ch, string, result))),
+            Commit(Continue((empty, lhs))) => Commit(Continue((empty, Lhs(lhs)))),
+            Backtrack((ch, string)) => match self.1.init_ch_str(ch, string) {
+                Empty(impossible) => Empty(impossible),
+                Commit(Done((ch, string, result))) => Commit(Done((ch, string, result))),
+                Commit(Continue((empty, rhs))) => Commit(Continue((empty, Rhs(rhs)))),
+                Backtrack((ch, string)) => Backtrack((ch, string)),
+            },
+        }
+    }
+    
+}
 
-// #[derive(Copy, Clone, Debug)]
-// pub enum OrElseCommittedParser<P, Q, R> {
-//     Uncommit(P, R),
-//     CommitLhs(Q),
-//     CommitRhs(R),
-// }
+impl<P, Q> OrElse<P, Q> {
+    pub fn new(lhs: P, rhs: Q) -> Self {
+        OrElse(lhs, rhs)
+    }
+}
 
-// impl<P, Q, Str> Stateful<Str> for OrElseCommittedParser<P, P::State, Q>
-//     where P: Uncommitted<Str>,
-//           Q: Stateful<Str>,
-//           Str: IntoPeekable,
-//           Str::Item: ToStatic,
-//           P::State: Stateful<Str, Output = Q::Output>,
-// {
-//     type Output = Q::Output;
-//     fn parse(self, value: Str) -> ParseResult<Self, Str> {
-//         match self {
-//             Uncommit(lhs, rhs) => {
-//                 match lhs.parse(value) {
-//                     Empty(value) => Continue(value, Uncommit(lhs, rhs)),
-//                     Commit(Done(rest, result)) => Done(rest, result),
-//                     Commit(Continue(rest, parsing)) => Continue(rest, CommitLhs(parsing)),
-//                     Abort(value) => {
-//                         match rhs.parse(value) {
-//                             Done(rest, result) => Done(rest, result),
-//                             Continue(rest, parsing) => Continue(rest, CommitRhs(parsing)),
-//                         }
-//                     }
-//                 }
-//             }
-//             CommitLhs(lhs) => {
-//                 match lhs.parse(value) {
-//                     Done(rest, result) => Done(rest, result),
-//                     Continue(rest, parsing) => Continue(rest, CommitLhs(parsing)),
-//                 }
-//             }
-//             CommitRhs(rhs) => {
-//                 match rhs.parse(value) {
-//                     Done(rest, result) => Done(rest, result),
-//                     Continue(rest, parsing) => Continue(rest, CommitRhs(parsing)),
-//                 }
-//             }
-//         }
-//     }
-//     fn done(self) -> Self::Output {
-//         match self {
-//             Uncommit(_, rhs) => rhs.done(),
-//             CommitLhs(lhs) => lhs.done(),
-//             CommitRhs(rhs) => rhs.done(),
-//         }
-//     }
-// }
+#[derive(Copy, Clone, Debug)]
+pub enum OrElseState<P, Q> {
+    Lhs(P),
+    Rhs(Q),
+}
+
+impl<P, Q, Str> Stateful<Str> for OrElseState<P, Q>
+    where P: Stateful<Str>,
+          Q: Stateful<Str, Output = P::Output>,
+          Str: Iterator,
+{
+    type Output = P::Output;
+    
+    fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str> {
+        match self {
+            Lhs(lhs) => match lhs.more_ch_str(ch, string) {
+                Done((ch, string, result)) => Done((ch, string, result)),
+                Continue((empty, lhs)) => Continue((empty, Lhs(lhs))),
+            },
+            Rhs(rhs) => match rhs.more_ch_str(ch, string) {
+                Done((ch, string, result)) => Done((ch, string, result)),
+                Continue((empty, rhs)) => Continue((empty, Rhs(rhs))),
+            },
+        }
+    }
+
+    fn more_eof(self) -> Self::Output {
+        match self {
+            Lhs(lhs) => lhs.more_eof(),
+            Rhs(rhs) => rhs.more_eof(),
+        }
+    }
+
+}
 
 // // ----------- Kleene star ---------------
 

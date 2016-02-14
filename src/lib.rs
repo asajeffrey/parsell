@@ -60,13 +60,6 @@ pub mod impls;
 /// }
 /// ```
 
-pub trait Parser {
-
-    fn map<F>(self, f: F) -> impls::Map<Self, F> where Self: Sized { impls::Map::new(self ,f) }
-    fn and_then<P>(self, p: P) -> impls::AndThen<Self, P> where Self: Sized { impls::AndThen::new(self ,p) }
-
-}
-
 pub trait Stateful<Str> 
     where Str: Iterator,
 {
@@ -179,8 +172,7 @@ pub type StatefulParseChStrResult<P, Str> where P: Stateful<Str>, Str: Iterator 
 // }
 
 /// The result of stateful parsing
-pub enum ParseResult<Parser, Output>
-{
+pub enum ParseResult<Parser, Output> {
     
     /// The parse is finished.
     Done(Output),
@@ -189,44 +181,6 @@ pub enum ParseResult<Parser, Output>
     Continue(Parser),
 
 }
-
-// // Implement Debug for ParseResult<P, S> without requiring P: Debug
-
-// impl<P, Str> Debug for ParseResult<P, Str>
-//     where P: Stateful<Str>,
-//           Str: Debug,
-//           P::Output: Debug,
-// {
-//     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-//         match self {
-//             &Done(ref rest, ref result) => write!(fmt, "Done({:?}, {:?})", rest, result),
-//             &Continue(ref rest, _) => write!(fmt, "Continue({:?}, ...)", rest),
-//         }
-//     }
-// }
-
-// impl<P, Str> ParseResult<P, Str> where P: Stateful<Str>
-// {
-//     /// Apply a function the the `Continue` branch of a parse result.
-//     pub fn map<F, Q>(self, f: F) -> ParseResult<Q, Str>
-//         where Q: Stateful<Str, Output = P::Output>,
-//               F: Function<P, Output = Q>
-//     {
-//         match self {
-//             Done(rest, result) => Done(rest, result),
-//             Continue(rest, parsing) => Continue(rest, f.apply(parsing)),
-//         }
-//     }
-// }
-
-// impl<P, Str> PartialEq for ParseResult<P, Str> where Str: PartialEq, P: Stateful<Str>, P::Output: PartialEq {
-//     fn eq(&self, other: &ParseResult<P, Str>) -> bool {
-//         match (self, other) {
-//             (&Done(ref rest1, ref result1), &Done(ref rest2, ref result2)) => (rest1 == rest2) && (result1 == result2),
-//             _ => false,
-//         }
-//     }
-// }
 
 // /// A trait for stateless parsers.
 // ///
@@ -325,26 +279,23 @@ pub type UncommittedParseChStrResult<P, Str> where P: Uncommitted<Str>, Str: Ite
 pub type UncommittedParseStrResult<P, Str> where P: Uncommitted<Str>, Str: Iterator
     = Maybe<Str, (Str::Item, Str), StatefulParseStrResult<UncommittedState<P, Str>, Str>>;
 
-// pub trait Parser<Ch> {
+pub trait Parser {
 
-//     type StaticOutput: 'static;
-//     type State: 'static;
+    /// Choice between parsers
+    fn or_else<P>(self, other: P) -> impls::OrElse<Self, P>
+        where Self: Sized,
+              P: Parser,
+    {
+        impls::OrElse::new(self, other)
+    }
 
-//     /// Choice between parsers
-//     fn or_else<P>(self, other: P) -> impls::OrElseParser<Self, P>
-//         where Self: Sized,
-//               P: Parser<Ch>,
-//     {
-//         impls::OrElseParser::new(self, other)
-//     }
-
-//     /// Sequencing with a committed parser
-//     fn and_then<P>(self, other: P) -> impls::AndThenParser<Self, P>
-//         where Self: Sized,
-//               P: Parser<Ch>,
-//     {
-//         impls::AndThenParser::new(self, other)
-//     }
+    /// Sequencing with a committed parser
+    fn and_then<P>(self, other: P) -> impls::AndThen<Self, P>
+        where Self: Sized,
+              P: Parser,
+    {
+        impls::AndThen::new(self, other)
+    }
 
 //     /// Sequencing with a committed parser (bubble any errors from this parser).
 //     fn try_and_then<P>(self,
@@ -393,12 +344,12 @@ pub type UncommittedParseStrResult<P, Str> where P: Uncommitted<Str>, Str: Itera
 //         impls::StarParser::new(self, factory)
 //     }
 
-//     /// Apply a function to the result
-//     fn map<F>(self, f: F) -> impls::MapParser<Self, F>
-//         where Self: Sized,
-//     {
-//         impls::MapParser::new(self, f)
-//     }
+    /// Apply a function to the result
+    fn map<F>(self, f: F) -> impls::Map<Self, F>
+        where Self: Sized,
+    {
+        impls::Map::new(self, f)
+    }
 
 //     /// Apply a 2-arguent function to the result
 //     fn map2<F>(self, f: F) -> impls::MapParser<Self, impls::Function2<F>>
@@ -502,7 +453,7 @@ pub type UncommittedParseStrResult<P, Str> where P: Uncommitted<Str>, Str: Itera
 //         impls::BufferedParser::new(self)
 //     }
 
-// }
+}
 
 // /// A trait for committed parsers.
 // ///
@@ -1075,103 +1026,100 @@ impl<F, T> Factory for F where F: Fn() -> T
     }
 }
 
-// /// A trait for consumers of data, typically buffers.
-// ///
-// /// # Examples
-// ///
-// /// `String` is a consumer of `&str` and of `char`.
-// ///
-// /// ```
-// /// # use parsell::Consumer;
-// /// let mut buffer = String::new();
-// /// buffer.accept("abc");
-// /// buffer.accept('d');
-// /// assert_eq!(buffer,"abcd");
-// /// ```
-// ///
-// /// `Vec<T>` is a consumer of `&[T]` when `T` is `Clone`, and of `T`.
-// ///
-// /// ```
-// /// # use parsell::Consumer;
-// /// let mut buffer = Vec::new();
-// /// buffer.accept(&[1,2,3][..]);
-// /// buffer.accept(4);
-// /// assert_eq!(buffer,&[1,2,3,4]);
-// /// ```
-// ///
-// /// The unit type `()` is a trivial consumer that discards data.
-// ///
-// /// ```
-// /// # use parsell::Consumer;
-// /// let mut discarder = ();
-// /// discarder.accept("this");
-// /// discarder.accept(4);
-// /// assert_eq!(discarder,());
-// /// ```
+/// A trait for consumers of data, typically buffers.
+///
+/// # Examples
+///
+/// `String` is a consumer of `&str` and of `char`.
+///
+/// ```
+/// # use parsell::Consumer;
+/// let mut buffer = String::new();
+/// buffer.accept("abc");
+/// buffer.accept('d');
+/// assert_eq!(buffer,"abcd");
+/// ```
+///
+/// `Vec<T>` is a consumer of `&[T]` when `T` is `Clone`, and of `T`.
+///
+/// ```
+/// # use parsell::Consumer;
+/// let mut buffer = Vec::new();
+/// buffer.accept(&[1,2,3][..]);
+/// buffer.accept(4);
+/// assert_eq!(buffer,&[1,2,3,4]);
+/// ```
+///
+/// The unit type `()` is a trivial consumer that discards data.
+///
+/// ```
+/// # use parsell::Consumer;
+/// let mut discarder = ();
+/// discarder.accept("this");
+/// discarder.accept(4);
+/// assert_eq!(discarder,());
+/// ```
 
-// pub trait Consumer<T> {
-//     /// Accepts data.
-//     fn accept(&mut self, value: T);
-// }
+pub trait Consumer<T> {
+    /// Accepts data.
+    fn accept(&mut self, value: T);
+}
 
-// impl<T> Consumer<T> for () {
-//     fn accept(&mut self, _: T) {}
-// }
+impl<T> Consumer<T> for () {
+    fn accept(&mut self, _: T) {}
+}
 
-// impl Consumer<String> for String {
-//     fn accept(&mut self, arg: String) {
-//         self.push_str(&*arg);
-//     }
-// }
+impl Consumer<String> for String {
+    fn accept(&mut self, arg: String) {
+        self.push_str(&*arg);
+    }
+}
 
-// impl<'a> Consumer<&'a str> for String {
-//     fn accept(&mut self, arg: &'a str) {
-//         self.push_str(arg);
-//     }
-// }
+impl<'a> Consumer<&'a str> for String {
+    fn accept(&mut self, arg: &'a str) {
+        self.push_str(arg);
+    }
+}
 
-// impl Consumer<char> for String {
-//     fn accept(&mut self, x: char) {
-//         self.push(x);
-//     }
-// }
+impl Consumer<char> for String {
+    fn accept(&mut self, x: char) {
+        self.push(x);
+    }
+}
 
-// impl<'a, T> Consumer<&'a [T]> for Vec<T> where T: Clone
-// {
-//     fn accept(&mut self, arg: &'a [T]) {
-//         self.extend(arg.iter().cloned());
-//     }
-// }
+impl<'a, T> Consumer<&'a [T]> for Vec<T> where T: Clone
+{
+    fn accept(&mut self, arg: &'a [T]) {
+        self.extend(arg.iter().cloned());
+    }
+}
 
-// impl<T> Consumer<T> for Vec<T> {
-//     fn accept(&mut self, x: T) {
-//         self.push(x);
-//     }
-// }
+impl<T> Consumer<T> for Vec<T> {
+    fn accept(&mut self, x: T) {
+        self.push(x);
+    }
+}
 
-// impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
-// {
-//     fn accept(&mut self, value: Result<T, E>) {
-//         let err = match *self {
-//             Err(_) => return,
-//             Ok(ref mut consumer) => {
-//                 match value {
-//                     Err(err) => err,
-//                     Ok(value) => return consumer.accept(value),
-//                 }
-//             }
-//         };
-//         *self = Err(err);
-//     }
-// }
+impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
+{
+    fn accept(&mut self, value: Result<T, E>) {
+        let err = match *self {
+            Err(_) => return,
+            Ok(ref mut consumer) => {
+                match value {
+                    Err(err) => err,
+                    Ok(value) => return consumer.accept(value),
+                }
+            }
+        };
+        *self = Err(err);
+    }
+}
 
-// /// A trait for data which can be saved to and restored from long-lived state.
-// ///
-// /// The canonical example of this trait is `Cow<'a,T>` which can be saved to
-// /// and restored from `T::Owned`.
-// ///
-// /// This trait is lot like `ToOwned`, the difference is that `<Cow<'a,T> as ToOwned>::Owned`
-// /// is `Cow<'a,T>`, not `T::Owned`.
+/// A trait for data which can be saved to and restored from long-lived state.
+///
+/// The canonical example of this trait is `Cow<'a,T>` which can be saved to
+/// and restored from `Cow<'static,T>` when `T` is static.
 
 pub trait ToStatic {
     type Static: 'static;
@@ -1270,32 +1218,7 @@ pub fn emit<T>(t: T) -> impls::Return<T> {
     impls::Return::new(t)
 }
 
-// // ----------- Tests -------------
-
-// #[allow(non_snake_case,dead_code)]
-// impl<P, S> MaybeParseResult<P, S> where P: Stateful<S>
-// {
-//     fn unEmpty(self) -> S {
-//         match self {
-//             Empty(rest) => rest,
-//             _ => panic!("MaybeParseResult is not empty"),
-//         }
-//     }
-
-//     fn unAbort(self) -> S {
-//         match self {
-//             Abort(s) => s,
-//             _ => panic!("MaybeParseResult is not failure"),
-//         }
-//     }
-
-//     fn unCommit(self) -> ParseResult<P, S> {
-//         match self {
-//             Commit(s) => s,
-//             _ => panic!("MaybeParseResult is not success"),
-//         }
-//     }
-// }
+// ----------- Tests -------------
 
 #[allow(non_snake_case,dead_code)]
 impl<P, S> ParseResult<P, S> 
@@ -1393,41 +1316,19 @@ fn test_CHARACTER() {
     assert_eq!(iter.as_str(), "cd");
 }
 
-// #[test]
-// fn test_token() {
-//     fn is_zero(num: &usize) -> bool {
-//         *num == 0
-//     }
-//     let parser = token(is_zero);
-//     let mut iter = parser.parse(Peekable::new(1..3)).unAbort();
-//     assert_eq!(iter.next(), Some(1));
-//     assert_eq!(iter.next(), Some(2));
-//     assert_eq!(iter.next(), None);
-//     let (mut iter, result) = parser.parse(Peekable::new(0..3)).unCommit().unDone();
-//     assert_eq!(iter.next(), Some(1));
-//     assert_eq!(iter.next(), Some(2));
-//     assert_eq!(iter.next(), None);
-//     assert_eq!(result, 0);
-// }
-
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_TOKEN() {
-//     let parser = TOKEN;
-//     let (mut iter, result) = parser.init_parse(Peekable::new("abc".chars())).unDone();
-//     assert_eq!(result, Some('a'));
-//     assert_eq!(iter.next(), Some('b'));
-//     assert_eq!(iter.next(), Some('c'));
-//     assert_eq!(iter.next(), None);
-// }
-
-// #[test]
-// fn test_map() {
-//     let parser = character(char::is_alphabetic).map(Some);
-//     parser.parse("").unEmpty();
-//     assert_eq!(parser.parse("989").unAbort(), "989");
-//     assert_eq!(parser.parse("abc").unCommit().unDone(), ("bc", Some('a')));
-// }
+#[test]
+fn test_map() {
+    let parser = character(char::is_alphabetic).map(Some);
+    let iter = parser.init_str("".chars()).unEmpty();
+    assert_eq!(iter.as_str(), "");
+    let (ch, iter) = parser.init_str("989".chars()).unBacktrack();
+    assert_eq!(ch, '9');
+    assert_eq!(iter.as_str(), "89");
+    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+    assert_eq!(res, Some('a'));
+    assert_eq!(ch, 'b');
+    assert_eq!(iter.as_str(), "cd");
+}
 
 // #[test]
 // #[allow(non_snake_case)]
