@@ -1666,12 +1666,12 @@ fn test_cow() {
 #[test]
 #[allow(non_snake_case)]
 fn test_boxable() {
-    // use std::slice::Iter;
+    // use std::vec::Drain;
     // #[derive(Copy, Clone, Debug)]
     // struct Test;
-    // // type TestOutput<'a> = ((Cow<'a,str>, Cow<'a,str>), Cow<'a,str>);
-    // type TestOutput<'a> = Option<&'a usize>;
-    // type TestState = Box<for<'a> Boxable<Iter<'a,usize>, Output=TestOutput<'a>>>;
+    // type TestOutput<'a> = ((Cow<'a,str>, Cow<'a,str>), Cow<'a,str>);
+    // // type TestOutput<'a> = Option<&'a usize>;
+    // type TestState = Box<for<'a> Boxable<Drain<Cow<'a,str>>, Output=TestOutput<'a>>>;
     // impl Parser for Test {}
     // impl<'a> Uncommitted<Iter<'a,usize>> for Test {
     //     type State = TestState;
