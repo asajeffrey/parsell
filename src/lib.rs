@@ -74,10 +74,10 @@ pub trait Stateful<Str>
     /// The type of the data being produced by the parser.
     type Output;
 
-    /// Parse one character of data.
-    fn parse_ch(self, ch: Str::Item) -> StatefulParseChResult<Self, Str>
+    /// Parse a non-empty string of data.
+    fn parse_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>
         where Self: Sized;
-    
+
     /// Parse an EOF.
     fn parse_eof(self) -> StatefulOutput<Self, Str>
         where Self: Sized;
@@ -92,20 +92,9 @@ pub trait Stateful<Str>
         }
     }
     
-    /// Parse a non-empty string of data.
-    fn parse_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>
-        where Self: Sized,
-    {
-        match self.parse_ch(ch) {
-            Done((ch, result)) => Done((ch, string, Self::Output::from(result))),
-            Continue(parser) => parser.parse_str(string),
-        }
-    }
-
 }
 
 pub type StatefulOutput<P, Str> where P: Stateful<Str> = P::Output;
-pub type StatefulParseChResult<P, Str> where P: Stateful<Str>, Str: Iterator = ParseResult<P, (Str::Item, StatefulOutput<P, Str>)>;
 pub type StatefulParseStrResult<P, Str> where P: Stateful<Str>, Str: Iterator = ParseResult<(Str, P), (Str::Item, Str, StatefulOutput<P, Str>)>;
 pub type StatefulParseChStrResult<P, Str> where P: Stateful<Str>, Str: Iterator = StatefulParseStrResult<P, Str>;
 
@@ -253,24 +242,14 @@ pub trait Committed<Str>
 
     type State: Stateful<Str>;
 
-    /// Parse one character of data.
-    fn parse_ch(&self, ch: Str::Item) -> CommittedParseChResult<Self, Str>
+    /// Parse a non-empty string of data.
+    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str>
         where Self: Sized;
-    
+
     /// Parse an EOF.
     fn parse_eof(&self) -> CommittedOutput<Self, Str>
         where Self: Sized;
 
-    /// Parse a non-empty string of data.
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str>
-        where Self: Sized,
-    {
-        match self.parse_ch(ch) {
-            Done((ch, result)) => Done((ch, string, result)),
-            Continue(parsing) => parsing.parse_str(string),
-        }
-    }
-    
     /// Parse a string of data.
     fn parse_str(&self, mut string: Str) ->  CommittedParseStrResult<Self, Str>
         where Self: Sized,
@@ -288,9 +267,6 @@ pub type CommittedState<P, Str> where P: Committed<Str>
 
 pub type CommittedOutput<P, Str> where P: Committed<Str>
     = StatefulOutput<CommittedState<P, Str>, Str>;
-
-pub type CommittedParseChResult<P, Str> where P: Committed<Str>, Str: Iterator
-    = StatefulParseChResult<CommittedState<P, Str>, Str>;
 
 pub type CommittedParseChStrResult<P, Str> where P: Committed<Str>
     = StatefulParseChStrResult<CommittedState<P, Str>, Str>;
@@ -317,21 +293,10 @@ pub trait Uncommitted<Str>
 
     type State: Stateful<Str>;
 
-    /// Parse one character of data.
-    fn parse_ch(&self, ch: Str::Item) -> UncommittedParseChResult<Self, Str>
-        where Self: Sized;
-    
     /// Parse a non-empty string of data.
     fn parse_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str>
-        where Self: Sized,
-    {
-        match self.parse_ch(ch) {
-            Empty(impossible) => impossible.cant_happen(),
-            Backtrack(ch) => Backtrack((ch, string)),
-            Commit(parsing) => Commit(parsing.parse_str(string)),
-        }
-    }
-    
+        where Self: Sized;
+
     /// Parse a string of data.
     fn parse_str(&self, mut string: Str) ->  UncommittedParseStrResult<Self, Str>
         where Self: Sized,
@@ -353,9 +318,6 @@ pub type UncommittedState<P, Str> where P: Uncommitted<Str>
 
 pub type UncommittedOutput<P, Str> where P: Uncommitted<Str>
     = StatefulOutput<UncommittedState<P, Str>, Str>;
-
-pub type UncommittedParseChResult<P, Str> where P: Uncommitted<Str>, Str: Iterator
-    = Maybe<Impossible, Str::Item, UncommittedState<P, Str>>;
 
 pub type UncommittedParseChStrResult<P, Str> where P: Uncommitted<Str>, Str: Iterator
     = Maybe<Impossible, (Str::Item, Str), StatefulParseStrResult<UncommittedState<P, Str>, Str>>;
