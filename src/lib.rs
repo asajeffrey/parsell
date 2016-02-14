@@ -1238,9 +1238,23 @@ impl<T> StaticMarker for Vec<T> where T: 'static {}
 /// The parser `character(f)` reads one character `ch` from the input,
 /// if `f(ch)` is `true` then it commits and the result is `ch`,
 /// otherwise it backtracks.
+///
+/// This requires characters to be copyable.
 
 pub fn character<F>(f: F) -> impls::Character<F> {
     impls::Character::new(f)
+}
+
+/// An uncommitted parser that reads one character by reference.
+///
+/// The parser `character(f)` reads one character `ch` from the input,
+/// if `f(&ch)` is `true` then it commits and the result is `ch`,
+/// otherwise it backtracks.
+///
+/// This does not require characters to be copyable.
+
+pub fn character_ref<F>(f: F) -> impls::CharacterRef<F> {
+    impls::CharacterRef::new(f)
 }
 
 /// A committed parser that reads one character.
@@ -1250,24 +1264,7 @@ pub fn character<F>(f: F) -> impls::Character<F> {
 
 pub const CHARACTER: impls::AnyCharacter = impls::AnyCharacter;
 
-// /// An uncommitted parser that reads one token.
-// ///
-// /// The parser `token(f)` reads one token `tok` from the input,
-// /// if `f(tok)` is `true` then it commits and the result is `tok`,
-// /// otherwise it backtracks.
-
-// pub fn token<F>(f: F) -> impls::TokenParser<F> {
-//     impls::TokenParser::<F>::new(f)
-// }
-
-// /// A committed parser that reads one token.
-// ///
-// /// The parser `TOKEN` reads one token `tok` from the input,
-// /// and produces `Some(tok)`. It produces `None` at the end of input.
-
-// pub const TOKEN: impls::AnyTokenParser = impls::AnyTokenParser;
-
-/// An committed parser that reads zero characters.
+/// A committed parser that reads zero characters.
 
 pub fn emit<T>(t: T) -> impls::Return<T> {
     impls::Return::new(t)
@@ -1347,6 +1344,21 @@ impl<E, B, C> Maybe<E, B, C>  {
 #[test]
 fn test_character() {
     let parser = character(char::is_alphabetic);
+    let iter = parser.init_str("".chars()).unEmpty();
+    assert_eq!(iter.as_str(), "");
+    let (ch, iter) = parser.init_str("989".chars()).unBacktrack();
+    assert_eq!(ch, '9');
+    assert_eq!(iter.as_str(), "89");
+    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+    assert_eq!(res, 'a');
+    assert_eq!(ch, 'b');
+    assert_eq!(iter.as_str(), "cd");
+}
+
+#[test]
+fn test_character_ref() {
+    fn is_alphabetic<'a>(ch: &'a char) -> bool { ch.is_alphabetic() }
+    let parser = character_ref(is_alphabetic);
     let iter = parser.init_str("".chars()).unEmpty();
     assert_eq!(iter.as_str(), "");
     let (ch, iter) = parser.init_str("989".chars()).unBacktrack();

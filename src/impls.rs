@@ -784,6 +784,53 @@ impl<F> Character<F> {
     }
 }
 
+pub struct CharacterRef<F>(F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<F> Copy for CharacterRef<F> where F: Copy
+{}
+impl<F> Clone for CharacterRef<F> where F: Copy
+{
+    fn clone(&self) -> Self {
+        CharacterRef(self.0)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<F> Debug for CharacterRef<F>
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "CharacterRef(...)")
+    }
+}
+
+impl<F> Parser for CharacterRef<F> {}
+
+impl<F, Str> Uncommitted<Str> for CharacterRef<F>
+    where Str: Iterator,
+          F: for<'a> Function<&'a Str::Item, Output = bool>,
+{
+    
+    type State = Return<Str::Item>;
+    
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
+        if self.0.apply(&ch) {
+            Commit(Return(ch).more_str(string))
+        } else {
+            Backtrack((ch, string))
+        }
+    }
+    
+}
+
+impl<F> CharacterRef<F> {
+    pub fn new(function: F) -> Self {
+        CharacterRef(function)
+    }
+}
+
 #[derive(Copy,Clone,Debug)]
 pub struct AnyCharacter;
 
@@ -804,93 +851,6 @@ impl<Str> Committed<Str> for AnyCharacter
     }
     
 }
-
-// // ----------- Token parsers -------------
-
-// pub struct TokenParser<F>(F);
-
-// // A work around for functions implmenting copy but not clone
-// // https://github.com/rust-lang/rust/issues/28229
-// impl<F> Copy for TokenParser<F> where F: Copy
-// {}
-// impl<F> Clone for TokenParser<F> where F: Copy
-// {
-//     fn clone(&self) -> Self {
-//         TokenParser(self.0)
-//     }
-// }
-
-// // A work around for named functions not implmenting Debug
-// // https://github.com/rust-lang/rust/issues/31522
-// impl<F> Debug for TokenParser<F>
-// {
-//     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-//         write!(fmt, "TokenParser(...)")
-//     }
-// }
-
-// impl<F, Ch> Parser<Ch> for TokenParser<F> where Ch: 'static
-// {
-//     type StaticOutput = Ch;
-//     type State = Impossible;
-// }
-// impl<F, Iter> Uncommitted<Peekable<Iter>> for TokenParser<F>
-//     where F: for<'a> Function<&'a Iter::Item, Output = bool>,
-//           Iter: Iterator,
-//           Iter::Item: ToStatic,
-// {
-//     fn parse(&self, mut iterator: Peekable<Iter>) -> MaybeParseResult<Self::State, Peekable<Iter>> {
-//         let matched = match iterator.peek() {
-//             None => None,
-//             Some(tok) => Some(self.0.apply(tok)),
-//         };
-//         match matched {
-//             None => Empty(iterator),
-//             Some(true) => {
-//                 let tok = iterator.next().unwrap();
-//                 Commit(Done(iterator, tok))
-//             }
-//             Some(false) => Abort(iterator),
-//         }
-//     }
-// }
-
-// impl<F> TokenParser<F> {
-//     pub fn new(function: F) -> Self {
-//         TokenParser(function)
-//     }
-// }
-
-// #[derive(Copy,Clone,Debug)]
-// pub struct AnyTokenParser;
-
-// impl<Ch> Parser<Ch> for AnyTokenParser where Ch: 'static {
-//     type StaticOutput = Option<Ch>;
-//     type State = Self;
-// }
-// impl<Iter> Stateful<Peekable<Iter>> for AnyTokenParser
-//     where Iter: Iterator,
-//           Iter::Item: ToStatic,
-// {
-//     type Output = Option<Iter::Item>;
-//     fn parse(self, mut iterator: Peekable<Iter>) -> ParseResult<Self, Peekable<Iter>> {
-//         match iterator.next() {
-//             None => Continue(iterator, AnyTokenParser),
-//             Some(tok) => Done(iterator, Some(tok)),
-//         }
-//     }
-//     fn done(self) -> Self::Output {
-//         None
-//     }
-// }
-// impl<Str> Committed<Str> for AnyTokenParser
-//     where Str: IntoPeekable,
-//           Str::Item: ToStatic,
-// {
-//     fn init(&self) -> Self {
-//         AnyTokenParser
-//     }
-// }
 
 // // ----------- Buffering -------------
 
