@@ -193,12 +193,12 @@ impl<P, F, Str> Stateful<Str> for Map<P, F>
     
     type Output = F::Output;
 
-    fn parse_eof(self) -> StatefulOutput<Self, Str> {
-        self.1.apply(self.0.parse_eof())
+    fn more_eof(self) -> StatefulOutput<Self, Str> {
+        self.1.apply(self.0.more_eof())
     }
 
-    fn parse_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>  {
-        match self.0.parse_ch_str(ch, string) {
+    fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>  {
+        match self.0.more_ch_str(ch, string) {
             Done((ch, string, result)) => Done((ch, string, self.1.apply(result))),
             Continue((empty, parsing)) => Continue((empty, Map(parsing, self.1))),
         }
@@ -214,15 +214,15 @@ impl<P, F, Str> Committed<Str> for Map<P, F>
 
     type State = Map<P::State, F>;
     
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
-        match self.0.parse_ch_str(ch, string) {
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
+        match self.0.init_ch_str(ch, string) {
             Done((ch, string, result)) => Done((ch, string, self.1.apply(result))),
             Continue((empty, parsing)) => Continue((empty, Map(parsing, self.1))),
         }
     }
 
-    fn parse_eof(&self) -> CommittedOutput<Self, Str> {
-        self.1.apply(self.0.parse_eof())
+    fn init_eof(&self) -> CommittedOutput<Self, Str> {
+        self.1.apply(self.0.init_eof())
     }
 
 }
@@ -235,8 +235,8 @@ impl<P, F, Str> Uncommitted<Str> for Map<P, F>
 
     type State = Map<P::State, F>;
     
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
-        match self.0.parse_ch_str(ch, string) {
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
+        match self.0.init_ch_str(ch, string) {
             Empty(impossible) => Empty(impossible),
             Backtrack((ch, string)) => Backtrack((ch, string)),
             Commit(Done((ch, string, result))) => Commit(Done((ch, string, self.1.apply(result)))),
@@ -268,9 +268,9 @@ impl<P, Q, Str> Committed<Str> for AndThen<P, Q>
     
     type State = AndThenState<(P::State, Q), (Static<CommittedOutput<P, Str>>, Q::State)>;
 
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
-        match self.0.parse_ch_str(ch, string) {
-            Done((ch, string, fst)) => match self.1.parse_ch_str(ch, string) {
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
+        match self.0.init_ch_str(ch, string) {
+            Done((ch, string, fst)) => match self.1.init_ch_str(ch, string) {
                 Done((ch, string, snd)) => Done((ch, string, (fst, snd))),
                 Continue((empty, snd)) => Continue((empty, InRhs((fst.to_static(), snd)))),
             },
@@ -278,8 +278,8 @@ impl<P, Q, Str> Committed<Str> for AndThen<P, Q>
         }
     }
     
-    fn parse_eof(&self) -> CommittedOutput<Self, Str> {
-        (self.0.parse_eof(), self.1.parse_eof())
+    fn init_eof(&self) -> CommittedOutput<Self, Str> {
+        (self.0.init_eof(), self.1.init_eof())
     }
 
 }
@@ -293,11 +293,11 @@ impl<P, Q, Str> Uncommitted<Str> for AndThen<P, Q>
     
     type State = AndThenState<(P::State, Q), (Static<UncommittedOutput<P, Str>>, Q::State)>;
 
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
-        match self.0.parse_ch_str(ch, string) {
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
+        match self.0.init_ch_str(ch, string) {
             Empty(impossible) => Empty(impossible),
             Backtrack((ch, string)) => Backtrack((ch, string)),
-            Commit(Done((ch, string, fst))) => match self.1.parse_ch_str(ch, string) {
+            Commit(Done((ch, string, fst))) => match self.1.init_ch_str(ch, string) {
                 Done((ch, string, snd)) => Commit(Done((ch, string, (fst, snd)))),
                 Continue((empty, snd)) => Commit(Continue((empty, InRhs((fst.to_static(), snd))))),
             },
@@ -328,20 +328,20 @@ impl<P, Q, Str> Stateful<Str> for AndThenState<(P, Q), (Static<StatefulOutput<P,
     
     type Output = (StatefulOutput<P, Str>, CommittedOutput<Q, Str>);
 
-    fn parse_eof(self) -> StatefulOutput<Self, Str>
+    fn more_eof(self) -> StatefulOutput<Self, Str>
     {
         match self {
-            InLhs((fst, snd)) => (fst.parse_eof(), snd.parse_eof()),
-            InRhs((fst, snd)) => (ToStatic::from_static(fst), snd.parse_eof()),
+            InLhs((fst, snd)) => (fst.more_eof(), snd.init_eof()),
+            InRhs((fst, snd)) => (ToStatic::from_static(fst), snd.more_eof()),
         }
     }
 
-    fn parse_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>
+    fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>
     {
         match self {
             InLhs((fst, snd)) => {
-                match fst.parse_ch_str(ch, string) {
-                    Done((ch, string, fst)) => match snd.parse_ch_str(ch, string) {
+                match fst.more_ch_str(ch, string) {
+                    Done((ch, string, fst)) => match snd.init_ch_str(ch, string) {
                         Done((ch, string, snd)) => Done((ch, string, (fst, snd))),
                         Continue((string, snd)) => Continue((string, InRhs((fst.to_static(), snd)))),
                     },
@@ -349,7 +349,7 @@ impl<P, Q, Str> Stateful<Str> for AndThenState<(P, Q), (Static<StatefulOutput<P,
                 }
             }
             InRhs((fst, snd)) => {
-                match snd.parse_ch_str(ch, string) {
+                match snd.more_ch_str(ch, string) {
                     Done((ch, string, snd)) => Done((ch, string, (ToStatic::from_static(fst), snd))),
                     Continue((string, snd)) => Continue((string, InRhs((fst, snd)))),
                 }
@@ -683,11 +683,11 @@ impl<Str> Stateful<Str> for Impossible where Str: Iterator {
 
     type Output = Str::Item;
     
-    fn parse_ch_str(self, _: Str::Item, _: Str) -> StatefulParseChStrResult<Self, Str> {
+    fn more_ch_str(self, _: Str::Item, _: Str) -> StatefulParseChStrResult<Self, Str> {
         self.cant_happen()
     }
     
-    fn parse_eof(self) -> Str::Item {
+    fn more_eof(self) -> Str::Item {
         self.cant_happen()
     }
     
@@ -704,11 +704,11 @@ impl<T, Str> Stateful<Str> for Return<T> where Str: Iterator {
 
     type Output = T;
     
-    fn parse_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str> {
+    fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str> {
         Done((ch, string, self.0))
     }
     
-    fn parse_eof(self) -> T {
+    fn more_eof(self) -> T {
         self.0
     }
     
@@ -718,11 +718,11 @@ impl<T, Str> Committed<Str> for Return<T> where Str: Iterator, T: Copy {
 
     type State = Self;
 
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
         Done((ch, string, self.0))
     }
     
-    fn parse_eof(&self) -> T {
+    fn init_eof(&self) -> T {
         self.0
     }
     
@@ -768,9 +768,9 @@ impl<F, Str> Uncommitted<Str> for Character<F>
     
     type State = Return<Str::Item>;
     
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
         if self.0.apply(ch) {
-            Commit(Return(ch).parse_str(string))
+            Commit(Return(ch).more_str(string))
         } else {
             Backtrack((ch, string))
         }
@@ -784,33 +784,26 @@ impl<F> Character<F> {
     }
 }
 
-// #[derive(Copy,Clone,Debug)]
-// pub struct AnyCharacterParser;
+#[derive(Copy,Clone,Debug)]
+pub struct AnyCharacter;
 
-// impl<'a> Stateful<&'a str> for AnyCharacterParser {
-//     type Output = Option<char>;
-//     fn parse(self, value: &'a str) -> ParseResult<Self, &'a str> {
-//         match value.chars().next() {
-//             None => Continue(value, AnyCharacterParser),
-//             Some(ch) => {
-//                 let len = ch.len_utf8();
-//                 Done(&value[len..], Some(ch))
-//             }
-//         }
-//     }
-//     fn done(self) -> Self::Output {
-//         None
-//     }
-// }
-// impl Parser<char> for AnyCharacterParser {
-//     type StaticOutput = Option<char>;
-//     type State = Self;
-// }
-// impl<'a> Committed<&'a str> for AnyCharacterParser {
-//     fn init(&self) -> Self {
-//         AnyCharacterParser
-//     }
-// }
+impl Parser for AnyCharacter {}
+
+impl<Str> Committed<Str> for AnyCharacter
+    where Str: Iterator,
+{
+    
+    type State = Return<Option<Str::Item>>;
+    
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
+        Return(Some(ch)).more_str(string)
+    }
+
+    fn init_eof(&self) -> Option<Str::Item> {
+        None
+    }
+    
+}
 
 // // ----------- Token parsers -------------
 

@@ -75,20 +75,20 @@ pub trait Stateful<Str>
     type Output;
 
     /// Parse a non-empty string of data.
-    fn parse_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>
+    fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>
         where Self: Sized;
 
     /// Parse an EOF.
-    fn parse_eof(self) -> StatefulOutput<Self, Str>
+    fn more_eof(self) -> StatefulOutput<Self, Str>
         where Self: Sized;
 
     /// Parse a string of data.
-    fn parse_str(self, mut string: Str) ->  StatefulParseStrResult<Self, Str>
+    fn more_str(self, mut string: Str) ->  StatefulParseStrResult<Self, Str>
         where Self: Sized,
     {
         match string.next() {
             None => Continue((string, self)),
-            Some(ch) => self.parse_ch_str(ch, string),
+            Some(ch) => self.more_ch_str(ch, string),
         }
     }
     
@@ -243,20 +243,20 @@ pub trait Committed<Str>
     type State: Stateful<Str>;
 
     /// Parse a non-empty string of data.
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str>
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str>
         where Self: Sized;
 
     /// Parse an EOF.
-    fn parse_eof(&self) -> CommittedOutput<Self, Str>
+    fn init_eof(&self) -> CommittedOutput<Self, Str>
         where Self: Sized;
 
     /// Parse a string of data.
-    fn parse_str(&self, mut string: Str) ->  CommittedParseStrResult<Self, Str>
+    fn init_str(&self, mut string: Str) ->  CommittedParseStrResult<Self, Str>
         where Self: Sized,
     {
         match string.next() {
             None => Empty(string),
-            Some(ch) => Commit(self.parse_ch_str(ch, string)),
+            Some(ch) => Commit(self.init_ch_str(ch, string)),
         }
     }
     
@@ -294,16 +294,16 @@ pub trait Uncommitted<Str>
     type State: Stateful<Str>;
 
     /// Parse a non-empty string of data.
-    fn parse_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str>
+    fn init_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str>
         where Self: Sized;
 
     /// Parse a string of data.
-    fn parse_str(&self, mut string: Str) ->  UncommittedParseStrResult<Self, Str>
+    fn init_str(&self, mut string: Str) ->  UncommittedParseStrResult<Self, Str>
         where Self: Sized,
     {
         match string.next() {
             None => Empty(string),
-            Some(ch) => match self.parse_ch_str(ch, string) {
+            Some(ch) => match self.init_ch_str(ch, string) {
                 Empty(impossible) => impossible.cant_happen(),
                 Backtrack((ch, string)) => Backtrack((ch, string)),
                 Commit(result) => Commit(result),
@@ -1243,12 +1243,12 @@ pub fn character<F>(f: F) -> impls::Character<F> {
     impls::Character::new(f)
 }
 
-// /// A committed parser that reads one character.
-// ///
-// /// The parser `CHARACTER` reads one character `ch` from the input,
-// /// and produces `Some(ch)`. It produces `None` at the end of input.
+/// A committed parser that reads one character.
+///
+/// The parser `CHARACTER` reads one character `ch` from the input,
+/// and produces `Some(ch)`. It produces `None` at the end of input.
 
-// pub const CHARACTER: impls::AnyCharacterParser = impls::AnyCharacterParser;
+pub const CHARACTER: impls::AnyCharacter = impls::AnyCharacter;
 
 // /// An uncommitted parser that reads one token.
 // ///
@@ -1347,11 +1347,12 @@ impl<E, B, C> Maybe<E, B, C>  {
 #[test]
 fn test_character() {
     let parser = character(char::is_alphabetic);
-    parser.parse_str("".chars()).unEmpty();
-    let (ch, iter) = parser.parse_str("989".chars()).unBacktrack();
+    let iter = parser.init_str("".chars()).unEmpty();
+    assert_eq!(iter.as_str(), "");
+    let (ch, iter) = parser.init_str("989".chars()).unBacktrack();
     assert_eq!(ch, '9');
     assert_eq!(iter.as_str(), "89");
-    let (ch, iter, res) = parser.parse_str("abcd".chars()).unCommit().unDone();
+    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
     assert_eq!(res, 'a');
     assert_eq!(ch, 'b');
     assert_eq!(iter.as_str(), "cd");
@@ -1360,23 +1361,25 @@ fn test_character() {
 #[test]
 fn test_emit() {
     let parser = emit(37);
-    let (iter, parser) = parser.parse_str("".chars()).unContinue();
+    let iter = parser.init_str("".chars()).unEmpty();
     assert_eq!(iter.as_str(), "");
-    let (ch, iter, res) = parser.parse_str("abcd".chars()).unDone();
+    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
     assert_eq!(res, 37);
     assert_eq!(ch, 'a');
     assert_eq!(iter.as_str(), "bcd");
 }
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_CHARACTER() {
-//     let parser = CHARACTER;
-//     assert_eq!(parser.init().parse("abc").unDone(), ("bc", Some('a')));
-//     assert_eq!(parser.init().parse("").unContinue().parse("abc").unDone(),
-//                ("bc", Some('a')));
-//     assert_eq!(parser.init().done(), None);
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_CHARACTER() {
+    let parser = CHARACTER;
+    let iter = parser.init_str("".chars()).unEmpty();
+    assert_eq!(iter.as_str(), "");
+    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+    assert_eq!(res, Some('a'));
+    assert_eq!(ch, 'b');
+    assert_eq!(iter.as_str(), "cd");
+}
 
 // #[test]
 // fn test_token() {
@@ -1521,8 +1524,8 @@ fn test_emit() {
 #[allow(non_snake_case)]
 fn test_and_then() {
     let parser = character(char::is_alphanumeric).and_then(emit(true));
-    parser.parse_str("".chars()).unEmpty();
-    let (ch, iter, res) = parser.parse_str("abcd".chars()).unCommit().unDone();
+    parser.init_str("".chars()).unEmpty();
+    let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
     assert_eq!(res, ('a', true));
     assert_eq!(ch, 'b');
     assert_eq!(iter.as_str(), "cd");
