@@ -859,11 +859,13 @@ pub trait Parser {
 // /// is that it provides weaker safety guarantees. `Stateful<S>` enforces that
 // /// clients cannot call `parse` after `done`, but `Boxable<S>` does not.
 
-// pub trait Boxable<S> {
-//     type Output;
-//     fn parse_boxable(&mut self, value: S) -> (S, Option<Self::Output>);
-//     fn done_boxable(&mut self) -> Self::Output;
-// }
+pub trait Boxable<Str> 
+    where Str: Iterator
+{
+    type Output;
+    fn more_str_boxable(&mut self, string: Str) -> ParseResult<Str, (Str::Item, Str, Self::Output)>;
+    fn more_eof_boxable(&mut self) -> Self::Output;
+}
 
 // /// Cut-and-paste `std::iter::Peekable`.
 // ///
