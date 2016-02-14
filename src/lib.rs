@@ -23,7 +23,7 @@ use self::Maybe::{Empty, Backtrack, Commit};
 use self::ParseResult::{Done, Continue};
 
 // use std::fmt::{Formatter, Debug};
-// use std::borrow::Cow;
+use std::borrow::Cow;
 
 pub mod impls;
 
@@ -60,16 +60,12 @@ pub mod impls;
 /// }
 /// ```
 
-pub trait Parser<Str> {
-
-    /// The type of the data being produced by the parser.
-    type Output;
+pub trait Parser {
 
     fn map<F>(self, f: F) -> impls::Map<Self, F> where Self: Sized { impls::Map::new(self ,f) }
+    fn and_then<P>(self, p: P) -> impls::AndThen<Self, P> where Self: Sized { impls::AndThen::new(self ,p) }
 
 }
-
-pub type ParserOutput<P, Str> where P: Parser<Str> = P::Output;
 
 pub trait Stateful<Str> 
     where Str: Iterator,
@@ -626,7 +622,7 @@ pub type UncommittedParseStrResult<P, Str> where P: Uncommitted<Str>, Str: Itera
 // /// ```
 // ///
 // /// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
-// /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
+/// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
 // pub trait Uncommitted<Str>: Parser<<Str::Item as ToStatic>::Static>
 //     where Str: IntoPeekable,
@@ -1079,7 +1075,7 @@ pub type UncommittedParseStrResult<P, Str> where P: Uncommitted<Str>, Str: Itera
 ///     character(AlphaNumeric);
 /// ```
 ///
-/// Here, we can name the type of the parser `CharacterParser<AlphaNumeric>`,
+/// Here, we can name the type of the parser `Character<AlphaNumeric>`,
 /// which would not be possible if `character` took its argument as a `Fn(T) -> U`,
 /// since `typeof` is not implemented in Rust.
 /// At some point, Rust will probably get abstract return types,
@@ -1221,59 +1217,59 @@ pub trait ToStatic {
     fn from_static(stat: Self::Static) -> Self where Self: Sized;
 }
 
-type Static<T> where T: ToStatic = T::Static;
+pub type Static<T> where T: ToStatic = T::Static;
 
-// impl<'a, T: ?Sized> ToStatic for Cow<'a, T> where T: 'static + ToOwned { // TODO: allow non-static T here
-//     type Static = Cow<'static, T>;
-//     fn downcast(self) -> Self::Static { Cow::Owned(self.into_owned()) }
-//     fn upcast(p: Self::Static) -> Self { p }
-// }
+impl<'a, T: ?Sized> ToStatic for Cow<'a, T> where T: 'static + ToOwned { // TODO: allow non-static T here
+    type Static = Cow<'static, T>;
+    fn to_static(self) -> Self::Static { Cow::Owned(self.into_owned()) }
+    fn from_static(p: Self::Static) -> Self { p }
+}
 
-// impl<T, U> ToStatic for (T, U) where T: ToStatic, U: ToStatic {
-//     type Static = (T::Static, U::Static);
-//     fn downcast(self) -> Self::Static { (self.0.downcast(), self.1.downcast()) }
-//     fn upcast(p: Self::Static) -> Self { (ToStatic::upcast(p.0), ToStatic::upcast(p.1)) }
-// }
+impl<T, U> ToStatic for (T, U) where T: ToStatic, U: ToStatic {
+    type Static = (T::Static, U::Static);
+    fn to_static(self) -> Self::Static { (self.0.to_static(), self.1.to_static()) }
+    fn from_static(p: Self::Static) -> Self { (ToStatic::from_static(p.0), ToStatic::from_static(p.1)) }
+}
 
-// impl<T> ToStatic for Option<T> where T: ToStatic {
-//     type Static = Option<T::Static>;
-//     fn downcast(self) -> Self::Static { self.map(ToStatic::downcast) }
-//     fn upcast(p: Self::Static) -> Self { p.map(ToStatic::upcast) }
-// }
+impl<T> ToStatic for Option<T> where T: ToStatic {
+    type Static = Option<T::Static>;
+    fn to_static(self) -> Self::Static { self.map(ToStatic::to_static) }
+    fn from_static(p: Self::Static) -> Self { p.map(ToStatic::from_static) }
+}
 
-// impl<T,E> ToStatic for Result<T,E> where T: ToStatic, E: ToStatic {
-//     type Static = Result<T::Static,E::Static>;
-//     fn downcast(self) -> Self::Static { self.map(ToStatic::downcast).map_err(ToStatic::downcast) }
-//     fn upcast(p: Self::Static) -> Self { p.map(ToStatic::upcast).map_err(ToStatic::upcast) }
-// }
+impl<T,E> ToStatic for Result<T,E> where T: ToStatic, E: ToStatic {
+    type Static = Result<T::Static,E::Static>;
+    fn to_static(self) -> Self::Static { self.map(ToStatic::to_static).map_err(ToStatic::to_static) }
+    fn from_static(p: Self::Static) -> Self { p.map(ToStatic::from_static).map_err(ToStatic::from_static) }
+}
 
-// /// A marker trait for static data.
-// ///
-// /// This trait is a quick way to implment `ToStatic` as a no-op.
+/// A marker trait for static data.
+///
+/// This trait is a quick way to implment `ToStatic` as a no-op.
 
-// pub trait Static where Self: 'static {}
+pub trait StaticMarker where Self: 'static {}
 
-// impl<T> ToStatic for T where T: Static {
-//     type Static = T;
-//     fn downcast(self) -> T { self }
-//     fn upcast(p: T) -> T { p }
-// }
+impl<T> ToStatic for T where T: StaticMarker {
+    type Static = T;
+    fn to_static(self) -> T { self }
+    fn from_static(p: T) -> T { p }
+}
 
-// impl Static for usize {}
-// impl Static for u8 {}
-// impl Static for u16 {}
-// impl Static for u32 {}
-// impl Static for u64 {}
-// impl Static for isize {}
-// impl Static for i8 {}
-// impl Static for i16 {}
-// impl Static for i32 {}
-// impl Static for i64 {}
-// impl Static for () {}
-// impl Static for bool {}
-// impl Static for char {}
-// impl Static for String {}
-// impl<T> Static for Vec<T> where T: Static {}
+impl StaticMarker for usize {}
+impl StaticMarker for u8 {}
+impl StaticMarker for u16 {}
+impl StaticMarker for u32 {}
+impl StaticMarker for u64 {}
+impl StaticMarker for isize {}
+impl StaticMarker for i8 {}
+impl StaticMarker for i16 {}
+impl StaticMarker for i32 {}
+impl StaticMarker for i64 {}
+impl StaticMarker for () {}
+impl StaticMarker for bool {}
+impl StaticMarker for char {}
+impl StaticMarker for String {}
+impl<T> StaticMarker for Vec<T> where T: 'static {}
 
 /// An uncommitted parser that reads one character.
 ///
@@ -1308,6 +1304,12 @@ pub fn character<F>(f: F) -> impls::Character<F> {
 // /// and produces `Some(tok)`. It produces `None` at the end of input.
 
 // pub const TOKEN: impls::AnyTokenParser = impls::AnyTokenParser;
+
+/// An committed parser that reads zero characters.
+
+pub fn emit<T>(t: T) -> impls::Return<T> {
+    impls::Return::new(t)
+}
 
 // // ----------- Tests -------------
 
@@ -1391,6 +1393,17 @@ fn test_character() {
     assert_eq!(res, 'a');
     assert_eq!(ch, 'b');
     assert_eq!(iter.as_str(), "cd");
+}
+
+#[test]
+fn test_emit() {
+    let parser = emit(37);
+    let (iter, parser) = parser.parse_str("".chars()).unContinue();
+    assert_eq!(iter.as_str(), "");
+    let (ch, iter, res) = parser.parse_str("abcd".chars()).unDone();
+    assert_eq!(res, 37);
+    assert_eq!(ch, 'a');
+    assert_eq!(iter.as_str(), "bcd");
 }
 
 // #[test]
@@ -1542,23 +1555,29 @@ fn test_character() {
 //                ("!", Some(('a', 'b', 'c', 'd', 'e'))));
 // }
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_and_then() {
-//     fn mk_none<T>(_: Option<char>) -> Option<T> {
-//         None
-//     }
-//     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-//     let ALPHABETIC = character(char::is_alphabetic).map(Some).or_else(CHARACTER.map(mk_none));
-//     let parser = ALPHABETIC.and_then(ALPHANUMERIC);
-//     parser.init().parse("").unContinue();
-//     assert_eq!(parser.init().parse("989").unDone(),
-//                ("9", (None, Some('8'))));
-//     assert_eq!(parser.init().parse("a!!").unDone(),
-//                ("!", (Some('a'), None)));
-//     assert_eq!(parser.init().parse("abc").unDone(),
-//                ("c", (Some('a'), Some('b'))));
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_and_then() {
+    let parser = character(char::is_alphanumeric).and_then(emit(true));
+    parser.parse_str("".chars()).unEmpty();
+    let (ch, iter, res) = parser.parse_str("abcd".chars()).unCommit().unDone();
+    assert_eq!(res, ('a', true));
+    assert_eq!(ch, 'b');
+    assert_eq!(iter.as_str(), "cd");
+    // fn mk_none<T>(_: Option<char>) -> Option<T> {
+    //     None
+    // }
+    // let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
+    // let ALPHABETIC = character(char::is_alphabetic).map(Some).or_else(CHARACTER.map(mk_none));
+    // let parser = ALPHABETIC.and_then(ALPHANUMERIC);
+    // parser.init().parse("").unContinue();
+    // assert_eq!(parser.init().parse("989").unDone(),
+    //            ("9", (None, Some('8'))));
+    // assert_eq!(parser.init().parse("a!!").unDone(),
+    //            ("!", (Some('a'), None)));
+    // assert_eq!(parser.init().parse("abc").unDone(),
+    //            ("c", (Some('a'), Some('b'))));
+}
 
 // #[test]
 // #[allow(non_snake_case)]
