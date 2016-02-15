@@ -1125,44 +1125,7 @@ impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
     }
 }
 
-/// A trait for data which can be restored from long-lived state.
-///
-/// The canonical example of this trait is `Cow<'a,T>` which can be saved to
-/// and restored from `Cow<'static,T>` when `T` is static.
-
-pub trait StaticOf<T>
-    where Self: 'static
-{
-    fn cast(self) -> T where Self: Sized;
-}
-
-impl<'a, T: ?Sized> StaticOf<Cow<'a, T>> for Cow<'static, T>
-    where T: 'static + ToOwned // TODO: allow non-static T here
-{
-    fn cast(self) -> Cow<'a, T> { self }
-}
-
-impl<T, U, TStatic, UStatic> StaticOf<(T, U)> for (TStatic, UStatic)
-    where TStatic: 'static + StaticOf<T>,
-          UStatic: 'static + StaticOf<U>,
-{
-    fn cast(self) -> (T, U) { (self.0.cast(), self.1.cast()) }
-}
-
-impl<T, TStatic> StaticOf<Option<T>> for Option<TStatic>
-    where TStatic: 'static + StaticOf<T>,
-{
-    fn cast(self) -> Option<T> { self.map(StaticOf::cast) }
-}
-
-impl<T, E, TStatic, EStatic> StaticOf<Result<T, E>> for Result<TStatic, EStatic>
-    where TStatic: 'static + StaticOf<T>,
-          EStatic: 'static + StaticOf<E>,
-{
-    fn cast(self) -> Result<T, E> { self.map(StaticOf::cast).map_err(StaticOf::cast) }
-}
-
-/// A trait for data which can be saved to long-lived state.
+/// A trait for data which can be saved to and restored from long-lived state.
 ///
 /// The canonical example of this trait is `Cow<'a,T>` which can be saved to
 /// and restored from `Cow<'static,T>` when `T` is static.
@@ -1170,6 +1133,7 @@ impl<T, E, TStatic, EStatic> StaticOf<Result<T, E>> for Result<TStatic, EStatic>
 pub trait ToStatic {
     type Static: 'static;
     fn to_static(self) -> Self::Static where Self: Sized;
+    fn from_static(stat: Self::Static) -> Self where Self: Sized;
 }
 
 pub type Static<T> where T: ToStatic = T::Static;
@@ -1177,21 +1141,25 @@ pub type Static<T> where T: ToStatic = T::Static;
 impl<'a, T: ?Sized> ToStatic for Cow<'a, T> where T: 'static + ToOwned { // TODO: allow non-static T here
     type Static = Cow<'static, T>;
     fn to_static(self) -> Self::Static { Cow::Owned(self.into_owned()) }
+    fn from_static(p: Self::Static) -> Self { p }
 }
 
 impl<T, U> ToStatic for (T, U) where T: ToStatic, U: ToStatic {
     type Static = (T::Static, U::Static);
     fn to_static(self) -> Self::Static { (self.0.to_static(), self.1.to_static()) }
+    fn from_static(p: Self::Static) -> Self { (ToStatic::from_static(p.0), ToStatic::from_static(p.1)) }
 }
 
 impl<T> ToStatic for Option<T> where T: ToStatic {
     type Static = Option<T::Static>;
     fn to_static(self) -> Self::Static { self.map(ToStatic::to_static) }
+    fn from_static(p: Self::Static) -> Self { p.map(ToStatic::from_static) }
 }
 
 impl<T,E> ToStatic for Result<T,E> where T: ToStatic, E: ToStatic {
     type Static = Result<T::Static,E::Static>;
     fn to_static(self) -> Self::Static { self.map(ToStatic::to_static).map_err(ToStatic::to_static) }
+    fn from_static(p: Self::Static) -> Self { p.map(ToStatic::from_static).map_err(ToStatic::from_static) }
 }
 
 /// A marker trait for static data.
@@ -1200,13 +1168,10 @@ impl<T,E> ToStatic for Result<T,E> where T: ToStatic, E: ToStatic {
 
 pub trait StaticMarker where Self: 'static {}
 
-impl<T> StaticOf<T> for T where T: StaticMarker {
-    fn cast(self) -> T { self }
-}
-
 impl<T> ToStatic for T where T: StaticMarker {
     type Static = T;
     fn to_static(self) -> T { self }
+    fn from_static(p: T) -> T { p }
 }
 
 impl StaticMarker for usize {}
@@ -1648,7 +1613,7 @@ fn test_and_then() {
 #[allow(non_snake_case)]
 
 fn test_cow() {
-    fn is_foo<'a,'b>(string: &'a Cow<'b,str>) -> bool { string == "foo" }
+    fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
     fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
     let ONE = character_ref(is_foo);
@@ -1704,38 +1669,33 @@ fn test_boxable() {
     // use std::vec::Drain;
     // #[derive(Copy, Clone, Debug)]
     // struct Test;
-    // type TestInput<'a> = Drain<'a,Cow<'a,str>>;
-    // type TestOutput<'a> = (Option<Cow<'a,str>>, Option<Cow<'a,str>>);// ((Cow<'a,str>, Cow<'a,str>), Cow<'a,str>);
-    // type TestState = Box<for<'a> Boxable<TestInput<'a>, Output=TestOutput<'a>>>;
+    // type TestOutput<'a> = ((Cow<'a,str>, Cow<'a,str>), Cow<'a,str>);
+    // // type TestOutput<'a> = Option<&'a usize>;
+    // type TestState = Box<for<'a> Boxable<Drain<Cow<'a,str>>, Output=TestOutput<'a>>>;
     // impl Parser for Test {}
-    // impl<'a> Uncommitted<TestInput<'a>> for Test {
+    // impl<'a> Uncommitted<Iter<'a,usize>> for Test {
     //     type State = TestState;
-    //     fn maybe_ch_str(&self, ch: Cow<'a,str>, string: TestInput<'a>) -> Maybe<Impossible, (Cow<'a,str>, TestInput<'a>), StatefulParseStrResult<TestState, TestInput<'a>>> {
-    //         fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
-    //         fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
+    //     fn maybe_ch_str(&self, ch: &'a usize, string: Iter<'a,usize>) -> UncommittedParseChStrResult<Self, Iter<'a,usize>> {
+    //         fn is_one<'a>(num: &'a usize) -> bool { *num == 1 }
+    //         fn mk_one<'a>(_: &'a usize) -> Cow<'a,str> { Cow::Borrowed("one") }
+    //         fn mk_other<'a>(_: Option<&'a usize>) -> Cow<'a,str> { Cow::Borrowed("other") }
     //         fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
-    //         let ONE = character_ref(is_foo);
+    //         let ONE = character(is_one).map(mk_one);
     //         let OTHER = CHARACTER.map(mk_other);
-    //         let parser = CHARACTER.and_then(CHARACTER); //.and_then(ONE.or_else(OTHER)); //.and_then(ONE.or_else(OTHER));
-    //         // This bit should be in the API
-    //         fn mk_box<P>(p : P) -> TestState
-    //             where P: 'static + for<'b> Stateful<TestInput<'b>, Output=TestOutput<'b>>
+    //         let parser = CHARACTER;//;ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+    //         fn mk_box<P>(parsing: P) -> TestState
+    //             where P: 'static+for<'a> Stateful<Iter<'a,usize>, Output=TestOutput<'a>>
     //         {
-    //             Box::new(p.boxable())
+    //             Box::new(parsing.boxable())
     //         }
+    //         // This bit should be in the APIG
     //         match parser.init_ch_str(ch, string) {
     //             // Empty(impossible) => Empty(impossible),
     //             // Backtrack((ch, string)) => Backtrack((ch, string)),
     //             // Commit(Done((ch, string, result))) => Commit(Done((ch, string, result))),
-    //             // Commit(Continue((empty, parsing))) => {
-    //             //     let parsing: String = parsing;
-    //             //     Commit(Continue((empty, mk_box(parsing))))
-    //             // },
+    //             // Commit(Continue((empty, parsing))) => Commit(Continue((empty, mk_box(parsing)))),
     //             Done((ch, string, result)) => Commit(Done((ch, string, result))),
-    //             Continue((empty, parsing)) => {
-    //                 let boxed: TestState = mk_box::<impls::AndThenState<impls::AnyCharacterState<Cow<'static, str>>, impls::AnyCharacter, Option<Cow<'static, str>>, impls::AnyCharacterState<Cow<'static, str>>>>(parsing);
-    //                 Commit(Continue((empty, boxed)))
-    //             },
+    //             Continue((empty, parsing)) => Commit(Continue((empty, mk_box(parsing)))),
     //         }
     //     }
     // }

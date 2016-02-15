@@ -11,7 +11,7 @@ use super::{Committed, CommittedOutput, CommittedParseChStrResult};
 use super::{Uncommitted, UncommittedOutput, UncommittedParseChStrResult};
 use super::{Function};
 use super::{Impossible};
-use super::{StaticOf, ToStatic};
+use super::{ToStatic, Static};
 use super::Maybe::{Empty, Backtrack, Commit};
 use super::ParseResult::{Done, Continue};
 
@@ -269,25 +269,22 @@ pub struct AndThen<P, Q>(P, Q);
 
 impl<P, Q> Parser for AndThen<P, Q> {}
 
-impl<P, Q, Str, PState, QState, POut, QOut, StaticPOut> Committed<Str> for AndThen<P, Q>
-    where P: Committed<Str, State = PState>,
-          Q: 'static + Copy + Committed<Str, State = QState>,
+impl<P, Q, Str> Committed<Str> for AndThen<P, Q>
+    where P: Committed<Str>,
+          Q: 'static + Copy + Committed<Str>,
           Str: Iterator,
-          PState: 'static + Stateful<Str, Output = POut>,
-          QState: 'static + Stateful<Str, Output = QOut>,
-          POut: ToStatic<Static = StaticPOut>,
-          StaticPOut: 'static + StaticOf<POut>,
+          CommittedOutput<P, Str>: ToStatic,
 {
     
-    type State = AndThenState<PState, Q, StaticPOut, QState>;
+    type State = AndThenState<(P::State, Q), (Static<CommittedOutput<P, Str>>, Q::State)>;
 
     fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
         match self.0.init_ch_str(ch, string) {
             Done((ch, string, fst)) => match self.1.init_ch_str(ch, string) {
                 Done((ch, string, snd)) => Done((ch, string, (fst, snd))),
-                Continue((empty, snd)) => Continue((empty, InRhs(fst.to_static(), snd))),
+                Continue((empty, snd)) => Continue((empty, InRhs((fst.to_static(), snd)))),
             },
-            Continue((empty, fst)) => Continue((empty, InLhs(fst, self.1))),
+            Continue((empty, fst)) => Continue((empty, InLhs((fst, self.1)))),
         }
     }
     
@@ -297,17 +294,14 @@ impl<P, Q, Str, PState, QState, POut, QOut, StaticPOut> Committed<Str> for AndTh
 
 }
 
-impl<P, Q, Str, PState, QState, POut, QOut, StaticPOut> Uncommitted<Str> for AndThen<P, Q>
-    where P: Uncommitted<Str, State = PState>,
-          Q: 'static + Copy + Committed<Str, State = QState>,
+impl<P, Q, Str> Uncommitted<Str> for AndThen<P, Q>
+    where P: Uncommitted<Str>,
+          Q: 'static + Copy + Committed<Str>,
           Str: Iterator,
-          PState: 'static + Stateful<Str, Output = POut>,
-          QState: 'static + Stateful<Str, Output = QOut>,
-          POut: ToStatic<Static = StaticPOut>,
-          StaticPOut: 'static + StaticOf<POut>,
+          UncommittedOutput<P, Str>: ToStatic,
 {
     
-    type State = AndThenState<PState, Q, StaticPOut, QState>;
+    type State = AndThenState<(P::State, Q), (Static<UncommittedOutput<P, Str>>, Q::State)>;
 
     fn maybe_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
         match self.0.maybe_ch_str(ch, string) {
@@ -315,9 +309,9 @@ impl<P, Q, Str, PState, QState, POut, QOut, StaticPOut> Uncommitted<Str> for And
             Backtrack((ch, string)) => Backtrack((ch, string)),
             Commit(Done((ch, string, fst))) => match self.1.init_ch_str(ch, string) {
                 Done((ch, string, snd)) => Commit(Done((ch, string, (fst, snd)))),
-                Continue((empty, snd)) => Commit(Continue((empty, InRhs(fst.to_static(), snd)))),
+                Continue((empty, snd)) => Commit(Continue((empty, InRhs((fst.to_static(), snd))))),
             },
-            Commit(Continue((empty, fst))) => Commit(Continue((empty, InLhs(fst, self.1)))),
+            Commit(Continue((empty, fst))) => Commit(Continue((empty, InLhs((fst, self.1))))),
         }
     }
 
@@ -330,46 +324,44 @@ impl<P, Q> AndThen<P, Q> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum AndThenState<P, Q, StaticPOut, QState> {
-    InLhs(P, Q),
-    InRhs(StaticPOut, QState),
+pub enum AndThenState<P, Q> {
+    InLhs(P),
+    InRhs(Q),
 }
 
-impl<P, Q, Str, POut, StaticPOut, QState, QOut> Stateful<Str> for AndThenState<P, Q, StaticPOut, QState>
-    where P: Stateful<Str, Output = POut>,
-          Q: Committed<Str, State = QState>,
-          QState: 'static + Stateful<Str, Output = QOut>,
+impl<P, Q, Str> Stateful<Str> for AndThenState<(P, Q), (Static<StatefulOutput<P, Str>>, Q::State)>
+    where P: Stateful<Str>,
+          Q: Committed<Str>,
           Str: Iterator,
-          POut: ToStatic<Static = StaticPOut>,
-          StaticPOut: 'static + StaticOf<POut>,
+          StatefulOutput<P, Str>: ToStatic,
 {
     
-    type Output = (POut, QOut);
+    type Output = (StatefulOutput<P, Str>, CommittedOutput<Q, Str>);
 
     fn more_eof(self) -> StatefulOutput<Self, Str>
     {
         match self {
-            InLhs(fst, snd) => (fst.more_eof(), snd.init_eof()),
-            InRhs(fst, snd) => (fst.cast(), snd.more_eof()),
+            InLhs((fst, snd)) => (fst.more_eof(), snd.init_eof()),
+            InRhs((fst, snd)) => (ToStatic::from_static(fst), snd.more_eof()),
         }
     }
 
     fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>
     {
         match self {
-            InLhs(fst, snd) => {
+            InLhs((fst, snd)) => {
                 match fst.more_ch_str(ch, string) {
                     Done((ch, string, fst)) => match snd.init_ch_str(ch, string) {
                         Done((ch, string, snd)) => Done((ch, string, (fst, snd))),
-                        Continue((string, snd)) => Continue((string, InRhs(fst.to_static(), snd))),
+                        Continue((string, snd)) => Continue((string, InRhs((fst.to_static(), snd)))),
                     },
-                    Continue((string, fst)) => Continue((string, InLhs(fst, snd))),
+                    Continue((string, fst)) => Continue((string, InLhs((fst, snd)))),
                 }
             }
-            InRhs(fst, snd) => {
+            InRhs((fst, snd)) => {
                 match snd.more_ch_str(ch, string) {
-                    Done((ch, string, snd)) => Done((ch, string, (fst.cast(), snd))),
-                    Continue((string, snd)) => Continue((string, InRhs(fst, snd))),
+                    Done((ch, string, snd)) => Done((ch, string, (ToStatic::from_static(fst), snd))),
+                    Continue((string, snd)) => Continue((string, InRhs((fst, snd)))),
                 }
             }
         }
@@ -714,21 +706,21 @@ impl<T> Return<T> {
 #[derive(Copy, Clone, Debug)]
 pub struct CharacterState<Ch>(Ch);
 
-impl<Str, Ch, StaticCh> Stateful<Str> for CharacterState<StaticCh>
-    where Str: Iterator<Item = Ch>,
-          StaticCh: 'static + StaticOf<Ch>,
+impl<Str> Stateful<Str> for CharacterState<Static<Str::Item>>
+    where Str: Iterator,
+          Str::Item: ToStatic,
 {
     type Output = Str::Item;
 
     fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str> {
-        Done((ch, string, self.0.cast()))
+        Done((ch, string, ToStatic::from_static(self.0)))
     }
 
     fn more_eof(self) -> Str::Item {
-        self.0.cast()
+        ToStatic::from_static(self.0)
     }
 }
-
+    
 pub struct Character<F>(F);
 
 // A work around for functions implmenting copy but not clone
@@ -753,16 +745,15 @@ impl<F> Debug for Character<F>
 
 impl<F> Parser for Character<F> {}
 
-impl<F, Str, Ch, StaticCh> Uncommitted<Str> for Character<F>
-    where Str: Iterator<Item = Ch>,
-          F: Function<Ch, Output = bool>,
-          Ch: ToStatic<Static = StaticCh> + Copy,
-          StaticCh: 'static + StaticOf<Ch>,
+impl<F, Str> Uncommitted<Str> for Character<F>
+    where Str: Iterator,
+          F: Function<Str::Item, Output = bool>,
+          Str::Item: ToStatic + Copy,
 {
     
-    type State = CharacterState<StaticCh>;
+    type State = CharacterState<Static<Str::Item>>;
     
-    fn maybe_ch_str(&self, ch: Ch, mut string: Str) -> UncommittedParseChStrResult<Self, Str> {
+    fn maybe_ch_str(&self, ch: Str::Item, mut string: Str) -> UncommittedParseChStrResult<Self, Str> {
         if self.0.apply(ch) {
             match string.next() {
                 None => Commit(Continue((string, CharacterState(ch.to_static())))),
@@ -805,14 +796,13 @@ impl<F> Debug for CharacterRef<F>
 
 impl<F> Parser for CharacterRef<F> {}
 
-impl<F, Str, Ch, StaticCh> Uncommitted<Str> for CharacterRef<F>
-    where Str: Iterator<Item = Ch>,
-          F: for<'a> Function<&'a Ch, Output = bool>,
-          Ch: ToStatic<Static = StaticCh>,
-          StaticCh: 'static + StaticOf<Ch>,
+impl<F, Str> Uncommitted<Str> for CharacterRef<F>
+    where Str: Iterator,
+          F: for<'a> Function<&'a Str::Item, Output = bool>,
+          Str::Item: ToStatic,
 {
     
-    type State = CharacterState<StaticCh>;
+    type State = CharacterState<Static<Str::Item>>;
     
     fn maybe_ch_str(&self, ch: Str::Item, mut string: Str) -> UncommittedParseChStrResult<Self, Str> {
         if self.0.apply(&ch) {
@@ -834,44 +824,25 @@ impl<F> CharacterRef<F> {
 }
 
 #[derive(Copy,Clone,Debug)]
-pub struct AnyCharacterState<StaticCh>(StaticCh);
-
-impl<Str, Ch, StaticCh> Stateful<Str> for AnyCharacterState<StaticCh>
-    where Str: Iterator<Item = Ch>,
-          StaticCh: 'static + StaticOf<Ch>,
-{
-    type Output = Option<Ch>;
-
-    fn more_ch_str(self, ch: Ch, string: Str) -> StatefulParseChStrResult<Self, Str> {
-        Done((ch, string, Some(self.0.cast())))
-    }
-
-    fn more_eof(self) -> Option<Ch> {
-        Some(self.0.cast())
-    }
-}
-
-#[derive(Copy,Clone,Debug)]
 pub struct AnyCharacter;
 
 impl Parser for AnyCharacter {}
 
-impl<Str, Ch, StaticCh> Committed<Str> for AnyCharacter
-    where Str: Iterator<Item = Ch>,
-          Ch: ToStatic<Static = StaticCh>,
-          StaticCh: 'static + StaticOf<Ch>,
+impl<Str> Committed<Str> for AnyCharacter
+    where Str: Iterator,
+          Str::Item: ToStatic,
 {
     
-    type State = AnyCharacterState<StaticCh>;
+    type State = Map<CharacterState<Static<Str::Item>>,MkSome>;
     
-    fn init_ch_str(&self, ch: Ch, mut string: Str) -> CommittedParseChStrResult<Self, Str> {
+    fn init_ch_str(&self, ch: Str::Item, mut string: Str) -> CommittedParseChStrResult<Self, Str> {
         match string.next() {
-            None => Continue((string, AnyCharacterState(ch.to_static()))),
+            None => Continue((string, Map(CharacterState(ch.to_static()), MkSome))),
             Some(next) => Done((next, string, Some(ch))),
         }        
     }
 
-    fn init_eof(&self) -> Option<Ch> {
+    fn init_eof(&self) -> Option<Str::Item> {
         None
     }
     
