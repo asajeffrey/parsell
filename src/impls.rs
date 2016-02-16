@@ -6,7 +6,7 @@
 // use super::MaybeParseResult::{Abort, Commit, Empty};
 
 use super::{Parser, ParseResult, MaybeParseResult};
-use super::{Stateful, Committed, Uncommitted};
+use super::{Stateful, Committed, Uncommitted, Boxable};
 use super::{Function};
 // use super::{Impossible};
 use super::{Upcast, ToStatic};
@@ -719,6 +719,12 @@ impl<StaticCh, Ch, Str> Stateful<Ch, Str> for CharacterState<StaticCh>
     }
 }
     
+impl<StaticCh> CharacterState<StaticCh> {
+    pub fn new(ch: StaticCh) -> Self {
+        CharacterState(ch)
+    }
+}
+
 pub struct Character<F>(F);
 
 // A work around for functions implmenting copy but not clone
@@ -938,50 +944,51 @@ impl<Ch, Str, StaticCh> Committed<Ch, Str> for AnyCharacter
 // //     }
 // // }
 
-// // ----------- Parsers which are boxable -------------
+// ----------- Parsers which are boxable -------------
 
-// #[derive(Debug)]
-// pub struct BoxableState<P>(Option<P>);
-// impl<P, Str> Boxable<Str> for BoxableState<P>
-//     where P: Stateful<Str>,
-//           Str: Iterator,
-// {
-//     type Output = P::Output;
-//     fn more_ch_str_boxable(&mut self, ch: Str::Item, string: Str) -> ParseResult<Str, (Str::Item, Str, Self::Output)> {
-//         match self.0.take().unwrap().more_ch_str(ch, string) {
-//             Done((ch, string, result)) => Done((ch, string, result)),
-//             Continue((empty, parser)) => {
-//                 self.0 = Some(parser);
-//                 Continue(empty)
-//             }
-//         }
-//     }
-//     fn more_eof_boxable(&mut self) -> Self::Output {
-//         self.0.take().unwrap().more_eof()
-//     }
-// }
+#[derive(Debug)]
+pub struct BoxableState<P>(Option<P>);
 
-// impl<P: ?Sized, Str> Stateful<Str> for Box<P>
-//     where P: Boxable<Str>,
-//           Str: Iterator,
-// {
-//     type Output = P::Output;
-//     fn more_ch_str(mut self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str> {
-//         match self.more_ch_str_boxable(ch, string) {
-//             Done((ch, string, result)) => Done((ch, string, result)),
-//             Continue(empty) => Continue((empty, self)),
-//         }
-//     }
-//     fn more_eof(mut self) -> Self::Output {
-//         self.more_eof_boxable()
-//     }
-// }
+impl<P, Ch, Str> Boxable<Ch, Str> for BoxableState<P>
+    where P: Stateful<Ch, Str>,
+          Str: Iterator<Item = Ch>,
+{
+    type Output = P::Output;
+    fn more_boxable(&mut self, ch: Ch, string: Str) -> ParseResult<Ch, Str, (), P::Output> {
+        match self.0.take().unwrap().more(ch, string) {
+            Done(ch, string, result) => Done(ch, string, result),
+            Continue(empty, state) => {
+                self.0 = Some(state);
+                Continue(empty, ())
+            }
+        }
+    }
+    fn done_boxable(&mut self) -> P::Output {
+        self.0.take().unwrap().done()
+    }
+}
 
-// impl<P> BoxableState<P> {
-//     pub fn new(parser: P) -> Self {
-//         BoxableState(Some(parser))
-//     }
-// }
+impl<P: ?Sized, Ch, Str, Output> Stateful<Ch, Str> for Box<P>
+    where P: Boxable<Ch, Str, Output = Output>,
+          Str: Iterator<Item = Ch>,
+{
+    type Output = Output;
+    fn more(mut self, ch: Ch, string: Str) -> ParseResult<Ch, Str, Self, Output> {
+        match self.more_boxable(ch, string) {
+            Done(ch, string, result) => Done(ch, string, result),
+            Continue(empty, ()) => Continue(empty, self),
+        }
+    }
+    fn done(mut self) -> Output {
+        self.done_boxable()
+    }
+}
+
+impl<P> BoxableState<P> {
+    pub fn new(parser: P) -> Self {
+        BoxableState(Some(parser))
+    }
+}
 
 // // // ----------- Iterate over parse results -------------
 

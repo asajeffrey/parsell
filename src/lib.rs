@@ -812,119 +812,13 @@ pub trait Parser {
 // // /// is that it provides weaker safety guarantees. `Stateful<S>` enforces that
 // // /// clients cannot call `parse` after `done`, but `Boxable<S>` does not.
 
-// pub trait Boxable<Str> 
-//     where Str: Iterator
-// {
-//     type Output;
-//     fn more_ch_str_boxable(&mut self, ch: Str::Item, string: Str) -> ParseResult<Str, (Str::Item, Str, Self::Output)>;
-//     fn more_eof_boxable(&mut self) -> Self::Output;
-// }
-
-// // /// Cut-and-paste `std::iter::Peekable`.
-// // ///
-// // /// We copy this since we use access to a private field.
-
-// // #[derive(Clone)]
-// // #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
-// // pub struct Peekable<I: Iterator> {
-// //     iter: I,
-// //     peeked: Option<I::Item>,
-// // }
-
-// // impl<I: Iterator> Iterator for Peekable<I> {
-// //     type Item = I::Item;
-
-// //     #[inline]
-// //     fn next(&mut self) -> Option<I::Item> {
-// //         match self.peeked {
-// //             Some(_) => self.peeked.take(),
-// //             None => self.iter.next(),
-// //         }
-// //     }
-
-// //     #[inline]
-// //     fn count(self) -> usize {
-// //         (if self.peeked.is_some() { 1 } else { 0 }) + self.iter.count()
-// //     }
-
-// //     #[inline]
-// //     fn nth(&mut self, n: usize) -> Option<I::Item> {
-// //         match self.peeked {
-// //             Some(_) if n == 0 => self.peeked.take(),
-// //             Some(_) => {
-// //                 self.peeked = None;
-// //                 self.iter.nth(n-1)
-// //             },
-// //             None => self.iter.nth(n)
-// //         }
-// //     }
-
-// //     #[inline]
-// //     fn last(self) -> Option<I::Item> {
-// //         self.iter.last().or(self.peeked)
-// //     }
-
-// //     #[inline]
-// //     fn size_hint(&self) -> (usize, Option<usize>) {
-// //         let (lo, hi) = self.iter.size_hint();
-// //         if self.peeked.is_some() {
-// //             let lo = lo.saturating_add(1);
-// //             let hi = hi.and_then(|x| x.checked_add(1));
-// //             (lo, hi)
-// //         } else {
-// //             (lo, hi)
-// //         }
-// //     }
-// // }
-
-// // impl<I: ExactSizeIterator> ExactSizeIterator for Peekable<I> {}
-
-// // impl<I: Iterator> Peekable<I> {
-
-// //     #[inline]
-// //     pub fn peek(&mut self) -> Option<&I::Item> {
-// //         if self.peeked.is_none() {
-// //             self.peeked = self.iter.next();
-// //         }
-// //         match self.peeked {
-// //             Some(ref value) => Some(value),
-// //             None => None,
-// //         }
-// //     }
-
-// //     #[inline]
-// //     pub fn is_empty(&mut self) -> bool {
-// //         self.peek().is_none()
-// //     }
-
-// //     #[inline]
-// //     pub fn new(iter: I) -> Self {
-// //         Peekable{ iter: iter, peeked: None }
-// //     }
-
-// // }
-
-// // /// A trait for data that can be coverted to a peekable iterator.
-// // ///
-// // /// This is a lot like `IntoIterator`, but returns a peekable.
-
-// // pub trait IntoPeekable {
-// //     type Item;
-// //     type Iter: Iterator<Item = Self::Item>;
-// //     fn into_peekable(self) -> Peekable<Self::Iter>;
-// // }
-
-// // impl<'a> IntoPeekable for &'a str {
-// //     type Item = char;
-// //     type Iter = std::str::Chars<'a>;
-// //     fn into_peekable(self) -> Peekable<Self::Iter> { Peekable::new(self.chars()) }
-// // }
-
-// // impl<I> IntoPeekable for Peekable<I> where I: Iterator {
-// //     type Item = I::Item;
-// //     type Iter = I;
-// //     fn into_peekable(self) -> Peekable<Self::Iter> { self }
-// // }
+pub trait Boxable<Ch, Str> 
+    where Str: Iterator<Item = Ch>,
+{
+    type Output;
+    fn more_boxable(&mut self, ch: Ch, string: Str) -> ParseResult<Ch, Str, (), Self::Output>;
+    fn done_boxable(&mut self) -> Self::Output;
+}
 
 /// A trait for one-argument functions.
 ///
@@ -1678,103 +1572,84 @@ fn test_CHARACTER() {
 //     }
 // }
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_tmp() {
-//     use std::vec::Drain;
-//     let parsing: CharacterState<Cow<'static, str>> = CharacterState(Cow::Borrowed("hi"));
-//     fn foo<P> (p: P) //-> Box<for<'b> Boxable<Drain<'b, Cow<'b, str>>, Output = Cow<'b, str>>>
-//         where P: for<'a> Stateful2<Cow<'a, str>, Drain<'a, Cow<'a, str>>, Output = Cow<'a, str>>,
-// //        where P: for<'a> Cast<CharacterState<Cow<'a, str>>>
-// //        where P: 'static + for<'b> Stateful<Drain<'b, Cow<'b, str>>, Output = Cow<'b, str>>
-//     {
-//         // Box::new(parsing.boxable())
-//     }
-//     foo(parsing)
-//     // let f: &(for<'b> FnOnce() -> Box<Boxable<Drain<'b, Cow<'b, str>>, Output = Cow<'b, str>>>) = &(|| Box::new(impls::BoxableState::new(parsing)));
-// }
-
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_boxable() {
-//     // use std::vec::Drain;
-//     // #[derive(Copy, Clone, Debug)]
-//     // struct Test;
-//     // type TestInput<'a> = Drain<'a,Cow<'a,str>>;
-//     // type TestOutput<'a> = Cow<'a,str>;//((Cow<'a,str>, Cow<'a,str>), Cow<'a,str>);
-//     // // type TestOutput<'a> = Option<&'a usize>;
-//     // type TestState = Box<for<'a> Boxable<TestInput<'a>, Output=TestOutput<'a>>>;
-//     // impl Parser for Test {}
-//     // impl<'a> Uncommitted<TestInput<'a>> for Test {
-//     //     type State = TestState;
-//     //     fn maybe_ch_str(&self, ch: Cow<'a,str>, string: TestInput<'a>) -> UncommittedParseChStrResult<Self, TestInput<'a>> {
-//     //         #[derive(Copy, Clone)]
-//     //         struct IsFoo;
-//     //         impl<'a,'b> Function<&'a Cow<'b,str>> for IsFoo {
-//     //             type Output = bool;
-//     //             fn apply(&self, string: &'a Cow<'b,str>) -> bool { string == "foo" }
-//     //         }
-//     //         fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
-//     //         fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
-//     //         let ONE = character_ref(IsFoo);
-//     //         let OTHER = CHARACTER.map(mk_other);
-//     //         let parser = ONE;//ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
-//     //         fn foo<P>(parsing: P) -> P
-//     //             where P: for<'a> Stateful<TestInput<'a>, Output=TestOutput<'a>>
-//     //         {
-//     //             parsing
-//     //         }
-//     //         // fn blah<'a>() -> CharacterState<Cow<'static,str>> { CharacterState(Cow::Borrowed("hi")) }
-//     //         // foo::<CharacterState<Cow<'static,str>>> (CharacterState(Cow::Borrowed("hi")));
-//     //         // This bit should be in the APIG
-//     //         match parser.maybe_ch_str(ch, string) {
-//     //             Empty(impossible) => Empty(impossible),
-//     //             Backtrack((ch, string)) => Backtrack((ch, string)),
-//     //             Commit(Done((ch, string, result))) => Commit(Done((ch, string, result))),
-//     //             Commit(Continue((empty, parsing))) => {
-//     //                 let parsing: impls::CharacterState<Cow<'static, str>> = parsing;
-//     //                 let f: Box<for<'b> FnOnce() -> impls::BoxableState<impls::CharacterState<Cow<'b, str>>>> = Box::new(|| parsing.boxable());
-//     //                 let binxed: Box<
-//     //                 let boxed: TestState = Box::new(f());
-//     //                 Commit(Continue((empty, boxed)))
-//     //             },
-//     //             // Done((ch, string, result)) => Commit(Done((ch, string, result))),
-//     //             // Continue((empty, parsing)) => Commit(Continue((empty, mk_box(parsing)))),
-//     //         }
-//     //     }
-//     // }
-//     // let data = [1,2,1,4];
-//     // let (ch, _, ((fst, snd), thd)) = parser.maybe_str(data.iter()).unCommit().unDone();
-//     // assert_eq!(*ch, 4);
-//     // assert_eq!(fst, "one");
-//     // assert_eq!(snd, "other");
-//     // assert_eq!(thd, "one");
-//     // assert!(!is_owned(fst));
-//     // assert!(!is_owned(snd));
-//     // assert!(!is_owned(thd));
-//     // let data1 = [1,2];
-//     // let data2 = [1,4];
-//     // let (_, parsing) = parser.maybe_str(data1.iter()).unCommit().unContinue();
-//     // let (ch, _, ((fst, snd), thd)) = parsing.more_str(data2.iter()).unDone();
-//     // assert_eq!(*ch, 4);
-//     // assert_eq!(fst, "one");
-//     // assert_eq!(snd, "other");
-//     // assert_eq!(thd, "one");
-//     // assert!(is_owned(fst));
-//     // assert!(!is_owned(snd));
-//     // assert!(!is_owned(thd));
-//     // let data1 = [1,2,1];
-//     // let data2 = [4];
-//     // let (_, parsing) = parser.maybe_str(data1.iter()).unCommit().unContinue();
-//     // let (ch, _, ((fst, snd), thd)) = parsing.more_str(data2.iter()).unDone();
-//     // assert_eq!(*ch, 4);
-//     // assert_eq!(fst, "one");
-//     // assert_eq!(snd, "other");
-//     // assert_eq!(thd, "one");
-//     // assert!(is_owned(fst));
-//     // assert!(is_owned(snd));
-//     // assert!(!is_owned(thd));
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_boxable() {
+    use std::vec::Drain;
+    #[derive(Copy, Clone, Debug)]
+    struct Test;
+    type TestCh<'a> = Cow<'a,str>;
+    type TestStr<'a> = Drain<'a,TestCh<'a>>;
+    type TestOutput<'a> = TestCh<'a>; //Cow<'a,str>;//((Cow<'a,str>, Cow<'a,str>), Cow<'a,str>);
+    type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>>;
+    impl Parser for Test {}
+    impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
+        type Output = TestOutput<'a>;
+        type State = TestState;
+        fn init_maybe(&self, ch: TestCh<'a>, string: TestStr<'a>) -> MaybeParseResult<TestCh<'a>, TestStr<'a>, TestState, TestOutput<'a>> {
+            fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
+            fn mk_other<'a>(_: Option<TestCh<'a>>) -> TestCh<'a> { Cow::Borrowed("other") }
+            fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
+            let ONE = character_ref(is_foo);
+            // let OTHER = CHARACTER.map(mk_other);
+            let parser = ONE;//ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+            fn foo<P>(state: P) -> P
+                where P: for<'a> Stateful<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>
+            {
+                state
+            }
+            fn bar<P>(state: P) -> P
+                where P: for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>
+            {
+                state
+            }
+            // This bit should be in the API
+            match parser.init_maybe(ch, string) {
+                Backtrack(ch, string) => Backtrack(ch, string),
+                Commit(Done(ch, string, result)) => Commit(Done(ch, string, result)),
+                Commit(Continue(empty, state)) => {
+                    let state = foo(state);
+                    let boxable = bar(impls::BoxableState::new(state));
+                    let boxed: TestState = Box::new(boxable);
+                    Commit(Continue(empty, boxed))
+                },
+                // Done((ch, string, result)) => Commit(Done((ch, string, result))),
+                // Continue((empty, state)) => Commit(Continue((empty, mk_box(state)))),
+            }
+        }
+    }
+    // let data = [1,2,1,4];
+    // let (ch, _, ((fst, snd), thd)) = parser.maybe_str(data.iter()).unCommit().unDone();
+    // assert_eq!(*ch, 4);
+    // assert_eq!(fst, "one");
+    // assert_eq!(snd, "other");
+    // assert_eq!(thd, "one");
+    // assert!(!is_owned(fst));
+    // assert!(!is_owned(snd));
+    // assert!(!is_owned(thd));
+    // let data1 = [1,2];
+    // let data2 = [1,4];
+    // let (_, parsing) = parser.maybe_str(data1.iter()).unCommit().unContinue();
+    // let (ch, _, ((fst, snd), thd)) = parsing.more_str(data2.iter()).unDone();
+    // assert_eq!(*ch, 4);
+    // assert_eq!(fst, "one");
+    // assert_eq!(snd, "other");
+    // assert_eq!(thd, "one");
+    // assert!(is_owned(fst));
+    // assert!(!is_owned(snd));
+    // assert!(!is_owned(thd));
+    // let data1 = [1,2,1];
+    // let data2 = [4];
+    // let (_, parsing) = parser.maybe_str(data1.iter()).unCommit().unContinue();
+    // let (ch, _, ((fst, snd), thd)) = parsing.more_str(data2.iter()).unDone();
+    // assert_eq!(*ch, 4);
+    // assert_eq!(fst, "one");
+    // assert_eq!(snd, "other");
+    // assert_eq!(thd, "one");
+    // assert!(is_owned(fst));
+    // assert!(is_owned(snd));
+    // assert!(!is_owned(thd));
+}
 
 // // #[test]
 // // #[allow(non_snake_case)]
