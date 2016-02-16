@@ -199,12 +199,6 @@ pub trait Committed<Ch, Str>
 
 }
 
-// pub enum Impossible {}
-
-// impl Impossible {
-//     fn cant_happen<T>(&self) -> T { match *self {} }
-// }
-
 pub trait Uncommitted<Ch, Str>
     where Str: Iterator<Item = Ch>,
 {

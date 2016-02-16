@@ -634,121 +634,53 @@ impl<P, F> StarParser<P, F> {
     }
 }
 
-// // pub struct StarParser<P, F>(P, F);
+// ----------- A type for parsers which immediately emit a result -------------
 
-// // // A work around for functions implmenting copy but not clone
-// // // https://github.com/rust-lang/rust/issues/28229
-// // impl<P, F> Copy for StarParser<P, F>
-// //     where P: Copy,
-// //           F: Copy
-// // {}
-// // impl<P, F> Clone for StarParser<P, F>
-// //     where P: Clone,
-// //           F: Copy
-// // {
-// //     fn clone(&self) -> Self {
-// //         StarParser(self.0.clone(), self.1)
-// //     }
-// // }
+#[derive(Copy, Clone, Debug)]
+pub struct Emit<F>(F);
 
-// // // A work around for named functions not implmenting Debug
-// // // https://github.com/rust-lang/rust/issues/31522
-// // impl<P, F> Debug for StarParser<P, F>
-// //     where P: Debug
-// // {
-// //     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-// //         write!(fmt, "StarParser({:?}, ...)", self.0)
-// //     }
-// // }
+impl<F> Parser for Emit<F> {}
 
-// // impl<P, F, Ch> Parser<Ch> for StarParser<P, F>
-// //     where P: 'static + Parser<Ch>,
-// //           F: 'static + Factory,
-// // {
-// //     type StaticOutput = F::Output;
-// //     type State = StarStatefulParser<P,P::State,F::Output>;
-// // }
-// // impl<P, F, Str> Committed<Str> for StarParser<P, F>
-// //     where P: 'static + Copy + Uncommitted<Str>,
-// //           F: 'static + Factory,
-// //           Str: IntoPeekable,
-// //           Str::Item: ToStatic,
-// //           P::State: Stateful<Str>,
-// //           F::Output: Consumer<<P::State as Stateful<Str>>::Output>
-// // {
-// //     fn init(&self) -> Self::State {
-// //         StarStatefulParser(self.0, None, self.1.build())
-// //     }
-// // }
+impl<F, Ch, Str> Stateful<Ch, Str> for Emit<F>
+    where Str: Iterator<Item = Ch>,
+          F: Factory,
+{
 
-// // impl<P, F> StarParser<P, F> {
-// //     pub fn new(parser: P, factory: F) -> Self {
-// //         StarParser(parser, factory)
-// //     }
-// // }
+    type Output = F::Output;
 
-// // ----------- A type for parsers which don't exist -------------
-
-// impl<Str> Stateful<Str> for Impossible where Str: Iterator {
-
-//     type Output = Str::Item;
+    fn more(self, ch: Str::Item, string: Str) -> ParseResult<Ch, Str, Self, F::Output> {
+        Done(ch, string, self.0.build())
+    }
     
-//     fn more_ch_str(self, _: Str::Item, _: Str) -> StatefulParseChStrResult<Self, Str> {
-//         self.cant_happen()
-//     }
+    fn done(self) -> F::Output {
+        self.0.build()
+    }
     
-//     fn more_eof(self) -> Str::Item {
-//         self.cant_happen()
-//     }
+}
+
+impl<F, Ch, Str> Committed<Ch, Str> for Emit<F>
+    where Str: Iterator<Item = Ch>,
+          F: 'static + Copy + Factory,
+{
+
+    type Output = F::Output;
+    type State = Self;
+
+    fn init(&self, ch: Str::Item, string: Str) -> ParseResult<Ch, Str, Self, F::Output> {
+        Done(ch, string, self.0.build())
+    }
     
-// }
-
-// // ----------- A type for parsers which immediately return -------------
-
-// #[derive(Copy, Clone, Debug)]
-// pub struct Return<T>(T);
-
-// impl<T> Parser for Return<T> {}
-
-// impl<T, Str> Stateful<Str> for Return<T>
-//     where Str: Iterator,
-//           T: Copy,
-// {
-
-//     type Output = T;
+    fn empty(&self) -> F::Output {
+        self.0.build()
+    }
     
-//     fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str> {
-//         Done((ch, string, self.0))
-//     }
-    
-//     fn more_eof(self) -> T {
-//         self.0
-//     }
-    
-// }
+}
 
-// impl<T, Str> Committed<Str> for Return<T>
-//     where Str: Iterator,
-//           T: 'static + Copy
-// {
-
-//     type State = Self;
-
-//     fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
-//         Done((ch, string, self.0))
-//     }
-    
-//     fn init_eof(&self) -> T {
-//         self.0
-//     }
-    
-// }
-
-// impl<T> Return<T> {
-//     pub fn new(t: T) -> Self {
-//         Return(t)
-//     }
-// }
+impl<T> Emit<T> {
+    pub fn new(t: T) -> Self {
+        Emit(t)
+    }
+}
 
 // ----------- Character parsers -------------
 
