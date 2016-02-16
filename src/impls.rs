@@ -16,9 +16,9 @@ use super::ParseResult::{Done, Continue};
 use self::OrElseState::{Lhs, Rhs};
 use self::AndThenState::{InLhs, InRhs};
 
-// use std::borrow::Cow;
-// use std::borrow::Cow::{Borrowed, Owned};
-// use std::str::Chars;
+use std::borrow::Cow;
+use std::borrow::Cow::{Borrowed, Owned};
+use std::str::Chars;
 use std::fmt::{Formatter, Debug};
 use std;
 
@@ -853,79 +853,83 @@ impl<Ch, Str, StaticCh> Committed<Ch, Str> for AnyCharacter
     }
 }
 
-// // // ----------- Buffering -------------
+// ----------- Buffering -------------
 
-// // // If m is a Uncommitted<&'a str>, then
-// // // m.buffer() is a Uncommitted<&'a str> with Output Cow<'a,str>.
-// // // It does as little buffering as it can, but it does allocate as buffer for the case
-// // // where the boundary marker of the input is misaligned with that of the parser.
-// // // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
-// // // we have to buffer up '"abc'.
+// If p is a Uncommitted<char, Chars<'a>>, then
+// m.buffer() is a Uncommitted<char, Chars<'a>> with Output (char, Cow<'a,str>).
+// It does as little buffering as it can, but it does allocate as buffer for the case
+// where the boundary marker of the input is misaligned with that of the parser.
+// For example, m is matching string literals, and the input is '"abc' followed by 'def"'
+// we have to buffer up '"abc'.
 
-// // // TODO(ajeffrey): make this code generic.
+// TODO(ajeffrey): make this code generic.
 
-// // #[derive(Copy, Clone, Debug)]
-// // pub struct BufferedParser<P>(P);
+// TODO(ajeffrey): the output type should be Cow<'a,str> not (char, Cow<'a,str>).
 
-// // impl<P> Parser<char> for BufferedParser<P> where P: Parser<char> {
-// //     type StaticOutput = Cow<'static,str>;
-// //     type State = BufferedStatefulParser<P::State>;
-// // }
-// // impl<'a, P, Q> Uncommitted<&'a str> for BufferedParser<P>
-// //     where P: Parser<char> + Uncommitted<&'a str, State=Q>, // TODO: Figure out why Parser is required here
-// //           Q: 'static+Stateful<&'a str>,
-// // {
-// //     fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State, &'a str> {
-// //         match self.0.parse(value) {
-// //             Empty(rest) => Empty(rest),
-// //             Commit(Done(rest, _)) => {
-// //                 Commit(Done(rest, Borrowed(&value[..(value.len() - rest.len())])))
-// //             }
-// //             Commit(Continue(rest, parsing)) => {
-// //                 Commit(Continue(rest, BufferedStatefulParser(parsing, String::from(value))))
-// //             }
-// //             Abort(value) => Abort(value),
-// //         }
-// //     }
-// // }
-// // impl<'a, P> Committed<&'a str> for BufferedParser<P> where P: Committed<&'a str>
-// // {
-// //     fn init(&self) -> Self::State {
-// //         BufferedStatefulParser(self.0.init(), String::new())
-// //     }
-// // }
+#[derive(Copy, Clone, Debug)]
+pub struct Buffered<P>(P);
 
-// // impl<P> BufferedParser<P> {
-// //     pub fn new(parser: P) -> Self {
-// //         BufferedParser(parser)
-// //     }
-// // }
+impl<P> Parser for Buffered<P> where P: Parser {}
 
-// // #[derive(Clone,Debug)]
-// // pub struct BufferedStatefulParser<P>(P, String);
+impl<'a, P> Uncommitted<char, Chars<'a>> for Buffered<P>
+    where P: Uncommitted<char, Chars<'a>>,
+{
+    type Output = (char, Cow<'a, str>);
+    type State = BufferedState<P::State>;
+    
+    fn init_maybe(&self, ch: char, string: Chars<'a>) -> MaybeParseResult<char, Chars<'a>, Self::State, Self::Output> {
+        let ch0 = ch;
+        let string0 = string.as_str();
+        match self.0.init_maybe(ch, string) {
+            Commit(Done(ch, string, _)) => {
+                let result = (ch0 , Borrowed(&string0[..(string0.len() - 1 - string.as_str().len())]));
+                Commit(Done(ch, string, result))
+            },
+            Commit(Continue(empty, state)) => {
+                Commit(Continue(empty, BufferedState(state, ch0, String::from(string0))))
+            },
+            Backtrack(ch, string) => Backtrack(ch, string),
+        }
+    }
+}
 
-// // impl<'a, P> Stateful<&'a str> for BufferedStatefulParser<P> where P: Stateful<&'a str>
-// // {
-// //     type Output = Cow<'a,str>;
-// //     fn parse(mut self, value: &'a str) -> ParseResult<Self, &'a str> {
-// //         match self.0.parse(value) {
-// //             Done(rest, _) if self.1.is_empty() => {
-// //                 Done(rest, Borrowed(&value[..(value.len() - rest.len())]))
-// //             }
-// //             Done(rest, _) => {
-// //                 self.1.push_str(&value[..(value.len() - rest.len())]);
-// //                 Done(rest, Owned(self.1))
-// //             }
-// //             Continue(rest, parsing) => {
-// //                 self.1.push_str(value);
-// //                 Continue(rest, BufferedStatefulParser(parsing, self.1))
-// //             }
-// //         }
-// //     }
-// //     fn done(self) -> Self::Output {
-// //         Owned(self.1)
-// //     }
-// // }
+impl<P> Buffered<P> {
+    pub fn new(parser: P) -> Self {
+        Buffered(parser)
+    }
+}
+
+#[derive(Clone,Debug)]
+pub struct BufferedState<P>(P, char, String);
+
+impl<'a, P> Stateful<char, Chars<'a>> for BufferedState<P>
+    where P: Stateful<char, Chars<'a>>
+{
+    
+    type Output = (char, Cow<'a, str>);
+    
+    fn more(mut self, ch: char, string: Chars<'a>) -> ParseResult<char, Chars<'a>, Self, Self::Output> {
+        let ch0 = ch;
+        let string0 = string.as_str();
+        match self.0.more(ch, string) {
+            Done(ch, string, _) => {
+                self.2.push(ch0);
+                self.2.push_str(&string0[..(string0.len() - 1 - string.as_str().len())]);
+                Done(ch, string, (self.1, Owned(self.2)))
+            },
+            Continue(empty, state) => {
+                self.2.push(ch0);
+                self.2.push_str(string0);
+                Continue(empty, BufferedState(state, self.1, self.2))
+            },
+        }
+    }
+    
+    fn done(self) -> Self::Output {
+        (self.1, Owned(self.2))
+    }
+    
+}
 
 // ----------- Parsers which are boxable -------------
 
