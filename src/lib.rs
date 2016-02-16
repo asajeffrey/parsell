@@ -226,13 +226,13 @@ pub trait Parser {
 //         impls::OrElse::new(self, other)
 //     }
 
-//     /// Sequencing with a committed parser
-//     fn and_then<P>(self, other: P) -> impls::AndThen<Self, P>
-//         where Self: Sized,
-//               P: Parser,
-//     {
-//         impls::AndThen::new(self, other)
-//     }
+    /// Sequencing with a committed parser
+    fn and_then<P>(self, other: P) -> impls::AndThen<Self, P>
+        where Self: Sized,
+              P: Parser,
+    {
+        impls::AndThen::new(self, other)
+    }
 
 // //     /// Sequencing with a committed parser (bubble any errors from this parser).
 // //     fn try_and_then<P>(self,
@@ -281,12 +281,12 @@ pub trait Parser {
 // //         impls::StarParser::new(self, factory)
 // //     }
 
-//     /// Apply a function to the result
-//     fn map<F>(self, f: F) -> impls::Map<Self, F>
-//         where Self: Sized,
-//     {
-//         impls::Map::new(self, f)
-//     }
+    /// Apply a function to the result
+    fn map<F>(self, f: F) -> impls::Map<Self, F>
+        where Self: Sized,
+    {
+        impls::Map::new(self, f)
+    }
 
 // //     /// Apply a 2-arguent function to the result
 // //     fn map2<F>(self, f: F) -> impls::MapParser<Self, impls::Function2<F>>
@@ -1188,19 +1188,26 @@ fn test_CHARACTER() {
 //     assert_eq!(iter.as_str(), "bcd");
 // }
 
-// #[test]
-// fn test_map1() {
-//     let parser = character(char::is_alphabetic).map(Some);
-//     let iter = parser.maybe_str("".chars()).unEmpty();
-//     assert_eq!(iter.as_str(), "");
-//     let (ch, iter) = parser.maybe_str("989".chars()).unBacktrack();
-//     assert_eq!(ch, '9');
-//     assert_eq!(iter.as_str(), "89");
-//     let (ch, iter, res) = parser.maybe_str("abcd".chars()).unCommit().unDone();
-//     assert_eq!(res, Some('a'));
-//     assert_eq!(ch, 'b');
-//     assert_eq!(iter.as_str(), "cd");
-// }
+#[test]
+fn test_map1() {
+    // uncommitted map
+    let parser = character(char::is_alphabetic).map(Some);
+    assert!(parser.init_iter_maybe("".chars()).is_none());
+    let (ch, iter) = parser.init_iter_maybe("989".chars()).unwrap().unBacktrack();
+    assert_eq!(ch, '9');
+    assert_eq!(iter.as_str(), "89");
+    let (ch, iter, res) = parser.init_iter_maybe("abcd".chars()).unwrap().unCommit().unDone();
+    assert_eq!(res, Some('a'));
+    assert_eq!(ch, 'b');
+    assert_eq!(iter.as_str(), "cd");
+    // committed map
+    let parser = CHARACTER.map(Some);
+    assert!(parser.init_iter("".chars()).is_none());
+    let (ch, iter, res) = parser.init_iter("abcd".chars()).unwrap().unDone();
+    assert_eq!(res, Some(Some('a')));
+    assert_eq!(ch, 'b');
+    assert_eq!(iter.as_str(), "cd");
+}
 
 // #[test]
 // fn test_map2() {
@@ -1316,29 +1323,25 @@ fn test_CHARACTER() {
 // //                ("!", Some(('a', 'b', 'c', 'd', 'e'))));
 // // }
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_and_then() {
-//     let parser = character(char::is_alphanumeric).and_then(emit(true));
-//     parser.maybe_str("".chars()).unEmpty();
-//     let (ch, iter, res) = parser.maybe_str("abcd".chars()).unCommit().unDone();
-//     assert_eq!(res, ('a', true));
-//     assert_eq!(ch, 'b');
-//     assert_eq!(iter.as_str(), "cd");
-//     // fn mk_none<T>(_: Option<char>) -> Option<T> {
-//     //     None
-//     // }
-//     // let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-//     // let ALPHABETIC = character(char::is_alphabetic).map(Some).or_else(CHARACTER.map(mk_none));
-//     // let parser = ALPHABETIC.and_then(ALPHANUMERIC);
-//     // parser.init().parse("").unContinue();
-//     // assert_eq!(parser.init().parse("989").unDone(),
-//     //            ("9", (None, Some('8'))));
-//     // assert_eq!(parser.init().parse("a!!").unDone(),
-//     //            ("!", (Some('a'), None)));
-//     // assert_eq!(parser.init().parse("abc").unDone(),
-//     //            ("c", (Some('a'), Some('b'))));
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_and_then() {
+    // uncommitted
+    let parser = character(char::is_alphabetic).and_then(CHARACTER);
+    let (ch, iter) = parser.init_iter_maybe("989".chars()).unwrap().unBacktrack();
+    assert_eq!(ch, '9');
+    assert_eq!(iter.as_str(), "89");
+    let (ch, iter, res) = parser.init_iter_maybe("abcd".chars()).unwrap().unCommit().unDone();
+    assert_eq!(res, ('a', Some('b')));
+    assert_eq!(ch, 'c');
+    assert_eq!(iter.as_str(), "d");
+    // committed
+    let parser = CHARACTER.and_then(CHARACTER);
+    let (ch, iter, res) = parser.init_iter("abcd".chars()).unwrap().unDone();
+    assert_eq!(res, (Some('a'), Some('b')));
+    assert_eq!(ch, 'c');
+    assert_eq!(iter.as_str(), "d");
+}
 
 // // #[test]
 // // #[allow(non_snake_case)]
@@ -1580,7 +1583,7 @@ fn test_boxable() {
     struct Test;
     type TestCh<'a> = Cow<'a,str>;
     type TestStr<'a> = Drain<'a,TestCh<'a>>;
-    type TestOutput<'a> = TestCh<'a>; //Cow<'a,str>;//((Cow<'a,str>, Cow<'a,str>), Cow<'a,str>);
+    type TestOutput<'a> = (TestCh<'a>, TestCh<'a>); //Cow<'a,str>;//((Cow<'a,str>, Cow<'a,str>), Cow<'a,str>);
     type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>>;
     impl Parser for Test {}
     impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
@@ -1591,8 +1594,8 @@ fn test_boxable() {
             fn mk_other<'a>(_: Option<TestCh<'a>>) -> TestCh<'a> { Cow::Borrowed("other") }
             fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
             let ONE = character_ref(is_foo);
-            // let OTHER = CHARACTER.map(mk_other);
-            let parser = ONE;//ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+            let OTHER = CHARACTER.map(mk_other);
+            let parser = ONE.and_then(OTHER);//ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
             fn foo<P>(state: P) -> P
                 where P: for<'a> Stateful<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>
             {
@@ -1613,8 +1616,6 @@ fn test_boxable() {
                     let boxed: TestState = Box::new(boxable);
                     Commit(Continue(empty, boxed))
                 },
-                // Done((ch, string, result)) => Commit(Done((ch, string, result))),
-                // Continue((empty, state)) => Commit(Continue((empty, mk_box(state)))),
             }
         }
     }

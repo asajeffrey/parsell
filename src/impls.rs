@@ -14,7 +14,7 @@ use super::MaybeParseResult::{Backtrack, Commit};
 use super::ParseResult::{Done, Continue};
 
 // use self::OrElseState::{Lhs, Rhs};
-// use self::AndThenState::{InLhs, InRhs};
+use self::AndThenState::{InLhs, InRhs};
 
 // use std::borrow::Cow;
 // use std::borrow::Cow::{Borrowed, Owned};
@@ -150,122 +150,123 @@ impl<S, T, E> Function<(Result<S, E>, Result<T, E>)> for TryZipTry {
     }
 }
 
-// // ----------- Deal with options ---------------
+// ----------- Deal with options ---------------
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct MkSome;
-// impl<T> Function<T> for MkSome
-// {
-//     type Output = Option<T>;
-//     fn apply(&self, arg: T) -> Option<T> {
-//         Some(arg)
-//     }
-// }
+#[derive(Copy, Clone, Debug)]
+pub struct MkSome;
+impl<T> Function<T> for MkSome
+{
+    type Output = Option<T>;
+    fn apply(&self, arg: T) -> Option<T> {
+        Some(arg)
+    }
+}
 
-// // ----------- Map ---------------
+// ----------- Map ---------------
 
-// pub struct Map<P, F>(P, F);
+pub struct Map<P, F>(P, F);
 
-// // A work around for functions implmenting copy but not clone
-// // https://github.com/rust-lang/rust/issues/28229
-// impl<P, F> Copy for Map<P, F>
-//     where P: Copy,
-//           F: Copy
-// {}
-// impl<P, F> Clone for Map<P, F>
-//     where P: Clone,
-//           F: Copy
-// {
-//     fn clone(&self) -> Self {
-//         Map(self.0.clone(), self.1)
-//     }
-// }
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P, F> Copy for Map<P, F>
+    where P: Copy,
+          F: Copy
+{}
+impl<P, F> Clone for Map<P, F>
+    where P: Clone,
+          F: Copy
+{
+    fn clone(&self) -> Self {
+        Map(self.0.clone(), self.1)
+    }
+}
 
-// // A work around for named functions not implmenting Debug
-// // https://github.com/rust-lang/rust/issues/31522
-// impl<P, F> Debug for Map<P, F>
-//     where P: Debug
-// {
-//     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-//         write!(fmt, "Map({:?}, ...)", self.0)
-//     }
-// }
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<P, F> Debug for Map<P, F>
+    where P: Debug
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "Map({:?}, ...)", self.0)
+    }
+}
 
-// impl<P, F> Parser for Map<P, F> {}
+impl<P, F> Parser for Map<P, F> {}
 
-// impl<P, F, Str> Stateful<Str> for Map<P, F>
-//     where P: Stateful<Str>,
-//           F: Function<StatefulOutput<P, Str>>,
-//           Str: Iterator,
-// {
+impl<P, F, Ch, Str> Stateful<Ch, Str> for Map<P, F>
+    where P: Stateful<Ch, Str>,
+          F: Function<P::Output>,
+          Str: Iterator<Item = Ch>,
+{
     
-//     type Output = F::Output;
+    type Output = F::Output;
 
-//     fn more_eof(self) -> StatefulOutput<Self, Str> {
-//         self.1.apply(self.0.more_eof())
-//     }
+    fn done(self) -> F::Output {
+        self.1.apply(self.0.done())
+    }
 
-//     fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>  {
-//         match self.0.more_ch_str(ch, string) {
-//             Done((ch, string, result)) => Done((ch, string, self.1.apply(result))),
-//             Continue((empty, parsing)) => Continue((empty, Map(parsing, self.1))),
-//         }
-//     }
+    fn more(self, ch: Ch, string: Str) -> ParseResult<Ch, Str, Self, F::Output> {
+        match self.0.more(ch, string) {
+            Done(ch, string, result) => Done(ch, string, self.1.apply(result)),
+            Continue(empty, state) => Continue(empty, Map(state, self.1)),
+        }
+    }
 
-// }
+}
 
-// impl<P, F, Str> Committed<Str> for Map<P, F>
-//     where P: Committed<Str>,
-//           F: 'static + Copy + Function<CommittedOutput<P, Str>>,
-//           Str: Iterator,
-// {
+impl<P, F, Ch, Str> Committed<Ch, Str> for Map<P, F>
+    where P: Committed<Ch, Str>,
+          F: 'static + Copy + Function<P::Output>,
+          Str: Iterator<Item = Ch>,
+{
 
-//     type State = Map<P::State, F>;
+    type Output = F::Output;
+    type State = Map<P::State, F>;
     
-//     fn init_ch_str(&self, ch: Str::Item, string: Str) -> CommittedParseChStrResult<Self, Str> {
-//         match self.0.init_ch_str(ch, string) {
-//             Done((ch, string, result)) => Done((ch, string, self.1.apply(result))),
-//             Continue((empty, parsing)) => Continue((empty, Map(parsing, self.1))),
-//         }
-//     }
+    fn init(&self, ch: Str::Item, string: Str) -> ParseResult<Ch, Str, Self::State, F::Output> {
+        match self.0.init(ch, string) {
+            Done(ch, string, result) => Done(ch, string, self.1.apply(result)),
+            Continue(empty, parsing) => Continue(empty, Map(parsing, self.1)),
+        }
+    }
 
-//     fn init_eof(&self) -> CommittedOutput<Self, Str> {
-//         self.1.apply(self.0.init_eof())
-//     }
+    fn empty(&self) -> F::Output {
+        self.1.apply(self.0.empty())
+    }
 
-// }
+}
 
-// impl<P, F, Str> Uncommitted<Str> for Map<P, F>
-//     where P: Uncommitted<Str>,
-//           F: 'static + Copy + Function<UncommittedOutput<P, Str>>,
-//           Str: Iterator,
-// {
+impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Map<P, F>
+    where P: Uncommitted<Ch, Str>,
+          F: 'static + Copy + Function<P::Output>,
+          Str: Iterator<Item = Ch>,
+{
 
-//     type State = Map<P::State, F>;
+    type Output = F::Output;
+    type State = Map<P::State, F>;
     
-//     fn maybe_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
-//         match self.0.maybe_ch_str(ch, string) {
-//             Empty(impossible) => Empty(impossible),
-//             Backtrack((ch, string)) => Backtrack((ch, string)),
-//             Commit(Done((ch, string, result))) => Commit(Done((ch, string, self.1.apply(result)))),
-//             Commit(Continue((empty, parsing))) => Commit(Continue((empty, Map(parsing, self.1)))),
-//         }
-//     }
+    fn init_maybe(&self, ch: Str::Item, string: Str) -> MaybeParseResult<Ch, Str, Self::State, F::Output> {
+        match self.0.init_maybe(ch, string) {
+            Backtrack(ch, string) => Backtrack(ch, string),
+            Commit(Done(ch, string, result)) => Commit(Done(ch, string, self.1.apply(result))),
+            Commit(Continue(empty, state)) => Commit(Continue(empty, Map(state, self.1))),
+        }
+    }
 
-// }
+}
 
-// impl<P, F> Map<P, F> {
-//     pub fn new(p: P, f: F) -> Self {
-//         Map(p, f)
-//     }
-// }
+impl<P, F> Map<P, F> {
+    pub fn new(p: P, f: F) -> Self {
+        Map(p, f)
+    }
+}
 
-// // ----------- Sequencing ---------------
+// ----------- Sequencing ---------------
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct AndThen<P, Q>(P, Q);
+#[derive(Copy, Clone, Debug)]
+pub struct AndThen<P, Q>(P, Q);
 
-// impl<P, Q> Parser for AndThen<P, Q> {}
+impl<P, Q> Parser for AndThen<P, Q> {}
 
 // impl<P, Q, Str> Committed<Str> for AndThen<P, Q>
 //     where P: Committed<Str>,
@@ -292,80 +293,110 @@ impl<S, T, E> Function<(Result<S, E>, Result<T, E>)> for TryZipTry {
 
 // }
 
-// impl<P, Q, Str> Uncommitted<Str> for AndThen<P, Q>
-//     where P: Uncommitted<Str>,
-//           Q: 'static + Copy + Committed<Str>,
-//           Str: Iterator,
-//           UncommittedOutput<P, Str>: ToStatic,
-// {
+impl<P, Q, Ch, Str, PStaticOutput> Committed<Ch, Str> for AndThen<P, Q>
+    where P: Committed<Ch, Str>,
+          Q: 'static + Copy + Committed<Ch, Str>,
+          Str: Iterator<Item = Ch>,
+          PStaticOutput: 'static + Upcast<P::Output>,
+          P::Output: ToStatic<Static = PStaticOutput>,
+{
+
+    type Output = (P::Output, Q::Output);
+    type State = AndThenState<P::State, Q, PStaticOutput, Q::State>;
+
+    fn init(&self, ch: Ch, string: Str) -> ParseResult<Ch, Str, Self::State, Self::Output> {
+        match self.0.init(ch, string) {
+            Done(ch, string, fst) => match self.1.init(ch, string) {
+                Done(ch, string, snd) => Done(ch, string, (fst, snd)),
+                Continue(empty, snd) => Continue(empty, InRhs(fst.to_static(), snd)),
+            },
+            Continue(empty, fst) => Continue(empty, InLhs(fst, self.1)),
+        }
+    }
+
+    fn empty(&self) -> Self::Output {
+        (self.0.empty(), self.1.empty())
+    }
     
-//     type State = AndThenState<(P::State, Q), (Static<UncommittedOutput<P, Str>>, Q::State)>;
+}
 
-//     fn maybe_ch_str(&self, ch: Str::Item, string: Str) -> UncommittedParseChStrResult<Self, Str> {
-//         match self.0.maybe_ch_str(ch, string) {
-//             Empty(impossible) => Empty(impossible),
-//             Backtrack((ch, string)) => Backtrack((ch, string)),
-//             Commit(Done((ch, string, fst))) => match self.1.init_ch_str(ch, string) {
-//                 Done((ch, string, snd)) => Commit(Done((ch, string, (fst, snd)))),
-//                 Continue((empty, snd)) => Commit(Continue((empty, InRhs((fst.to_static(), snd))))),
-//             },
-//             Commit(Continue((empty, fst))) => Commit(Continue((empty, InLhs((fst, self.1))))),
-//         }
-//     }
+impl<P, Q, Ch, Str, PStaticOutput> Uncommitted<Ch, Str> for AndThen<P, Q>
+    where P: Uncommitted<Ch, Str>,
+          Q: 'static + Copy + Committed<Ch, Str>,
+          Str: Iterator<Item = Ch>,
+          PStaticOutput: 'static + Upcast<P::Output>,
+          P::Output: ToStatic<Static = PStaticOutput>,
+{
 
-// }
+    type Output = (P::Output, Q::Output);
+    type State = AndThenState<P::State, Q, PStaticOutput, Q::State>;
 
-// impl<P, Q> AndThen<P, Q> {
-//     pub fn new(p: P, q: Q) -> Self {
-//         AndThen(p, q)
-//     }
-// }
+    fn init_maybe(&self, ch: Ch, string: Str) -> MaybeParseResult<Ch, Str, Self::State, Self::Output> {
+        match self.0.init_maybe(ch, string) {
+            Backtrack(ch, string) => Backtrack(ch, string),
+            Commit(Done(ch, string, fst)) => match self.1.init(ch, string) {
+                Done(ch, string, snd) => Commit(Done(ch, string, (fst, snd))),
+                Continue(empty, snd) => Commit(Continue(empty, InRhs(fst.to_static(), snd))),
+            },
+            Commit(Continue(empty, fst)) => Commit(Continue(empty, InLhs(fst, self.1))),
+        }
+    }
 
-// #[derive(Copy, Clone, Debug)]
-// pub enum AndThenState<P, Q> {
-//     InLhs(P),
-//     InRhs(Q),
-// }
+}
 
-// impl<P, Q, Str> Stateful<Str> for AndThenState<(P, Q), (Static<StatefulOutput<P, Str>>, Q::State)>
-//     where P: Stateful<Str>,
-//           Q: Committed<Str>,
-//           Str: Iterator,
-//           StatefulOutput<P, Str>: ToStatic,
-// {
+impl<P, Q> AndThen<P, Q> {
+    pub fn new(p: P, q: Q) -> Self {
+        AndThen(p, q)
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum AndThenState<PState, Q, PStaticOutput, QState> {
+    InLhs(PState, Q),
+    InRhs(PStaticOutput, QState),
+}
+
+impl<PState, Q, Ch, Str, PStaticOutput> Stateful<Ch, Str> for AndThenState<PState, Q, PStaticOutput, Q::State>
+    where PState: Stateful<Ch, Str>,
+          Q: Committed<Ch, Str>,
+          Str: Iterator<Item = Ch>,
+          PStaticOutput: 'static + Upcast<PState::Output>,
+          PState::Output: ToStatic<Static = PStaticOutput>,
+
+{
     
-//     type Output = (StatefulOutput<P, Str>, CommittedOutput<Q, Str>);
+    type Output = (PState::Output, Q::Output);
 
-//     fn more_eof(self) -> StatefulOutput<Self, Str>
-//     {
-//         match self {
-//             InLhs((fst, snd)) => (fst.more_eof(), snd.init_eof()),
-//             InRhs((fst, snd)) => (ToStatic::from_static(fst), snd.more_eof()),
-//         }
-//     }
+    fn done(self) -> Self::Output
+    {
+        match self {
+            InLhs(fst, snd) => (fst.done(), snd.empty()),
+            InRhs(fst, snd) => (fst.upcast(), snd.done()),
+        }
+    }
 
-//     fn more_ch_str(self, ch: Str::Item, string: Str) -> StatefulParseChStrResult<Self, Str>
-//     {
-//         match self {
-//             InLhs((fst, snd)) => {
-//                 match fst.more_ch_str(ch, string) {
-//                     Done((ch, string, fst)) => match snd.init_ch_str(ch, string) {
-//                         Done((ch, string, snd)) => Done((ch, string, (fst, snd))),
-//                         Continue((string, snd)) => Continue((string, InRhs((fst.to_static(), snd)))),
-//                     },
-//                     Continue((string, fst)) => Continue((string, InLhs((fst, snd)))),
-//                 }
-//             }
-//             InRhs((fst, snd)) => {
-//                 match snd.more_ch_str(ch, string) {
-//                     Done((ch, string, snd)) => Done((ch, string, (ToStatic::from_static(fst), snd))),
-//                     Continue((string, snd)) => Continue((string, InRhs((fst, snd)))),
-//                 }
-//             }
-//         }
-//     }
+    fn more(self, ch: Str::Item, string: Str) -> ParseResult<Ch, Str, Self, Self::Output>
+    {
+        match self {
+            InLhs(fst, snd) => {
+                match fst.more(ch, string) {
+                    Done(ch, string, fst) => match snd.init(ch, string) {
+                        Done(ch, string, snd) => Done(ch, string, (fst, snd)),
+                        Continue(string, snd) => Continue(string, InRhs(fst.to_static(), snd)),
+                    },
+                    Continue(string, fst) => Continue(string, InLhs(fst, snd)),
+                }
+            }
+            InRhs(fst, snd) => {
+                match snd.more(ch, string) {
+                    Done(ch, string, snd) => Done(ch, string, (fst.upcast(), snd)),
+                    Continue(string, snd) => Continue(string, InRhs(fst, snd)),
+                }
+            }
+        }
+    }
    
-// }
+}
 
 // // ----------- Choice ---------------
 
