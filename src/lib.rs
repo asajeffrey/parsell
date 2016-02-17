@@ -1170,30 +1170,31 @@ fn test_character() {
     assert_eq!(data.as_str(), "bcd");
 }
 
-// #[test]
-// fn test_character_ref() {
-//     fn is_alphabetic<'a>(ch: &'a char) -> bool { ch.is_alphabetic() }
-//     let parser = character_ref(is_alphabetic);
-//     assert!(parser.init_maybe("".chars()).is_none());
-//     let (ch, iter) = parser.init_maybe("989".chars()).unwrap().unBacktrack();
-//     assert_eq!(ch, '9');
-//     assert_eq!(iter.as_str(), "89");
-//     let (ch, iter, res) = parser.init_maybe("abcd".chars()).unwrap().unCommit().unDone();
-//     assert_eq!(res, 'a');
-//     assert_eq!(ch, 'b');
-//     assert_eq!(iter.as_str(), "cd");
-// }
+#[test]
+fn test_character_ref() {
+    fn is_alphabetic<'a>(ch: &'a char) -> bool { ch.is_alphabetic() }
+    let parser = character_ref(is_alphabetic);
+    let mut data = "".chars();
+    parser.init_maybe(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "");
+    let mut data = "989".chars();
+    parser.init_maybe(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "989");
+    let mut data = "abcd".chars();
+    assert_eq!(parser.init_maybe(&mut data).unDone(), 'a');
+    assert_eq!(data.as_str(), "bcd");
+}
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_CHARACTER() {
-//     let parser = CHARACTER;
-//     assert!(parser.init("".chars()).is_none());
-//     let (ch, iter, res) = parser.init("abcd".chars()).unwrap().unDone();
-//     assert_eq!(res, Some('a'));
-//     assert_eq!(ch, 'b');
-//     assert_eq!(iter.as_str(), "cd");
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_CHARACTER() {
+    let parser = CHARACTER;
+    let mut data = "".chars();
+    parser.init(&mut data).unBacktrack();
+    let mut data = "abcd".chars();
+    assert_eq!(parser.init(&mut data).unDone(), Some('a'));
+    assert_eq!(data.as_str(), "bcd");
+}
 
 // // #[test]
 // // fn test_emit() {

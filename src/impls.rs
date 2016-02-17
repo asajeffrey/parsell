@@ -1,14 +1,8 @@
 //! Provide implementations of parser traits.
 
-// use super::{Stateful, Parser, Uncommitted, Committed, Boxable, ParseResult, MaybeParseResult,
-//             Factory, Function, Consumer, ToStatic, Peekable, IntoPeekable};
-// use super::ParseResult::{Continue, Done};
-// use super::MaybeParseResult::{Abort, Commit, Empty};
-
 use super::{Parser, ParseResult};
 use super::{Stateful, Committed, Uncommitted, Boxable};
 use super::{Function, Consumer, Factory, PeekableIterator};
-// use super::{Impossible};
 use super::{Upcast, ToStatic};
 use super::ParseResult::{Done, Continue, Backtrack};
 
@@ -838,7 +832,7 @@ impl<Ch, Str, StaticCh> Committed<Ch, Str> for AnyCharacter
     
     fn init(&self, string: &mut Str) -> ParseResult<Self::State, Option<Ch>> {
         match string.next() {
-            None => Continue(AnyCharacter),
+            None => Backtrack,
             Some(ch) => Done(Some(ch)),
         }
     }
