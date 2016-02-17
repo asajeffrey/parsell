@@ -19,8 +19,7 @@
 
 #![feature(unboxed_closures)]
 
-use self::MaybeParseResult::{Backtrack, Commit};
-use self::ParseResult::{Done, Continue};
+use self::ParseResult::{Done, Continue, Backtrack};
 
 // use std::fmt::{Formatter, Debug};
 use std::borrow::Cow;
@@ -67,20 +66,13 @@ pub trait Stateful<Ch, Str>
     /// The type of the data being produced by the parser.
     type Output;
 
-    /// Parse a non-empty string of data.
-    fn more(self, ch: Ch, string: Str) -> ParseResult<Ch, Str, Self, Self::Output>
+    /// Parse a string of data.
+    fn more(self, string: &mut Str) -> ParseResult<Self, Self::Output>
         where Self: Sized;
 
     /// Parse an EOF.
     fn done(self) -> Self::Output
         where Self: Sized;
-
-    /// Parse a possible empty string of data
-    fn maybe_more(self, mut string: Str) -> Option<ParseResult<Ch, Str, Self, Self::Output>>
-        where Self: Sized
-    {
-        string.next().map(|ch| self.more(ch, string))
-    }
 
 }
 
@@ -166,13 +158,16 @@ pub trait Stateful<Ch, Str>
 
 /// The result of stateful parsing
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum ParseResult<Ch, Str, Continuation, Output> {
-    
+pub enum ParseResult<State, Output> {
+
     /// The parse is finished.
-    Done(Ch, Str, Output),
+    Done(Output),
     
     /// The parse can continue.
-    Continue(Str, Continuation),
+    Continue(State),
+
+    /// The parse should backtrack.
+    Backtrack,
 
 }
 
@@ -191,12 +186,14 @@ pub trait Committed<Ch, Str>
     type Output;
     type State: 'static + Stateful<Ch, Str, Output=Self::Output>;
 
-    /// Parse a non-empty string of data.
-    fn init(&self, ch: Ch, string: Str) -> ParseResult<Ch, Str, Self::State, Self::Output>;
+    /// Parse a string of data.
+    ///
+    /// Should only baktrack if the string is empty.
+    fn init(&self, string: &mut Str) -> ParseResult<Self::State, Self::Output>;
 
-    /// Parse an empty string of data.
+    /// Parse an EOF.
     fn empty(&self) -> Self::Output;
-
+    
 }
 
 pub trait Uncommitted<Ch, Str>
@@ -207,14 +204,8 @@ pub trait Uncommitted<Ch, Str>
     type State: 'static + Stateful<Ch, Str, Output=Self::Output>;
 
     /// Parse a non-empty string of data.
-    fn init_maybe(&self, ch: Ch, string: Str) -> MaybeParseResult<Ch, Str, Self::State, Self::Output>;
+    fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, Self::Output>;
 
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum MaybeParseResult<Ch, Str, Resumption, Output> {
-    Backtrack(Ch, Str),
-    Commit(ParseResult<Ch, Str, Resumption, Output>),
 }
 
 pub trait Parser {
@@ -391,22 +382,6 @@ pub trait Parser {
 // //         impls::BufferedParser::new(self)
 // //     }
 
-    fn maybe_init<Ch, Str, State, Output>(&self, mut string: Str) -> Option<ParseResult<Ch, Str, State, Output>>
-        where Self: Committed<Ch, Str, State = State, Output = Output>,
-              State: 'static + Stateful<Ch, Str, Output = Output>,
-              Str: Iterator<Item = Ch>,
-    {
-        string.next().map(|ch| self.init(ch, string))
-    }
-    
-    fn maybe_init_maybe<Ch, Str, State, Output>(&self, mut string: Str) -> Option<MaybeParseResult<Ch, Str, State, Output>>
-        where Self: Uncommitted<Ch, Str, State = State, Output = Output>,
-              State: 'static + Stateful<Ch, Str, Output = Output>,
-              Str: Iterator<Item = Ch>,
-    {
-        string.next().map(|ch| self.init_maybe(ch, string))
-    }
-    
 }
 
 // // /// A trait for committed parsers.
@@ -817,7 +792,7 @@ pub trait Boxable<Ch, Str>
     where Str: Iterator<Item = Ch>,
 {
     type Output;
-    fn more_boxable(&mut self, ch: Ch, string: Str) -> ParseResult<Ch, Str, (), Self::Output>;
+    fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), Self::Output>;
     fn done_boxable(&mut self) -> Self::Output;
 }
 
@@ -1064,6 +1039,12 @@ impl StaticMarker for char {}
 impl StaticMarker for String {}
 impl<T> StaticMarker for Vec<T> where T: 'static {}
 
+/// A trait for peekable iterators
+
+trait PeekableIterator: Iterator {
+    fn peek(&self) -> Option<&Self::Item>;
+}
+
 /// An uncommitted parser that reads one character.
 ///
 /// The parser `character(f)` reads one character `ch` from the input,
@@ -1104,40 +1085,21 @@ pub const CHARACTER: impls::AnyCharacter = impls::AnyCharacter;
 // ----------- Tests -------------
 
 #[allow(non_snake_case)]
-impl<Ch, Str, State, Output> ParseResult<Ch, Str, State, Output> 
+impl<State, Output> ParseResult<State, Output> 
 {
-    pub fn unDone(self) -> (Ch, Str, Output) {
+    pub fn unDone(self) -> Output {
         match self {
-            Done(ch, string, result) => (ch, string, result),
+            Done(result) => result,
             _ => panic!("Not done"),
         }
     }
 
-    pub fn unContinue(self) -> (Str, State) {
+    pub fn unContinue(self) -> State {
         match self {
-            Continue(empty, state) => (empty, state),
+            Continue(state) => state,
             _ => panic!("Not continue"),
         }
     }
-}
-
-#[allow(non_snake_case)]
-impl<Ch, Str, State, Output> MaybeParseResult<Ch, Str, State, Output> {
-
-    pub fn unBacktrack(self) -> (Ch, Str) {
-        match self { 
-            Backtrack(ch, string) => (ch, string),
-            _ => panic!("Not backtracking."),
-        }
-    }
-
-    pub fn unCommit(self) -> ParseResult<Ch, Str, State, Output> {
-        match self { 
-            Commit(res) => res,
-            _ => panic!("Not committed."),
-        }
-    }
-
 }
 
 #[test]
@@ -1551,17 +1513,17 @@ fn test_boxable() {
     impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
         type Output = TestOutput<'a>;
         type State = TestState;
-        fn init_maybe(&self, ch: TestCh<'a>, string: TestStr<'a>) -> MaybeParseResult<TestCh<'a>, TestStr<'a>, TestState, TestOutput<'a>> {
+        fn init_maybe(&self, string: &mut TestStr<'a>) -> ParseResult<TestState, TestOutput<'a>> {
             fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
             fn mk_other<'a>(_: Option<TestCh<'a>>) -> TestCh<'a> { Cow::Borrowed("other") }
             let ONE = character_ref(is_foo);
             let OTHER = CHARACTER.map(mk_other);
             let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
             // This bit should be in the API
-            match parser.init_maybe(ch, string) {
-                Backtrack(ch, string) => Backtrack(ch, string),
-                Commit(Done(ch, string, result)) => Commit(Done(ch, string, result)),
-                Commit(Continue(empty, state)) => Commit(Continue(empty, Box::new(impls::BoxableState::new(state)))),
+            match parser.init_maybe(string) {
+                Backtrack => Backtrack,
+                Done(result) => Done(result),
+                Continue(state) => Continue(Box::new(impls::BoxableState::new(state))),
             }
         }
     }
