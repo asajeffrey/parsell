@@ -13,7 +13,7 @@ use super::{Upcast, ToStatic};
 use super::ParseResult::{Done, Continue, Backtrack};
 
 use self::OrElseState::{Lhs, Rhs};
-use self::AndThenState::{InLhs, InRhs};
+use self::AndThenState::{InLhs, InBetween, InRhs};
 
 use std::borrow::Cow;
 use std::borrow::Cow::{Borrowed, Owned};
@@ -284,7 +284,7 @@ impl<P, Q, Ch, Str, PStaticOutput> Committed<Ch, Str> for AndThen<P, Q>
         match self.0.init(string) {
             Backtrack => Backtrack,
             Done(fst) => match self.1.init(string) {
-                // Backtrack => ???;
+                Backtrack => Continue(InBetween(fst.to_static(), self.1)),
                 Done(snd) => Done((fst, snd)),
                 Continue(snd) => Continue(InRhs(fst.to_static(), snd)),
             },
@@ -313,7 +313,7 @@ impl<P, Q, Ch, Str, PStaticOutput> Uncommitted<Ch, Str> for AndThen<P, Q>
         match self.0.init_maybe(string) {
             Backtrack => Backtrack,
             Done(fst) => match self.1.init(string) {
-                // Backtrack => ???,
+                Backtrack => Continue(InBetween(fst.to_static(), self.1)),
                 Done(snd) => Done((fst, snd)),
                 Continue(snd) => Continue(InRhs(fst.to_static(), snd)),
             },
@@ -332,6 +332,7 @@ impl<P, Q> AndThen<P, Q> {
 #[derive(Copy, Clone, Debug)]
 pub enum AndThenState<PState, Q, PStaticOutput, QState> {
     InLhs(PState, Q),
+    InBetween(PStaticOutput, Q),
     InRhs(PStaticOutput, QState),
 }
 
@@ -350,6 +351,7 @@ impl<PState, Q, Ch, Str, PStaticOutput> Stateful<Ch, Str> for AndThenState<PStat
     {
         match self {
             InLhs(fst, snd) => (fst.done(), snd.empty()),
+            InBetween(fst, snd) => (fst.upcast(), snd.empty()),
             InRhs(fst, snd) => (fst.upcast(), snd.done()),
         }
     }
@@ -360,12 +362,19 @@ impl<PState, Q, Ch, Str, PStaticOutput> Stateful<Ch, Str> for AndThenState<PStat
             InLhs(fst, snd) => {
                 match fst.more(string) {
                     Done(fst) => match snd.init(string) {
-                        // Backtrack => ???.
+                        Backtrack => Continue(InBetween(fst.to_static(), snd)),
                         Done(snd) => Done((fst, snd)),
                         Continue(snd) => Continue(InRhs(fst.to_static(), snd)),
                     },
                     Backtrack => Backtrack,
                     Continue(fst) => Continue(InLhs(fst, snd)),
+                }
+            }
+            InBetween(fst, snd) => {
+                match snd.init(string) {
+                    Backtrack => Backtrack,
+                    Done(snd) => Done((fst.upcast(), snd)),
+                    Continue(snd) => Continue(InRhs(fst, snd)),
                 }
             }
             InRhs(fst, snd) => {
@@ -644,7 +653,7 @@ impl<F, Ch, Str> Stateful<Ch, Str> for Emit<F>
 
     type Output = F::Output;
 
-    fn more(self, string: &mut Str) -> ParseResult<Self, F::Output> {
+    fn more(self, _: &mut Str) -> ParseResult<Self, F::Output> {
         Done(self.0.build())
     }
     
@@ -662,7 +671,7 @@ impl<F, Ch, Str> Committed<Ch, Str> for Emit<F>
     type Output = F::Output;
     type State = Self;
 
-    fn init(&self, string: &mut Str) -> ParseResult<Self, F::Output> {
+    fn init(&self, _: &mut Str) -> ParseResult<Self, F::Output> {
         Done(self.0.build())
     }
     
@@ -688,7 +697,7 @@ impl<StaticCh, Ch, Str> Stateful<Ch, Str> for CharacterState<StaticCh>
 {
     type Output = Ch;
 
-    fn more(self, string: &mut Str) -> ParseResult<Self, Ch> {
+    fn more(self, _: &mut Str) -> ParseResult<Self, Ch> {
         Done(self.0.upcast())
     }
 
@@ -728,7 +737,7 @@ impl<F> Parser for Character<F> {}
 
 impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for Character<F>
     where Str: PeekableIterator<Item = Ch>,
-          F: Function<Ch, Output = bool>,
+          F: Copy + Function<Ch, Output = bool>,
           Ch: ToStatic<Static = StaticCh> + Copy,
           StaticCh: 'static + Upcast<Ch>,
 {
@@ -736,13 +745,9 @@ impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for Character<F>
     type State = CharacterState<StaticCh>;
     
     fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, Ch> {
-        match string.peek() {
+        match string.next_if(self.0) {
             None => Backtrack,
-            Some(ch) => if self.0.apply(*ch) {
-                Done(string.next().unwrap())
-            } else {
-                Backtrack
-            }
+            Some(ch) => Done(ch),
         }
     }
     
@@ -779,7 +784,7 @@ impl<F> Parser for CharacterRef<F> {}
 
 impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for CharacterRef<F>
     where Str: PeekableIterator<Item = Ch>,
-          F: for<'a> Function<&'a Ch, Output = bool>,
+          F: Copy + for<'a> Function<&'a Ch, Output = bool>,
           Ch: ToStatic<Static = StaticCh>,
           StaticCh: 'static + Upcast<Ch>,
 {
@@ -787,13 +792,9 @@ impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for CharacterRef<F>
     type State = CharacterState<StaticCh>;
     
     fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, Ch> {
-        match string.peek() {
+        match string.next_if_ref(self.0) {
             None => Backtrack,
-            Some(ch) => if self.0.apply(ch) {
-                Done(string.next().unwrap())
-            } else {
-                Backtrack
-            }
+            Some(ch) => Done(ch),
         }
     }
     

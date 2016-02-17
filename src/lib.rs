@@ -23,7 +23,8 @@ use self::ParseResult::{Done, Continue, Backtrack};
 
 // use std::fmt::{Formatter, Debug};
 use std::borrow::Cow;
-// use std::str::Chars;
+use std::str::Chars;
+use std::iter::Peekable;
 
 pub mod impls;
 
@@ -1041,8 +1042,54 @@ impl<T> StaticMarker for Vec<T> where T: 'static {}
 
 /// A trait for peekable iterators
 
-trait PeekableIterator: Iterator {
-    fn peek(&self) -> Option<&Self::Item>;
+struct ByRef<F>(F);
+
+impl<'a, T, F> Function<&'a T> for ByRef<F> where
+    F: Function<T>,
+    T: Copy,
+{
+    type Output = F::Output;
+    fn apply(&self, arg: &'a T) -> F::Output { self.0.apply(*arg) }
+}
+
+pub trait PeekableIterator: Iterator {
+
+    fn next_if_ref<F>(&mut self, f: F) -> Option<Self::Item>
+        where F: for<'a> Function<&'a Self::Item, Output = bool>;
+
+    fn next_if<F>(&mut self, f: F) -> Option<Self::Item>
+        where F: Function<Self::Item, Output = bool>,
+              Self::Item: Copy,
+    {
+        self.next_if_ref(ByRef(f))
+    }
+
+}
+
+impl<I> PeekableIterator for Peekable<I>
+    where I: Iterator
+{
+    fn next_if_ref<F>(&mut self, f: F) -> Option<Self::Item>
+        where F: for<'a> Function<&'a Self::Item, Output = bool>
+    {
+        match self.peek() {
+            Some(ref item) if f.apply(item) => (),
+            _ => return None,
+        };
+        self.next()
+    }
+}
+
+impl<'a> PeekableIterator for Chars<'a>
+{
+    fn next_if_ref<F>(&mut self, f: F) -> Option<char>
+        where F: for<'b> Function<&'b char, Output = bool>
+    {
+        match self.as_str().chars().next() {
+            Some(ref ch) if f.apply(ch) => self.next(),
+            _ => None
+        }        
+    }
 }
 
 /// An uncommitted parser that reads one character.
@@ -1100,585 +1147,593 @@ impl<State, Output> ParseResult<State, Output>
             _ => panic!("Not continue"),
         }
     }
+
+    pub fn unBacktrack(self) -> () {
+        match self {
+            Backtrack => (),
+            _ => panic!("Not backtrack"),
+        }
+    }
 }
 
 #[test]
 fn test_character() {
     let parser = character(char::is_alphabetic);
-    assert!(parser.maybe_init_maybe("".chars()).is_none());
-    let (ch, iter) = parser.maybe_init_maybe("989".chars()).unwrap().unBacktrack();
-    assert_eq!(ch, '9');
-    assert_eq!(iter.as_str(), "89");
-    let (ch, iter, res) = parser.maybe_init_maybe("abcd".chars()).unwrap().unCommit().unDone();
-    assert_eq!(res, 'a');
-    assert_eq!(ch, 'b');
-    assert_eq!(iter.as_str(), "cd");
-}
-
-#[test]
-fn test_character_ref() {
-    fn is_alphabetic<'a>(ch: &'a char) -> bool { ch.is_alphabetic() }
-    let parser = character_ref(is_alphabetic);
-    assert!(parser.maybe_init_maybe("".chars()).is_none());
-    let (ch, iter) = parser.maybe_init_maybe("989".chars()).unwrap().unBacktrack();
-    assert_eq!(ch, '9');
-    assert_eq!(iter.as_str(), "89");
-    let (ch, iter, res) = parser.maybe_init_maybe("abcd".chars()).unwrap().unCommit().unDone();
-    assert_eq!(res, 'a');
-    assert_eq!(ch, 'b');
-    assert_eq!(iter.as_str(), "cd");
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn test_CHARACTER() {
-    let parser = CHARACTER;
-    assert!(parser.maybe_init("".chars()).is_none());
-    let (ch, iter, res) = parser.maybe_init("abcd".chars()).unwrap().unDone();
-    assert_eq!(res, Some('a'));
-    assert_eq!(ch, 'b');
-    assert_eq!(iter.as_str(), "cd");
+    let mut data = "".chars();
+    parser.init_maybe(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "");
+    let mut data = "989".chars();
+    parser.init_maybe(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "989");
+    let mut data = "abcd".chars();
+    assert_eq!(parser.init_maybe(&mut data).unDone(), 'a');
+    assert_eq!(data.as_str(), "bcd");
 }
 
 // #[test]
-// fn test_emit() {
-//     let parser = emit(37);
-//     let iter = parser.init_str("".chars()).unEmpty();
-//     assert_eq!(iter.as_str(), "");
-//     let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
-//     assert_eq!(res, 37);
-//     assert_eq!(ch, 'a');
-//     assert_eq!(iter.as_str(), "bcd");
+// fn test_character_ref() {
+//     fn is_alphabetic<'a>(ch: &'a char) -> bool { ch.is_alphabetic() }
+//     let parser = character_ref(is_alphabetic);
+//     assert!(parser.init_maybe("".chars()).is_none());
+//     let (ch, iter) = parser.init_maybe("989".chars()).unwrap().unBacktrack();
+//     assert_eq!(ch, '9');
+//     assert_eq!(iter.as_str(), "89");
+//     let (ch, iter, res) = parser.init_maybe("abcd".chars()).unwrap().unCommit().unDone();
+//     assert_eq!(res, 'a');
+//     assert_eq!(ch, 'b');
+//     assert_eq!(iter.as_str(), "cd");
 // }
 
-#[test]
-fn test_map1() {
-    // uncommitted map
-    let parser = character(char::is_alphabetic).map(Some);
-    assert!(parser.maybe_init_maybe("".chars()).is_none());
-    let (ch, iter) = parser.maybe_init_maybe("989".chars()).unwrap().unBacktrack();
-    assert_eq!(ch, '9');
-    assert_eq!(iter.as_str(), "89");
-    let (ch, iter, res) = parser.maybe_init_maybe("abcd".chars()).unwrap().unCommit().unDone();
-    assert_eq!(res, Some('a'));
-    assert_eq!(ch, 'b');
-    assert_eq!(iter.as_str(), "cd");
-    // committed map
-    let parser = CHARACTER.map(Some);
-    assert!(parser.maybe_init("".chars()).is_none());
-    let (ch, iter, res) = parser.maybe_init("abcd".chars()).unwrap().unDone();
-    assert_eq!(res, Some(Some('a')));
-    assert_eq!(ch, 'b');
-    assert_eq!(iter.as_str(), "cd");
-}
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_CHARACTER() {
+//     let parser = CHARACTER;
+//     assert!(parser.init("".chars()).is_none());
+//     let (ch, iter, res) = parser.init("abcd".chars()).unwrap().unDone();
+//     assert_eq!(res, Some('a'));
+//     assert_eq!(ch, 'b');
+//     assert_eq!(iter.as_str(), "cd");
+// }
+
+// // #[test]
+// // fn test_emit() {
+// //     let parser = emit(37);
+// //     let iter = parser.init_str("".chars()).unEmpty();
+// //     assert_eq!(iter.as_str(), "");
+// //     let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+// //     assert_eq!(res, 37);
+// //     assert_eq!(ch, 'a');
+// //     assert_eq!(iter.as_str(), "bcd");
+// // }
 
 // #[test]
-// fn test_map2() {
+// fn test_map1() {
+//     // uncommitted map
+//     let parser = character(char::is_alphabetic).map(Some);
+//     assert!(parser.init_maybe("".chars()).is_none());
+//     let (ch, iter) = parser.init_maybe("989".chars()).unwrap().unBacktrack();
+//     assert_eq!(ch, '9');
+//     assert_eq!(iter.as_str(), "89");
+//     let (ch, iter, res) = parser.init_maybe("abcd".chars()).unwrap().unCommit().unDone();
+//     assert_eq!(res, Some('a'));
+//     assert_eq!(ch, 'b');
+//     assert_eq!(iter.as_str(), "cd");
+//     // committed map
 //     let parser = CHARACTER.map(Some);
-//     let iter = parser.init_str("".chars()).unEmpty();
-//     assert_eq!(iter.as_str(), "");
-//     let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+//     assert!(parser.init("".chars()).is_none());
+//     let (ch, iter, res) = parser.init("abcd".chars()).unwrap().unDone();
 //     assert_eq!(res, Some(Some('a')));
 //     assert_eq!(ch, 'b');
 //     assert_eq!(iter.as_str(), "cd");
 // }
 
 // // #[test]
-// // #[allow(non_snake_case)]
 // // fn test_map2() {
-// //     fn f(ch1: char, ch2: Option<char>) -> Option<(char, char)> {
-// //         ch2.and_then(|ch2| Some((ch1, ch2)))
-// //     }
-// //     fn mk_none<T>(_: Option<char>) -> Option<T> {
-// //         None
-// //     }
-// //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-// //     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map2(f);
-// //     parser.parse("").unEmpty();
-// //     assert_eq!(parser.parse("!b!").unAbort(), "!b!");
-// //     assert_eq!(parser.parse("a!!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("ab!").unCommit().unDone(),
-// //                ("!", Some(('a', 'b'))));
-// // }
-
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_map3() {
-// //     fn f(ch1: char, ch2: Option<char>, ch3: Option<char>) -> Option<(char, char, char)> {
-// //         ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1, ch2, ch3))))
-// //     }
-// //     fn mk_none<T>(_: Option<char>) -> Option<T> {
-// //         None
-// //     }
-// //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-// //     let parser = character(char::is_alphabetic)
-// //                      .and_then(ALPHANUMERIC)
-// //                      .and_then(ALPHANUMERIC)
-// //                      .map3(f);
-// //     parser.parse("").unEmpty();
-// //     assert_eq!(parser.parse("!bc!").unAbort(), "!bc!");
-// //     assert_eq!(parser.parse("a!c!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("ab!!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("abc!").unCommit().unDone(),
-// //                ("!", Some(('a', 'b', 'c'))));
-// // }
-
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_map4() {
-// //     fn f(ch1: char,
-// //          ch2: Option<char>,
-// //          ch3: Option<char>,
-// //          ch4: Option<char>)
-// //          -> Option<(char, char, char, char)> {
-// //         ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1, ch2, ch3, ch4)))))
-// //     }
-// //     fn mk_none<T>(_: Option<char>) -> Option<T> {
-// //         None
-// //     }
-// //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-// //     let parser = character(char::is_alphabetic)
-// //                      .and_then(ALPHANUMERIC)
-// //                      .and_then(ALPHANUMERIC)
-// //                      .and_then(ALPHANUMERIC)
-// //                      .map4(f);
-// //     parser.parse("").unEmpty();
-// //     assert_eq!(parser.parse("!bcd!").unAbort(), "!bcd!");
-// //     assert_eq!(parser.parse("a!cd!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("ab!d!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("abc!!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("abcd!").unCommit().unDone(),
-// //                ("!", Some(('a', 'b', 'c', 'd'))));
-// // }
-
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_map5() {
-// //     fn f(ch1: char,
-// //          ch2: Option<char>,
-// //          ch3: Option<char>,
-// //          ch4: Option<char>,
-// //          ch5: Option<char>)
-// //          -> Option<(char, char, char, char, char)> {
-// //         ch5.and_then(|ch5| {
-// //             ch4.and_then(|ch4| {
-// //                 ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1, ch2, ch3, ch4, ch5))))
-// //             })
-// //         })
-// //     }
-// //     fn mk_none<T>(_: Option<char>) -> Option<T> {
-// //         None
-// //     }
-// //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-// //     let parser = character(char::is_alphabetic)
-// //                      .and_then(ALPHANUMERIC)
-// //                      .and_then(ALPHANUMERIC)
-// //                      .and_then(ALPHANUMERIC)
-// //                      .and_then(ALPHANUMERIC)
-// //                      .map5(f);
-// //     parser.parse("").unEmpty();
-// //     assert_eq!(parser.parse("!bcde!").unAbort(), "!bcde!");
-// //     assert_eq!(parser.parse("a!cde!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("ab!de!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("abc!e!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("abcd!!").unCommit().unDone(), ("!", None));
-// //     assert_eq!(parser.parse("abcde!").unCommit().unDone(),
-// //                ("!", Some(('a', 'b', 'c', 'd', 'e'))));
-// // }
-
-#[test]
-#[allow(non_snake_case)]
-fn test_and_then() {
-    // uncommitted
-    let parser = character(char::is_alphabetic).and_then(CHARACTER);
-    let (ch, iter) = parser.maybe_init_maybe("989".chars()).unwrap().unBacktrack();
-    assert_eq!(ch, '9');
-    assert_eq!(iter.as_str(), "89");
-    let (ch, iter, res) = parser.maybe_init_maybe("abcd".chars()).unwrap().unCommit().unDone();
-    assert_eq!(res, ('a', Some('b')));
-    assert_eq!(ch, 'c');
-    assert_eq!(iter.as_str(), "d");
-    // committed
-    let parser = CHARACTER.and_then(CHARACTER);
-    let (ch, iter, res) = parser.maybe_init("abcd".chars()).unwrap().unDone();
-    assert_eq!(res, (Some('a'), Some('b')));
-    assert_eq!(ch, 'c');
-    assert_eq!(iter.as_str(), "d");
-}
-
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_try_and_then() {
-// //     fn mk_err<T>(_: Option<char>) -> Result<T, String> {
-// //         Err(String::from("oh"))
-// //     }
-// //     fn mk_ok<T>(ok: T) -> Result<T, String> {
-// //         Ok(ok)
-// //     }
-// //     let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
-// //     let parser = character(char::is_alphabetic).map(mk_ok).try_and_then(ALPHANUMERIC);
-// //     parser.parse("").unEmpty();
-// //     assert_eq!(parser.parse("989").unAbort(), "989");
-// //     assert_eq!(parser.parse("a!!").unCommit().unDone(),
-// //                ("!", Ok(('a', Err(String::from("oh"))))));
-// //     assert_eq!(parser.parse("abc").unCommit().unDone(),
-// //                ("c", Ok(('a', Ok('b')))));
-// // }
-
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_and_then_try() {
-// //     fn mk_err<T>(_: Option<char>) -> Result<T, String> {
-// //         Err(String::from("oh"))
-// //     }
-// //     fn mk_ok<T>(ok: T) -> Result<T, String> {
-// //         Ok(ok)
-// //     }
-// //     let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
-// //     let parser = character(char::is_alphabetic).map(mk_ok).and_then_try(ALPHANUMERIC);
-// //     parser.parse("").unEmpty();
-// //     assert_eq!(parser.parse("989").unAbort(), "989");
-// //     assert_eq!(parser.parse("a!!").unCommit().unDone(),
-// //                ("!", Err(String::from("oh"))));
-// //     assert_eq!(parser.parse("abc").unCommit().unDone(),
-// //                ("c", Ok((Ok('a'), 'b'))));
-// // }
-
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_try_and_then_try() {
-// //     fn mk_err<T>(_: Option<char>) -> Result<T, String> {
-// //         Err(String::from("oh"))
-// //     }
-// //     fn mk_ok<T>(ok: T) -> Result<T, String> {
-// //         Ok(ok)
-// //     }
-// //     let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
-// //     let parser = character(char::is_alphabetic).map(mk_ok).try_and_then_try(ALPHANUMERIC);
-// //     parser.parse("").unEmpty();
-// //     assert_eq!(parser.parse("989").unAbort(), "989");
-// //     assert_eq!(parser.parse("a!!").unCommit().unDone(),
-// //                ("!", Err(String::from("oh"))));
-// //     assert_eq!(parser.parse("abc").unCommit().unDone(),
-// //                ("c", Ok(('a', 'b'))));
-// // }
-
-#[test]
-#[allow(non_snake_case)]
-fn test_or_else() {
-    fn mk_none<T>(_: Option<char>) -> Option<T> {
-        None
-    }
-    let NUMERIC = character(char::is_numeric).map(Some).or_else(CHARACTER.map(mk_none));
-    let ALPHABETIC = character(char::is_alphabetic).map(Some).or_else(CHARACTER.map(mk_none));
-    let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some)
-                     .or_else(character(char::is_numeric).and_then(NUMERIC).map(Some))
-                     .or_else(CHARACTER.map(mk_none));
-    let (ch, _, res) = parser.maybe_init("abcd".chars()).unwrap().unDone();
-    assert_eq!(ch, 'c');
-    assert_eq!(res, Some(('a', Some('b'))));
-    let (ch, _, res) = parser.maybe_init("a89".chars()).unwrap().unDone();
-    assert_eq!(ch, '9');
-    assert_eq!(res, Some(('a', None)));
-    let (ch, _, res) = parser.maybe_init("789".chars()).unwrap().unDone();
-    assert_eq!(ch, '9');
-    assert_eq!(res, Some(('7', Some('8'))));
-    let (ch, _, res) = parser.maybe_init("7cd".chars()).unwrap().unDone();
-    assert_eq!(ch, 'd');
-    assert_eq!(res, Some(('7', None)));
-    let (ch, _, res) = parser.maybe_init("!?".chars()).unwrap().unDone();
-    assert_eq!(ch, '?');
-    assert_eq!(res, None);
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn test_plus() {
-    let parser = character(char::is_alphanumeric).plus(String::new);
-    let (ch, _) = parser.maybe_init_maybe("!?".chars()).unwrap().unBacktrack();
-    assert_eq!(ch, '!');
-    let (ch, _, result) = parser.maybe_init_maybe("abc!".chars()).unwrap().unCommit().unDone();
-    assert_eq!(ch, '!');
-    assert_eq!(result, "abc");
-    let (_, state) = parser.maybe_init_maybe("abc".chars()).unwrap().unCommit().unContinue();
-    let (ch, _, result) = state.maybe_more("def!".chars()).unwrap().unDone();
-    assert_eq!(ch, '!');
-    assert_eq!(result, "abcdef");
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn test_star() {
-    let parser = character(char::is_alphanumeric).star(String::new);
-    let (ch, _, result) = parser.maybe_init("!?".chars()).unwrap().unDone();
-    assert_eq!(ch, '!');
-    assert_eq!(result, "");
-    let (ch, _, result) = parser.maybe_init("abc!".chars()).unwrap().unDone();
-    assert_eq!(ch, '!');
-    assert_eq!(result, "abc");
-    let (_, state) = parser.maybe_init("abc".chars()).unwrap().unContinue();
-    let (ch, _, result) = state.maybe_more("def!".chars()).unwrap().unDone();
-    assert_eq!(ch, '!');
-    assert_eq!(result, "abcdef");
-}
-
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_buffer() {
-// //     use std::borrow::Cow::{Borrowed, Owned};
-// //     fn ignore() {}
-// //     let ALPHABETIC = character(char::is_alphabetic);
-// //     let ALPHANUMERIC = character(char::is_alphanumeric);
-// //     let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(ignore)).buffer();
-// //     assert_eq!(parser.parse("989").unAbort(), "989");
-// //     assert_eq!(parser.parse("a!").unCommit().unDone(), ("!", Borrowed("a")));
-// //     assert_eq!(parser.parse("abc!").unCommit().unDone(),
-// //                ("!", Borrowed("abc")));
-// //     let parsing = parser.parse("a").unCommit().unContinue();
-// //     assert_eq!(parsing.parse("bc!").unDone(),
-// //                ("!", Owned(String::from("abc"))));
-// //     let parser = ALPHANUMERIC.star(ignore).buffer();
-// //     assert_eq!(parser.init().parse("!").unDone(), ("!", Borrowed("")));
-// //     assert_eq!(parser.init().parse("a!").unDone(), ("!", Borrowed("a")));
-// //     assert_eq!(parser.init().parse("abc!").unDone(), ("!", Borrowed("abc")));
-// //     let parsing = parser.init().parse("a").unContinue();
-// //     assert_eq!(parsing.parse("bc!").unDone(),
-// //                ("!", Owned(String::from("abc"))));
-// // }
-
-#[test]
-#[allow(non_snake_case)]
-fn test_cow() {
-    fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
-    fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
-    fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
-    let ONE = character_ref(is_foo);
-    let OTHER = CHARACTER.map(mk_other);
-    let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
-    let mut data = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo"),Cow::Borrowed("baz")]);
-    let (ch, _, ((fst, snd), thd)) = parser.init_maybe(data.0, data.1.drain(..)).unCommit().unDone();
-    assert_eq!(ch, "baz");
-    assert_eq!(fst, "foo");
-    assert_eq!(snd, "other");
-    assert_eq!(thd, "foo");
-    assert!(!is_owned(fst));
-    assert!(!is_owned(snd));
-    assert!(!is_owned(thd));
-    let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar")]);
-    let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-    let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
-    let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-    assert_eq!(ch, "baz");
-    assert_eq!(fst, "foo");
-    assert_eq!(snd, "other");
-    assert_eq!(thd, "foo");
-    assert!(is_owned(fst));
-    assert!(!is_owned(snd));
-    assert!(!is_owned(thd));
-    let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("foo")]);
-    let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-    let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
-    let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-    assert_eq!(ch, "baz");
-    assert_eq!(fst, "foo");
-    assert_eq!(snd, "foo");
-    assert_eq!(thd, "foo");
-    assert!(is_owned(fst));
-    assert!(is_owned(snd));
-    assert!(!is_owned(thd));
-    let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo")]);
-    let mut data2 = (Cow::Borrowed("baz"), vec![]);
-    let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
-    let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-    assert_eq!(ch, "baz");
-    assert_eq!(fst, "foo");
-    assert_eq!(snd, "other");
-    assert_eq!(thd, "foo");
-    assert!(is_owned(fst));
-    assert!(is_owned(snd));
-    assert!(is_owned(thd));
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn test_boxable() {
-    use std::vec::Drain;
-    #[derive(Copy, Clone, Debug)]
-    struct Test;
-    type TestCh<'a> = Cow<'a,str>;
-    type TestStr<'a> = Drain<'a,TestCh<'a>>;
-    type TestOutput<'a> = ((TestCh<'a>, TestCh<'a>), TestCh<'a>);
-    type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>>;
-    impl Parser for Test {}
-    impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
-        type Output = TestOutput<'a>;
-        type State = TestState;
-        fn init_maybe(&self, string: &mut TestStr<'a>) -> ParseResult<TestState, TestOutput<'a>> {
-            fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
-            fn mk_other<'a>(_: Option<TestCh<'a>>) -> TestCh<'a> { Cow::Borrowed("other") }
-            let ONE = character_ref(is_foo);
-            let OTHER = CHARACTER.map(mk_other);
-            let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
-            // This bit should be in the API
-            match parser.init_maybe(string) {
-                Backtrack => Backtrack,
-                Done(result) => Done(result),
-                Continue(state) => Continue(Box::new(impls::BoxableState::new(state))),
-            }
-        }
-    }
-    fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
-    let parser = Test; 
-    let mut data = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo"),Cow::Borrowed("baz")]);
-    let (ch, _, ((fst, snd), thd)) = parser.init_maybe(data.0, data.1.drain(..)).unCommit().unDone();
-    assert_eq!(ch, "baz");
-    assert_eq!(fst, "foo");
-    assert_eq!(snd, "other");
-    assert_eq!(thd, "foo");
-    assert!(!is_owned(fst));
-    assert!(!is_owned(snd));
-    assert!(!is_owned(thd));
-    let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar")]);
-    let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-    let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
-    let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-    assert_eq!(ch, "baz");
-    assert_eq!(fst, "foo");
-    assert_eq!(snd, "other");
-    assert_eq!(thd, "foo");
-    assert!(is_owned(fst));
-    assert!(!is_owned(snd));
-    assert!(!is_owned(thd));
-    let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("foo")]);
-    let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-    let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
-    let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-    assert_eq!(ch, "baz");
-    assert_eq!(fst, "foo");
-    assert_eq!(snd, "foo");
-    assert_eq!(thd, "foo");
-    assert!(is_owned(fst));
-    assert!(is_owned(snd));
-    assert!(!is_owned(thd));
-    let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo")]);
-    let mut data2 = (Cow::Borrowed("baz"), vec![]);
-    let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
-    let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-    assert_eq!(ch, "baz");
-    assert_eq!(fst, "foo");
-    assert_eq!(snd, "other");
-    assert_eq!(thd, "foo");
-    assert!(is_owned(fst));
-    assert!(is_owned(snd));
-    assert!(is_owned(thd));
-}
-
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_iter() {
-// //     fn mk_X(_: Option<char>) -> char {
-// //         'X'
-// //     }
-// //     let ALPHABETIC = character(char::is_alphabetic);
-// //     let parser = ALPHABETIC.or_else(CHARACTER.map(mk_X));
-// //     let mut iter = parser.iter("abc");
-// //     assert_eq!(iter.next(), Some('a'));
-// //     assert_eq!(iter.next(), Some('b'));
-// //     assert_eq!(iter.next(), Some('c'));
-// //     assert_eq!(iter.next(), None);
+// //     let parser = CHARACTER.map(Some);
+// //     let iter = parser.init_str("".chars()).unEmpty();
+// //     assert_eq!(iter.as_str(), "");
+// //     let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
+// //     assert_eq!(res, Some(Some('a')));
+// //     assert_eq!(ch, 'b');
+// //     assert_eq!(iter.as_str(), "cd");
 // // }
 
 // // // #[test]
 // // // #[allow(non_snake_case)]
-// // // fn test_pipe() {
-// // //     use std::borrow::{Borrow, Cow};
-// // //     #[derive(Clone,Debug,PartialEq,Eq)]
-// // //     enum Token {
-// // //         Identifier(String),
-// // //         Number(usize),
-// // //         Other,
+// // // fn test_map2() {
+// // //     fn f(ch1: char, ch2: Option<char>) -> Option<(char, char)> {
+// // //         ch2.and_then(|ch2| Some((ch1, ch2)))
 // // //     }
-// // //     fn mk_id<'a>(string: Cow<'a, str>) -> Token {
-// // //         Token::Identifier(string.into_owned())
+// // //     fn mk_none<T>(_: Option<char>) -> Option<T> {
+// // //         None
 // // //     }
-// // //     fn mk_num<'a>(string: Cow<'a, str>) -> Token {
-// // //         Token::Number(usize::from_str_radix(string.borrow(), 10).unwrap())
-// // //     }
-// // //     fn mk_other(_: Option<char>) -> Token {
-// // //         Token::Other
-// // //     }
-// // //     fn ignore() {}
-// // //     fn is_decimal(ch: char) -> bool {
-// // //         ch.is_digit(10)
-// // //     }
-// // //     fn is_identifier(tok: &Token) -> bool {
-// // //         match *tok {
-// // //             Token::Identifier(_) => true,
-// // //             _ => false,
-// // //         }
-// // //     }
-// // //     fn is_number(tok: &Token) -> bool {
-// // //         match *tok {
-// // //             Token::Number(_) => true,
-// // //             _ => false,
-// // //         }
-// // //     }
-// // //     let ALPHABETIC = character(char::is_alphabetic);
-// // //     let DIGIT = character(is_decimal);
-// // //     let lexer = ALPHABETIC.plus(ignore)
-// // //                           .buffer()
-// // //                           .map(mk_id)
-// // //                           .or_else(DIGIT.plus(ignore).buffer().map(mk_num))
-// // //                           .or_else(CHARACTER.map(mk_other));
-// // //     let parser = token(is_identifier).or_else(token(is_number)).star(Vec::<Token>::new);
-// // //     assert_eq!(lexer.pipe(parser).init().parse("abc37!!").unDone(),
-// // //                ("!",
-// // //                 vec![Token::Identifier(String::from("abc")), Token::Number(37)]));
+// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
+// // //     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map2(f);
+// // //     parser.parse("").unEmpty();
+// // //     assert_eq!(parser.parse("!b!").unAbort(), "!b!");
+// // //     assert_eq!(parser.parse("a!!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("ab!").unCommit().unDone(),
+// // //                ("!", Some(('a', 'b'))));
 // // // }
 
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_different_lifetimes1() {
-// //     fn go<'a, 'b, P>(ab: &'a str, cd: &'b str, parser: P)
-// //         where P: Copy + Parser<char> + for<'c> Committed<&'c str>,
-// //               <P as Parser<char>>::State: for<'c> Stateful<&'c str, Output = (Option<char>, Option<char>)>,
-// //     {
-// //         let _: &'a str = parser.init().parse(ab).unDone().0;
-// //         let _: &'b str = parser.init().parse(cd).unDone().0;
-// //         assert_eq!(parser.init().parse(ab).unDone(),
-// //                    ("", (Some('a'), Some('b'))));
-// //         assert_eq!(parser.init().parse(cd).unDone(),
-// //                    ("", (Some('c'), Some('d'))));
-// //     }
-// //     let parser = CHARACTER.and_then(CHARACTER);
-// //     go("ab", "cd", parser);
-// // }
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_map3() {
+// // //     fn f(ch1: char, ch2: Option<char>, ch3: Option<char>) -> Option<(char, char, char)> {
+// // //         ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1, ch2, ch3))))
+// // //     }
+// // //     fn mk_none<T>(_: Option<char>) -> Option<T> {
+// // //         None
+// // //     }
+// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
+// // //     let parser = character(char::is_alphabetic)
+// // //                      .and_then(ALPHANUMERIC)
+// // //                      .and_then(ALPHANUMERIC)
+// // //                      .map3(f);
+// // //     parser.parse("").unEmpty();
+// // //     assert_eq!(parser.parse("!bc!").unAbort(), "!bc!");
+// // //     assert_eq!(parser.parse("a!c!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("ab!!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("abc!").unCommit().unDone(),
+// // //                ("!", Some(('a', 'b', 'c'))));
+// // // }
 
-// // #[test]
-// // #[allow(non_snake_case)]
-// // fn test_different_lifetimes2() {
-// //     use std::borrow::Cow;
-// //     use std::borrow::Cow::Owned;
-// //     fn ignore() {}
-// //     fn is_owned<'a,T:?Sized+ToOwned>(cow: &Cow<'a,T>) -> bool { match cow { &Owned(_) => true, _ => false } }
-// //     let parser = character(char::is_alphabetic).star(ignore).buffer()
-// //         .and_then(character(char::is_numeric).star(ignore).buffer());
-// //     match parser.init().parse("abc123!") {
-// //         Done("!", (ref fst, ref snd)) => {
-// //             assert!(!is_owned(fst));
-// //             assert!(!is_owned(snd));
-// //             assert_eq!(fst, "abc");
-// //             assert_eq!(snd, "123");
-// //         },
-// //         oops => panic!("Shouldn't happen {:?}", oops),
-// //     };
-// //     match parser.init().parse("abc1").unContinue().parse("23!") {
-// //         Done("!", (ref fst, ref snd)) => {
-// //             assert!(is_owned(fst));
-// //             assert!(is_owned(snd));
-// //             assert_eq!(fst, "abc");
-// //             assert_eq!(snd, "123");
-// //         },
-// //         oops => panic!("Shouldn't happen {:?}", oops),
-// //     };
-// // }
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_map4() {
+// // //     fn f(ch1: char,
+// // //          ch2: Option<char>,
+// // //          ch3: Option<char>,
+// // //          ch4: Option<char>)
+// // //          -> Option<(char, char, char, char)> {
+// // //         ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1, ch2, ch3, ch4)))))
+// // //     }
+// // //     fn mk_none<T>(_: Option<char>) -> Option<T> {
+// // //         None
+// // //     }
+// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
+// // //     let parser = character(char::is_alphabetic)
+// // //                      .and_then(ALPHANUMERIC)
+// // //                      .and_then(ALPHANUMERIC)
+// // //                      .and_then(ALPHANUMERIC)
+// // //                      .map4(f);
+// // //     parser.parse("").unEmpty();
+// // //     assert_eq!(parser.parse("!bcd!").unAbort(), "!bcd!");
+// // //     assert_eq!(parser.parse("a!cd!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("ab!d!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("abc!!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("abcd!").unCommit().unDone(),
+// // //                ("!", Some(('a', 'b', 'c', 'd'))));
+// // // }
+
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_map5() {
+// // //     fn f(ch1: char,
+// // //          ch2: Option<char>,
+// // //          ch3: Option<char>,
+// // //          ch4: Option<char>,
+// // //          ch5: Option<char>)
+// // //          -> Option<(char, char, char, char, char)> {
+// // //         ch5.and_then(|ch5| {
+// // //             ch4.and_then(|ch4| {
+// // //                 ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1, ch2, ch3, ch4, ch5))))
+// // //             })
+// // //         })
+// // //     }
+// // //     fn mk_none<T>(_: Option<char>) -> Option<T> {
+// // //         None
+// // //     }
+// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
+// // //     let parser = character(char::is_alphabetic)
+// // //                      .and_then(ALPHANUMERIC)
+// // //                      .and_then(ALPHANUMERIC)
+// // //                      .and_then(ALPHANUMERIC)
+// // //                      .and_then(ALPHANUMERIC)
+// // //                      .map5(f);
+// // //     parser.parse("").unEmpty();
+// // //     assert_eq!(parser.parse("!bcde!").unAbort(), "!bcde!");
+// // //     assert_eq!(parser.parse("a!cde!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("ab!de!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("abc!e!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("abcd!!").unCommit().unDone(), ("!", None));
+// // //     assert_eq!(parser.parse("abcde!").unCommit().unDone(),
+// // //                ("!", Some(('a', 'b', 'c', 'd', 'e'))));
+// // // }
+
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_and_then() {
+//     // uncommitted
+//     let parser = character(char::is_alphabetic).and_then(CHARACTER);
+//     let (ch, iter) = parser.init_maybe("989".chars()).unwrap().unBacktrack();
+//     assert_eq!(ch, '9');
+//     assert_eq!(iter.as_str(), "89");
+//     let (ch, iter, res) = parser.init_maybe("abcd".chars()).unwrap().unCommit().unDone();
+//     assert_eq!(res, ('a', Some('b')));
+//     assert_eq!(ch, 'c');
+//     assert_eq!(iter.as_str(), "d");
+//     // committed
+//     let parser = CHARACTER.and_then(CHARACTER);
+//     let (ch, iter, res) = parser.init("abcd".chars()).unwrap().unDone();
+//     assert_eq!(res, (Some('a'), Some('b')));
+//     assert_eq!(ch, 'c');
+//     assert_eq!(iter.as_str(), "d");
+// }
+
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_try_and_then() {
+// // //     fn mk_err<T>(_: Option<char>) -> Result<T, String> {
+// // //         Err(String::from("oh"))
+// // //     }
+// // //     fn mk_ok<T>(ok: T) -> Result<T, String> {
+// // //         Ok(ok)
+// // //     }
+// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+// // //     let parser = character(char::is_alphabetic).map(mk_ok).try_and_then(ALPHANUMERIC);
+// // //     parser.parse("").unEmpty();
+// // //     assert_eq!(parser.parse("989").unAbort(), "989");
+// // //     assert_eq!(parser.parse("a!!").unCommit().unDone(),
+// // //                ("!", Ok(('a', Err(String::from("oh"))))));
+// // //     assert_eq!(parser.parse("abc").unCommit().unDone(),
+// // //                ("c", Ok(('a', Ok('b')))));
+// // // }
+
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_and_then_try() {
+// // //     fn mk_err<T>(_: Option<char>) -> Result<T, String> {
+// // //         Err(String::from("oh"))
+// // //     }
+// // //     fn mk_ok<T>(ok: T) -> Result<T, String> {
+// // //         Ok(ok)
+// // //     }
+// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+// // //     let parser = character(char::is_alphabetic).map(mk_ok).and_then_try(ALPHANUMERIC);
+// // //     parser.parse("").unEmpty();
+// // //     assert_eq!(parser.parse("989").unAbort(), "989");
+// // //     assert_eq!(parser.parse("a!!").unCommit().unDone(),
+// // //                ("!", Err(String::from("oh"))));
+// // //     assert_eq!(parser.parse("abc").unCommit().unDone(),
+// // //                ("c", Ok((Ok('a'), 'b'))));
+// // // }
+
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_try_and_then_try() {
+// // //     fn mk_err<T>(_: Option<char>) -> Result<T, String> {
+// // //         Err(String::from("oh"))
+// // //     }
+// // //     fn mk_ok<T>(ok: T) -> Result<T, String> {
+// // //         Ok(ok)
+// // //     }
+// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+// // //     let parser = character(char::is_alphabetic).map(mk_ok).try_and_then_try(ALPHANUMERIC);
+// // //     parser.parse("").unEmpty();
+// // //     assert_eq!(parser.parse("989").unAbort(), "989");
+// // //     assert_eq!(parser.parse("a!!").unCommit().unDone(),
+// // //                ("!", Err(String::from("oh"))));
+// // //     assert_eq!(parser.parse("abc").unCommit().unDone(),
+// // //                ("c", Ok(('a', 'b'))));
+// // // }
+
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_or_else() {
+//     fn mk_none<T>(_: Option<char>) -> Option<T> {
+//         None
+//     }
+//     let NUMERIC = character(char::is_numeric).map(Some).or_else(CHARACTER.map(mk_none));
+//     let ALPHABETIC = character(char::is_alphabetic).map(Some).or_else(CHARACTER.map(mk_none));
+//     let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some)
+//                      .or_else(character(char::is_numeric).and_then(NUMERIC).map(Some))
+//                      .or_else(CHARACTER.map(mk_none));
+//     let (ch, _, res) = parser.init("abcd".chars()).unwrap().unDone();
+//     assert_eq!(ch, 'c');
+//     assert_eq!(res, Some(('a', Some('b'))));
+//     let (ch, _, res) = parser.init("a89".chars()).unwrap().unDone();
+//     assert_eq!(ch, '9');
+//     assert_eq!(res, Some(('a', None)));
+//     let (ch, _, res) = parser.init("789".chars()).unwrap().unDone();
+//     assert_eq!(ch, '9');
+//     assert_eq!(res, Some(('7', Some('8'))));
+//     let (ch, _, res) = parser.init("7cd".chars()).unwrap().unDone();
+//     assert_eq!(ch, 'd');
+//     assert_eq!(res, Some(('7', None)));
+//     let (ch, _, res) = parser.init("!?".chars()).unwrap().unDone();
+//     assert_eq!(ch, '?');
+//     assert_eq!(res, None);
+// }
+
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_plus() {
+//     let parser = character(char::is_alphanumeric).plus(String::new);
+//     let (ch, _) = parser.init_maybe("!?".chars()).unwrap().unBacktrack();
+//     assert_eq!(ch, '!');
+//     let (ch, _, result) = parser.init_maybe("abc!".chars()).unwrap().unCommit().unDone();
+//     assert_eq!(ch, '!');
+//     assert_eq!(result, "abc");
+//     let (_, state) = parser.init_maybe("abc".chars()).unwrap().unCommit().unContinue();
+//     let (ch, _, result) = state.maybe_more("def!".chars()).unwrap().unDone();
+//     assert_eq!(ch, '!');
+//     assert_eq!(result, "abcdef");
+// }
+
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_star() {
+//     let parser = character(char::is_alphanumeric).star(String::new);
+//     let (ch, _, result) = parser.init("!?".chars()).unwrap().unDone();
+//     assert_eq!(ch, '!');
+//     assert_eq!(result, "");
+//     let (ch, _, result) = parser.init("abc!".chars()).unwrap().unDone();
+//     assert_eq!(ch, '!');
+//     assert_eq!(result, "abc");
+//     let (_, state) = parser.init("abc".chars()).unwrap().unContinue();
+//     let (ch, _, result) = state.maybe_more("def!".chars()).unwrap().unDone();
+//     assert_eq!(ch, '!');
+//     assert_eq!(result, "abcdef");
+// }
+
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_buffer() {
+// // //     use std::borrow::Cow::{Borrowed, Owned};
+// // //     fn ignore() {}
+// // //     let ALPHABETIC = character(char::is_alphabetic);
+// // //     let ALPHANUMERIC = character(char::is_alphanumeric);
+// // //     let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(ignore)).buffer();
+// // //     assert_eq!(parser.parse("989").unAbort(), "989");
+// // //     assert_eq!(parser.parse("a!").unCommit().unDone(), ("!", Borrowed("a")));
+// // //     assert_eq!(parser.parse("abc!").unCommit().unDone(),
+// // //                ("!", Borrowed("abc")));
+// // //     let parsing = parser.parse("a").unCommit().unContinue();
+// // //     assert_eq!(parsing.parse("bc!").unDone(),
+// // //                ("!", Owned(String::from("abc"))));
+// // //     let parser = ALPHANUMERIC.star(ignore).buffer();
+// // //     assert_eq!(parser.init().parse("!").unDone(), ("!", Borrowed("")));
+// // //     assert_eq!(parser.init().parse("a!").unDone(), ("!", Borrowed("a")));
+// // //     assert_eq!(parser.init().parse("abc!").unDone(), ("!", Borrowed("abc")));
+// // //     let parsing = parser.init().parse("a").unContinue();
+// // //     assert_eq!(parsing.parse("bc!").unDone(),
+// // //                ("!", Owned(String::from("abc"))));
+// // // }
+
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_cow() {
+//     fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
+//     fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
+//     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
+//     let ONE = character_ref(is_foo);
+//     let OTHER = CHARACTER.map(mk_other);
+//     let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+//     let mut data = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo"),Cow::Borrowed("baz")]);
+//     let (ch, _, ((fst, snd), thd)) = parser.init_maybe(data.0, data.1.drain(..)).unCommit().unDone();
+//     assert_eq!(ch, "baz");
+//     assert_eq!(fst, "foo");
+//     assert_eq!(snd, "other");
+//     assert_eq!(thd, "foo");
+//     assert!(!is_owned(fst));
+//     assert!(!is_owned(snd));
+//     assert!(!is_owned(thd));
+//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar")]);
+//     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
+//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
+//     assert_eq!(ch, "baz");
+//     assert_eq!(fst, "foo");
+//     assert_eq!(snd, "other");
+//     assert_eq!(thd, "foo");
+//     assert!(is_owned(fst));
+//     assert!(!is_owned(snd));
+//     assert!(!is_owned(thd));
+//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("foo")]);
+//     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
+//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
+//     assert_eq!(ch, "baz");
+//     assert_eq!(fst, "foo");
+//     assert_eq!(snd, "foo");
+//     assert_eq!(thd, "foo");
+//     assert!(is_owned(fst));
+//     assert!(is_owned(snd));
+//     assert!(!is_owned(thd));
+//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo")]);
+//     let mut data2 = (Cow::Borrowed("baz"), vec![]);
+//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
+//     assert_eq!(ch, "baz");
+//     assert_eq!(fst, "foo");
+//     assert_eq!(snd, "other");
+//     assert_eq!(thd, "foo");
+//     assert!(is_owned(fst));
+//     assert!(is_owned(snd));
+//     assert!(is_owned(thd));
+// }
+
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_boxable() {
+//     use std::vec::Drain;
+//     #[derive(Copy, Clone, Debug)]
+//     struct Test;
+//     type TestCh<'a> = Cow<'a,str>;
+//     type TestStr<'a> = Drain<'a,TestCh<'a>>;
+//     type TestOutput<'a> = ((TestCh<'a>, TestCh<'a>), TestCh<'a>);
+//     type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>>;
+//     impl Parser for Test {}
+//     impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
+//         type Output = TestOutput<'a>;
+//         type State = TestState;
+//         fn init_maybe(&self, string: &mut TestStr<'a>) -> ParseResult<TestState, TestOutput<'a>> {
+//             fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
+//             fn mk_other<'a>(_: Option<TestCh<'a>>) -> TestCh<'a> { Cow::Borrowed("other") }
+//             let ONE = character_ref(is_foo);
+//             let OTHER = CHARACTER.map(mk_other);
+//             let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+//             // This bit should be in the API
+//             match parser.init_maybe(string) {
+//                 Backtrack => Backtrack,
+//                 Done(result) => Done(result),
+//                 Continue(state) => Continue(Box::new(impls::BoxableState::new(state))),
+//             }
+//         }
+//     }
+//     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
+//     let parser = Test; 
+//     let mut data = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo"),Cow::Borrowed("baz")]);
+//     let (ch, _, ((fst, snd), thd)) = parser.init_maybe(data.0, data.1.drain(..)).unCommit().unDone();
+//     assert_eq!(ch, "baz");
+//     assert_eq!(fst, "foo");
+//     assert_eq!(snd, "other");
+//     assert_eq!(thd, "foo");
+//     assert!(!is_owned(fst));
+//     assert!(!is_owned(snd));
+//     assert!(!is_owned(thd));
+//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar")]);
+//     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
+//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
+//     assert_eq!(ch, "baz");
+//     assert_eq!(fst, "foo");
+//     assert_eq!(snd, "other");
+//     assert_eq!(thd, "foo");
+//     assert!(is_owned(fst));
+//     assert!(!is_owned(snd));
+//     assert!(!is_owned(thd));
+//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("foo")]);
+//     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
+//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
+//     assert_eq!(ch, "baz");
+//     assert_eq!(fst, "foo");
+//     assert_eq!(snd, "foo");
+//     assert_eq!(thd, "foo");
+//     assert!(is_owned(fst));
+//     assert!(is_owned(snd));
+//     assert!(!is_owned(thd));
+//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo")]);
+//     let mut data2 = (Cow::Borrowed("baz"), vec![]);
+//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
+//     assert_eq!(ch, "baz");
+//     assert_eq!(fst, "foo");
+//     assert_eq!(snd, "other");
+//     assert_eq!(thd, "foo");
+//     assert!(is_owned(fst));
+//     assert!(is_owned(snd));
+//     assert!(is_owned(thd));
+// }
+
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_iter() {
+// // //     fn mk_X(_: Option<char>) -> char {
+// // //         'X'
+// // //     }
+// // //     let ALPHABETIC = character(char::is_alphabetic);
+// // //     let parser = ALPHABETIC.or_else(CHARACTER.map(mk_X));
+// // //     let mut iter = parser.iter("abc");
+// // //     assert_eq!(iter.next(), Some('a'));
+// // //     assert_eq!(iter.next(), Some('b'));
+// // //     assert_eq!(iter.next(), Some('c'));
+// // //     assert_eq!(iter.next(), None);
+// // // }
+
+// // // // #[test]
+// // // // #[allow(non_snake_case)]
+// // // // fn test_pipe() {
+// // // //     use std::borrow::{Borrow, Cow};
+// // // //     #[derive(Clone,Debug,PartialEq,Eq)]
+// // // //     enum Token {
+// // // //         Identifier(String),
+// // // //         Number(usize),
+// // // //         Other,
+// // // //     }
+// // // //     fn mk_id<'a>(string: Cow<'a, str>) -> Token {
+// // // //         Token::Identifier(string.into_owned())
+// // // //     }
+// // // //     fn mk_num<'a>(string: Cow<'a, str>) -> Token {
+// // // //         Token::Number(usize::from_str_radix(string.borrow(), 10).unwrap())
+// // // //     }
+// // // //     fn mk_other(_: Option<char>) -> Token {
+// // // //         Token::Other
+// // // //     }
+// // // //     fn ignore() {}
+// // // //     fn is_decimal(ch: char) -> bool {
+// // // //         ch.is_digit(10)
+// // // //     }
+// // // //     fn is_identifier(tok: &Token) -> bool {
+// // // //         match *tok {
+// // // //             Token::Identifier(_) => true,
+// // // //             _ => false,
+// // // //         }
+// // // //     }
+// // // //     fn is_number(tok: &Token) -> bool {
+// // // //         match *tok {
+// // // //             Token::Number(_) => true,
+// // // //             _ => false,
+// // // //         }
+// // // //     }
+// // // //     let ALPHABETIC = character(char::is_alphabetic);
+// // // //     let DIGIT = character(is_decimal);
+// // // //     let lexer = ALPHABETIC.plus(ignore)
+// // // //                           .buffer()
+// // // //                           .map(mk_id)
+// // // //                           .or_else(DIGIT.plus(ignore).buffer().map(mk_num))
+// // // //                           .or_else(CHARACTER.map(mk_other));
+// // // //     let parser = token(is_identifier).or_else(token(is_number)).star(Vec::<Token>::new);
+// // // //     assert_eq!(lexer.pipe(parser).init().parse("abc37!!").unDone(),
+// // // //                ("!",
+// // // //                 vec![Token::Identifier(String::from("abc")), Token::Number(37)]));
+// // // // }
+
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_different_lifetimes1() {
+// // //     fn go<'a, 'b, P>(ab: &'a str, cd: &'b str, parser: P)
+// // //         where P: Copy + Parser<char> + for<'c> Committed<&'c str>,
+// // //               <P as Parser<char>>::State: for<'c> Stateful<&'c str, Output = (Option<char>, Option<char>)>,
+// // //     {
+// // //         let _: &'a str = parser.init().parse(ab).unDone().0;
+// // //         let _: &'b str = parser.init().parse(cd).unDone().0;
+// // //         assert_eq!(parser.init().parse(ab).unDone(),
+// // //                    ("", (Some('a'), Some('b'))));
+// // //         assert_eq!(parser.init().parse(cd).unDone(),
+// // //                    ("", (Some('c'), Some('d'))));
+// // //     }
+// // //     let parser = CHARACTER.and_then(CHARACTER);
+// // //     go("ab", "cd", parser);
+// // // }
+
+// // // #[test]
+// // // #[allow(non_snake_case)]
+// // // fn test_different_lifetimes2() {
+// // //     use std::borrow::Cow;
+// // //     use std::borrow::Cow::Owned;
+// // //     fn ignore() {}
+// // //     fn is_owned<'a,T:?Sized+ToOwned>(cow: &Cow<'a,T>) -> bool { match cow { &Owned(_) => true, _ => false } }
+// // //     let parser = character(char::is_alphabetic).star(ignore).buffer()
+// // //         .and_then(character(char::is_numeric).star(ignore).buffer());
+// // //     match parser.init().parse("abc123!") {
+// // //         Done("!", (ref fst, ref snd)) => {
+// // //             assert!(!is_owned(fst));
+// // //             assert!(!is_owned(snd));
+// // //             assert_eq!(fst, "abc");
+// // //             assert_eq!(snd, "123");
+// // //         },
+// // //         oops => panic!("Shouldn't happen {:?}", oops),
+// // //     };
+// // //     match parser.init().parse("abc1").unContinue().parse("23!") {
+// // //         Done("!", (ref fst, ref snd)) => {
+// // //             assert!(is_owned(fst));
+// // //             assert!(is_owned(snd));
+// // //             assert_eq!(fst, "abc");
+// // //             assert_eq!(snd, "123");
+// // //         },
+// // //         oops => panic!("Shouldn't happen {:?}", oops),
+// // //     };
+// // // }
