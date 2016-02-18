@@ -70,7 +70,7 @@
       <p>
 	<b>let</b> <i>parser</i> = ···;<br>
 	<b>let mut</b> <i>test_data</i> = "(x + 37) + y".chars();<br>
-	<b>match</b> <i>parser</i>.init(<i>test_data</i>).unwrap() {<br>
+	<b>match</b> <i>parser</i>.init(&amp;<b>mut</b> <i>test_data</i>).unwrap() {<br>
 	&nbsp; Done(<i>parsed</i>) ⇒ ··· // <i>yay, parsed it!</i><br>
 	}
       </p>
@@ -86,8 +86,8 @@
       <p>
 	<b>let mut</b> <i>test_data1</i> = "(x + ".chars();<br>
 	<b>let mut</b> <i>test_data2</i> = "37) + y".chars();<br>
-	<b>match</b> <i>parser</i>.init(<i>test_data1</i>).unwrap() {<br>
-	&nbsp; Continue(<i>parsing</i>) ⇒ <b>match</b> <i>parsing</i>.more(<i>test_data2</i>) {<br>
+	<b>match</b> <i>parser</i>.init(&amp;<b>mut</b> <i>test_data1</i>).unwrap() {<br>
+	&nbsp; Continue(<i>parsing</i>) ⇒ <b>match</b> <i>parsing</i>.more(&amp;<b>mut</b> <i>test_data2</i>) {<br>
 	&nbsp; &nbsp; Done(<i>parsed</i>) ⇒ ··· // <i>yay, parsed it!</i><br>
 	} ··· }
       </p>
@@ -111,7 +111,7 @@
       <header>
         <h2>Goal 2: no memory allocation</h2>
       </header>
-      <p>We'd like the parsing library to use zero heap.</p>
+      <p>We’d like the parsing library to use zero heap.</p>
       <p>User code (e.g. building an AST) can do what it likes.</p>
       <p>Can the library work with no memory allocation?</p>
     </section>
@@ -134,7 +134,7 @@
       </header>
       <p>Remember <i>save/restore parser state at chunk boundaries</i>?</p>
       <p>That state has to go somewhere.</p>
-      <p>Can't go on the stack (not fixed size).</p>
+      <p>Can’t go on the stack (not fixed size).</p>
       <p>This just leaves the heap.</p>
     </section>
   </div></div>
@@ -154,8 +154,8 @@
         <h2>Goal 3: infer complex types</h2>
       </header>
       <p>Parser libraries often have complex types.</p>
-      <p>For example, the parser “(foo or bar) then baz”<br>
-	has type “AndThen〈OrElse〈Foo,Bar〉,Baz〉”<br>
+      <p>For example, the parser “<i>foo</i>.or_else(<i>bar</i>).and_then(<i>baz</i>)”<br>
+	has type “AndThen〈OrElse〈Foo,Bar〉,Baz〉”.<br>
         This is very similar to the Rust iterator library.</p>
       <p><i>Users should not have to see complex types.</i></p>
       <p>Yay type inference!</p>
@@ -169,8 +169,8 @@
       </header>
       <p>Dynamic method calls can be expensive.</p>
       <ul>
-	<li>Can mess up instruction pipelining / prefetching</li>
-	<li>Can mess up optimizations from inlining</li>
+	<li>Can mess up instruction pipelining / prefetching.</li>
+	<li>Can mess up optimizations from inlining.</li>
       </ul>
       <p>Can we do everything with static method calls?</p>
     </section>
@@ -192,9 +192,9 @@
         <h2>Goal 4: no dynamic method calls</h2>
       </header>
       <p>Rust does static method dispatch by type.</p>
-      <p>You write “this.that()”,
-        rustc works out “this: SomeType”<br>
-        and looks up “impl ThatTrait for Sometype”</code>,<br>
+      <p>You write “<i>this</i>.that()”,
+        rustc works out (<i>this</i>: SomeType)<br>
+        and looks up (<b>impl</b> ThatTrait <b>for</b> SomeType),<br>
         <i>at compile time</code>.</p>
     </section>
   </div></div>
@@ -208,7 +208,7 @@
       <p>Expressions are arbitrarily deep, so the parser is recursive.</p>
       <p>Imagine a type <i>Exp1</i>〈<i>P</i>〉 that can parse expressions of depth 1,<br>
         and uses parser <i>P</i> each time it reaches parentheses.</p>
-      <p>We're looking for the type <i>Exp1</i>〈<i>Exp1</i>〈<i>Exp1</i>〈···〉〉〉.</p>
+      <p>We’re looking for the type <i>Exp1</i>〈<i>Exp1</i>〈<i>Exp1</i>〈···〉〉〉.</p>
     </section>
   </div></div>
 
@@ -219,7 +219,7 @@
       </header>
       <p>Yay, Rust has recursive types, using Box.</p>
       <p><b>struct</b> Exp(Box〈<i>Exp1</i>〈Exp〉〉);</p>
-      <p>Yay! Recursive parsers, static dispatch, we're good?</p>
+      <p>Yay! Recursive parsers, static dispatch, we’re good?</p>
     </section>
   </div></div>
 
@@ -231,7 +231,7 @@
       <p>Remember <i>Users should not have to see complex types</i>?</p>
       <p><b>struct</b> Exp(Box〈<i>Exp1</i>〈Exp〉〉);</p>
       <p><i>Exp1</i> is one of those complex types.</p>
-      <p>AFAIK, Rust doesn't allow type inference to make these invisible,<br>
+      <p>AFAIK, Rust doesn’t allow type inference to make these invisible,<br>
 	(e.g. in supertrait type arguments or associated type definitions).</p>
     </section>
   </div></div>
@@ -299,7 +299,7 @@
         <h2>Rust parser libraries: LALRPOP</h2>
       </header>
       <ul>
-	<li>Domain-specific language (a la yacc, Bison, JavaCC, ...).</li>
+	<li>Domain-specific language (<i>à la</i> yacc, Bison, JavaCC, ...).</li>
 	<li>Recognizes a rich class of languages (LALR).</li>
         <li>All-at-once parsing.</li>
       </ul>
@@ -369,7 +369,7 @@
 	<b>let</b> <i>parser</i> = <i>ALPHABETIC</i><br>&nbsp;
 	  .and_then(<i>ALPHABETIC</i>.star(String::new));<br>
 	<b>let mut</b> <i>test_data</i> = "abc123!".chars();<br>
-	<b>match</b> <i>parser</i>.init(<i>test_data</i>).unwrap() {<br>
+	<b>match</b> <i>parser</i>.init(&amp;<b>mut</b> <i>test_data</i>).unwrap() {<br>
 	&nbsp; Done(<i>result</i>) ⇒ assert_eq!(<i>result</i>, ('a', "bc123")), ...<br>
 	}<br>
 	assert_eq!(<i>test_data</i>.as_str(), "!");
@@ -387,7 +387,7 @@
 	  .and_then(<i>ALPHABETIC</i>.star(ignore))<br>&nbsp;
 	  .buffer(); // <i>Returns a Cow<'a,str></i><br>
 	<b>let mut</b> <i>test_data</i> = "abc123!".chars();<br>
-	<b>match</b> <i>parser</i>.init(<i>test_data</i>).unwrap() {<br>
+	<b>match</b> <i>parser</i>.init(&amp;<b>mut</b> <i>test_data</i>).unwrap() {<br>
 	&nbsp; Done(<i>result</i>) ⇒ assert_eq!(<i>result</i>, Borrowed("abc123")), ...<br>
 	}<br>
       </p>
@@ -405,8 +405,8 @@
 	  .buffer(); // <i>Returns a Cow<'a,str></i><br>
 	<b>let mut</b> <i>test_data1</i> = "abc".chars();<br>
 	<b>let mut</b> <i>test_data2</i> = "123!".chars();<br>
-	<b>match</b> <i>parser</i>.init(<i>test_data1</i>).unwrap() {<br>
-	&nbsp; Continue(<i>parsing</i>) ⇒ <b>match</b> <i>parsing</i>.more(<i>test_data2</i>) {<br>
+	<b>match</b> <i>parser</i>.init(&amp;<b>mut</b> <i>test_data1</i>).unwrap() {<br>
+	&nbsp; Continue(<i>parsing</i>) ⇒ <b>match</b> <i>parsing</i>.more(&amp;<b>mut</b> <i>test_data2</i>) {<br>
 	&nbsp; &nbsp; Done(<i>result</i>) ⇒ assert_eq!(<i>result</i>, Owned(String::from("abc123"))), ...
 	}, ... }<br>
       </p>
@@ -439,10 +439,10 @@
         <h2>Parsell: lessons learned</h2>
       </header>
       <ol>
-        <li>Goals can be met (I wasn't sure about this when I started!)</li>
-        <li>Rust borrowchk catches bugs that testing wouldn't.</li>
-        <li>Linearity enforces safety (can't call more after done).</li>
-        <li>Lifetime polymorphism / HRTB is tricky. (Thanks eddyb!)</li>
+        <li>Goals can be met (I wasn’t sure about this when I started!)</li>
+        <li>Rust borrowchk catches bugs that testing wouldn’t.</li>
+        <li>Linearity enforces safety (can’t call more after done).</li>
+        <li>Lifetime polymorphism / HRTB is tricky. (Thanks :eddyb!)</li>
         <li>Needed traits PeekableIterator and ToStatic.</li>
         <li>Hack without fear!</li>
       </ol>
