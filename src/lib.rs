@@ -215,36 +215,30 @@ pub trait Parser {
         impls::AndThen::new(self, other)
     }
 
-// //     /// Sequencing with a committed parser (bubble any errors from this parser).
-// //     fn try_and_then<P>(self,
-// //                        other: P)
-// //                        -> impls::MapParser<impls::AndThenParser<Self, P>, impls::TryZip>
-// //         where Self: Sized,
-// //               P: Parser<Ch>,
-// //     {
-// //         self.and_then(other).map(impls::TryZip)
-// //     }
+    /// Sequencing with a committed parser (bubble any errors from this parser).
+    fn try_and_then<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::TryZip>
+        where Self: Sized,
+              P: Parser,
+    {
+        self.and_then(other).map(impls::TryZip)
+    }
 
-// //     /// Sequencing with a committed parser (bubble any errors from that parser).
-// //     fn and_then_try<P>(self,
-// //                        other: P)
-// //                        -> impls::MapParser<impls::AndThenParser<Self, P>, impls::ZipTry>
-// //         where Self: Sized,
-// //               P: Parser<Ch>,
+    /// Sequencing with a committed parser (bubble any errors from that parser).
+    fn and_then_try<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::ZipTry>
+        where Self: Sized,
+              P: Parser,
 
-// //     {
-// //         self.and_then(other).map(impls::ZipTry)
-// //     }
+    {
+        self.and_then(other).map(impls::ZipTry)
+    }
 
-// //     /// Sequencing with a committed parser (bubble any errors from either parser).
-// //     fn try_and_then_try<P>(self,
-// //                            other: P)
-// //                            -> impls::MapParser<impls::AndThenParser<Self, P>, impls::TryZipTry>
-// //         where Self: Sized,
-// //               P: Parser<Ch>,
-// //     {
-// //         self.and_then(other).map(impls::TryZipTry)
-// //     }
+    /// Sequencing with a committed parser (bubble any errors from either parser).
+    fn try_and_then_try<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::TryZipTry>
+        where Self: Sized,
+              P: Parser,
+    {
+        self.and_then(other).map(impls::TryZipTry)
+    }
 
     /// Iterate one or more times (returns an uncommitted parser).
     fn plus<F>(self, factory: F) -> impls::Plus<Self, F>
@@ -1355,62 +1349,68 @@ fn test_and_then() {
     assert_eq!(data2.as_str(), "cd");
 }
 
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_try_and_then() {
-// // //     fn mk_err<T>(_: Option<char>) -> Result<T, String> {
-// // //         Err(String::from("oh"))
-// // //     }
-// // //     fn mk_ok<T>(ok: T) -> Result<T, String> {
-// // //         Ok(ok)
-// // //     }
-// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
-// // //     let parser = character(char::is_alphabetic).map(mk_ok).try_and_then(ALPHANUMERIC);
-// // //     parser.parse("").unEmpty();
-// // //     assert_eq!(parser.parse("989").unAbort(), "989");
-// // //     assert_eq!(parser.parse("a!!").unCommit().unDone(),
-// // //                ("!", Ok(('a', Err(String::from("oh"))))));
-// // //     assert_eq!(parser.parse("abc").unCommit().unDone(),
-// // //                ("c", Ok(('a', Ok('b')))));
-// // // }
+#[test]
+#[allow(non_snake_case)]
+fn test_try_and_then() {
+    fn mk_err<T>(_: Option<char>) -> Result<T, String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T, String> { Ok(ok) }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+    let parser = ALPHANUMERIC.try_and_then(ALPHANUMERIC);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "abc".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok(('a', Ok('b'))));
+    assert_eq!(data.as_str(), "c");
+    let mut data = "a!!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok(('a', Err(String::from("oh")))));
+    assert_eq!(data.as_str(), "!");
+    let mut data = "!ab".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "b");
+}
 
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_and_then_try() {
-// // //     fn mk_err<T>(_: Option<char>) -> Result<T, String> {
-// // //         Err(String::from("oh"))
-// // //     }
-// // //     fn mk_ok<T>(ok: T) -> Result<T, String> {
-// // //         Ok(ok)
-// // //     }
-// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
-// // //     let parser = character(char::is_alphabetic).map(mk_ok).and_then_try(ALPHANUMERIC);
-// // //     parser.parse("").unEmpty();
-// // //     assert_eq!(parser.parse("989").unAbort(), "989");
-// // //     assert_eq!(parser.parse("a!!").unCommit().unDone(),
-// // //                ("!", Err(String::from("oh"))));
-// // //     assert_eq!(parser.parse("abc").unCommit().unDone(),
-// // //                ("c", Ok((Ok('a'), 'b'))));
-// // // }
+#[test]
+#[allow(non_snake_case)]
+fn test_and_then_try() {
+    fn mk_err<T>(_: Option<char>) -> Result<T, String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T, String> { Ok(ok) }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+    let parser = ALPHANUMERIC.and_then_try(ALPHANUMERIC);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "abc".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok((Ok('a'), 'b')));
+    assert_eq!(data.as_str(), "c");
+    let mut data = "a!!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "!");
+    let mut data = "!ab".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok((Err(String::from("oh")), 'a')));
+    assert_eq!(data.as_str(), "b");
+}
 
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_try_and_then_try() {
-// // //     fn mk_err<T>(_: Option<char>) -> Result<T, String> {
-// // //         Err(String::from("oh"))
-// // //     }
-// // //     fn mk_ok<T>(ok: T) -> Result<T, String> {
-// // //         Ok(ok)
-// // //     }
-// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
-// // //     let parser = character(char::is_alphabetic).map(mk_ok).try_and_then_try(ALPHANUMERIC);
-// // //     parser.parse("").unEmpty();
-// // //     assert_eq!(parser.parse("989").unAbort(), "989");
-// // //     assert_eq!(parser.parse("a!!").unCommit().unDone(),
-// // //                ("!", Err(String::from("oh"))));
-// // //     assert_eq!(parser.parse("abc").unCommit().unDone(),
-// // //                ("c", Ok(('a', 'b'))));
-// // // }
+#[test]
+#[allow(non_snake_case)]
+fn test_try_and_then_try() {
+    fn mk_err<T>(_: Option<char>) -> Result<T, String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T, String> { Ok(ok) }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+    let parser = ALPHANUMERIC.try_and_then_try(ALPHANUMERIC);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "abc".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok(('a', 'b')));
+    assert_eq!(data.as_str(), "c");
+    let mut data = "a!!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "!");
+    let mut data = "!ab".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "b");
+}
 
 #[test]
 #[allow(non_snake_case)]
