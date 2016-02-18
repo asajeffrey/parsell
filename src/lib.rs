@@ -1445,6 +1445,9 @@ fn test_or_else() {
 #[allow(non_snake_case)]
 fn test_plus() {
     let parser = character(char::is_alphanumeric).plus(String::new);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
     let mut data = "!?".chars();
     assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "!?");
@@ -1455,32 +1458,26 @@ fn test_plus() {
     let mut data2 = "c!".chars();
     assert_eq!(parser.init(&mut data1).unwrap().unContinue().more(&mut data2).unDone(), "abc");
     assert_eq!(data.as_str(), "!");
-//     let (ch, _) = parser.init("!?".chars()).unwrap().unBacktrack();
-//     assert_eq!(ch, '!');
-//     let (ch, _, result) = parser.init("abc!".chars()).unwrap().unCommit().unDone();
-//     assert_eq!(ch, '!');
-//     assert_eq!(result, "abc");
-//     let (_, state) = parser.init("abc".chars()).unwrap().unCommit().unContinue();
-//     let (ch, _, result) = state.maybe_more("def!".chars()).unwrap().unDone();
-//     assert_eq!(ch, '!');
-//     assert_eq!(result, "abcdef");
 }
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_star() {
-//     let parser = character(char::is_alphanumeric).star(String::new);
-//     let (ch, _, result) = parser.init("!?".chars()).unwrap().unDone();
-//     assert_eq!(ch, '!');
-//     assert_eq!(result, "");
-//     let (ch, _, result) = parser.init("abc!".chars()).unwrap().unDone();
-//     assert_eq!(ch, '!');
-//     assert_eq!(result, "abc");
-//     let (_, state) = parser.init("abc".chars()).unwrap().unContinue();
-//     let (ch, _, result) = state.maybe_more("def!".chars()).unwrap().unDone();
-//     assert_eq!(ch, '!');
-//     assert_eq!(result, "abcdef");
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_star() {
+    let parser = character(char::is_alphanumeric).star(String::new);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "!?".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), "");
+    assert_eq!(data.as_str(), "!?");
+    let mut data = "abc!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), "abc");
+    assert_eq!(data.as_str(), "!");
+    let mut data1 = "ab".chars();
+    let mut data2 = "c!".chars();
+    assert_eq!(parser.init(&mut data1).unwrap().unContinue().more(&mut data2).unDone(), "abc");
+    assert_eq!(data.as_str(), "!");
+}
 
 // // // #[test]
 // // // #[allow(non_snake_case)]
