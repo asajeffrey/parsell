@@ -367,7 +367,7 @@
 	<b>let</b> <i>ALPHABETIC</i> = character(char::is_alphabetic);<br>
 	<b>let</b> <i>ALPHANUMERIC</i> = character(char::is_alphanumeric);<br>
 	<b>let</b> <i>parser</i> = <i>ALPHABETIC</i><br>&nbsp;
-	  .and_then(<i>ALPHABETIC</i>.star(String::new));<br>
+	  .and_then(<i>ALPHANUMERIC</i>.star(String::new));<br>
 	<b>let mut</b> <i>test_data</i> = "abc123!".chars();<br>
 	<b>match</b> <i>parser</i>.init(&amp;<b>mut</b> <i>test_data</i>).unwrap() {<br>
 	&nbsp; Done(<i>result</i>) ⇒ assert_eq!(<i>result</i>, ('a', "bc123")), ...<br>
@@ -384,7 +384,7 @@
       </header>
       <p>
 	<b>let</b> <i>parser</i> = <i>ALPHABETIC</i><br>&nbsp;
-	  .and_then(<i>ALPHABETIC</i>.star(ignore))<br>&nbsp;
+	  .and_then(<i>ALPHANUMERIC</i>.star(ignore))<br>&nbsp;
 	  .buffer(); // <i>Returns a Cow<'a,str></i><br>
 	<b>let mut</b> <i>test_data</i> = "abc123!".chars();<br>
 	<b>match</b> <i>parser</i>.init(&amp;<b>mut</b> <i>test_data</i>).unwrap() {<br>
@@ -401,7 +401,7 @@
       </header>
       <p>
 	<b>let</b> <i>parser</i> = <i>ALPHABETIC</i><br>&nbsp;
-	  .and_then(<i>ALPHABETIC</i>.star(ignore))<br>&nbsp;
+	  .and_then(<i>ALPHANUMERIC</i>.star(ignore))<br>&nbsp;
 	  .buffer(); // <i>Returns a Cow<'a,str></i><br>
 	<b>let mut</b> <i>test_data1</i> = "abc".chars();<br>
 	<b>let mut</b> <i>test_data2</i> = "123!".chars();<br>
