@@ -24,7 +24,6 @@ use self::ParseResult::{Done, Continue};
 
 use std::fmt::{Formatter, Debug};
 use std::borrow::Cow;
-use std::borrow::Cow::Owned;
 
 pub mod impls;
 
@@ -936,7 +935,7 @@ impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
 /// The canonical example of this trait is `Cow<'a,T>` which can be saved to
 /// and restored from `T::Owned`.
 ///
-/// This trait is lot like `ToOwned`, the difference is that `Cow<'a,T>::Owned`
+/// This trait is lot like `ToOwned`, the difference is that `<Cow<'a,T> as ToOwned>::Owned`
 /// is `Cow<'a,T>`, not `T::Owned`.
 
 pub trait ToFromOwned {
@@ -948,7 +947,7 @@ pub trait ToFromOwned {
 impl<'a, T: ?Sized> ToFromOwned for Cow<'a, T> where T: ToOwned {
     type Owned = T::Owned;
     fn to_owned(self) -> T::Owned { self.into_owned() }
-    fn from_owned(p: T::Owned) -> Cow<'a,T> { Owned(p) }
+    fn from_owned(p: T::Owned) -> Cow<'a,T> { Cow::Owned(p) }
 }
 
 impl<T, U> ToFromOwned for (T, U) where T: ToFromOwned, U: ToFromOwned {

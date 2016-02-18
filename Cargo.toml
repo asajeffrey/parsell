@@ -1,7 +1,7 @@
 [package]
 
 name = "parsell"
-version = "0.3.1-SNAPSHOT"
+version = "0.3.2-SNAPSHOT"
 authors = [ "Alan Jeffrey <ajeffrey@mozilla.com>" ]
 
 description = "Parsell LL(1) streaming parser combinators"

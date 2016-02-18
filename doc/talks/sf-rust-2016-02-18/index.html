@@ -1,0 +1,469 @@
+<!DOCTYPE HTML>
+<html lang="en-US" class="fade nonumbers">
+<head>
+  <meta charset="UTF-8">
+  <title>Parsell: an LL(1) streaming parser combinator library for Rust</title>
+  <meta name="viewport" content="width=device-width, user-scalable=yes">
+  <link rel="stylesheet" href="themes/mozilla/styles/style.css">
+</head>
+<body class="list">
+  <header class="caption">
+    <h1>Parsell: an LL(1) streaming parser combinator library for Rust</h1>
+    <p class="footer">
+      Alan Jeffrey, Mozilla
+    </p>
+  </header>
+  <aside class="talkdescription">
+    <p class="abstract">
+      <strong>Abstract: </strong>
+      There are unexpected trade-offs in libraries for parsing.
+      A goal of low memory footprint is in conflict with a goal for streaming input.
+      A goal of static method dispatch is in conflict with a goal for type inference.
+      Parsell is a parser library which inhabits part of this design space.
+    </p>
+  </aside>
+
+  <div id="cover" class="slide"><div>
+    <section>
+      <header>
+        <h2>Parsell: an LL(1) streaming parser combinator library for Rust</h2>
+      </header>
+      <img src="pictures/parsell/parsell-github.png" 
+           class="middle shadow" height="350"
+           alt="Parsell on github.">
+      <small class="byline">
+        Alan Jeffrey,
+	SF Rust Meetup,
+	February 2016
+      </small>
+    </section>
+  </div></div>
+
+  <div id="goals" class="slide oneline"><div>
+    <section>
+      <header>
+        <h2>Goals</h2>
+      </header>
+    </section>
+  </div></div>  
+
+  <div id="goals-list" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goals</h2>
+      </header>
+      <ol>
+        <li>Parse streaming input</li>
+        <li>No memory allocation</li>
+        <li>Infer complex types</li>
+        <li>No dynamic method calls</li>
+      </ol>
+    </section>
+  </div></div>
+
+  <div id="goals-streaming1" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 1: Parse streaming input</h2>
+      </header>
+      <p>Regular parsing is all-at-once:</p>
+      <p>
+	<b>let</b> <i>parser</i> = ···;<br>
+	<b>let mut</b> <i>test_data</i> = "(x + 37) + y".chars();<br>
+	<b>match</b> <i>parser</i>.init(<i>test_data</i>).unwrap() {<br>
+	&nbsp; Done(<i>parsed</i>) ⇒ ··· // <i>yay, parsed it!</i><br>
+	}
+      </p>
+    </section>
+  </div></div>
+
+  <div id="goals-streaming2" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 1: Parse streaming input</h2>
+      </header>
+      <p>Streaming parsing is bit-by-bit:</p>
+      <p>
+	<b>let mut</b> <i>test_data1</i> = "(x + ".chars();<br>
+	<b>let mut</b> <i>test_data2</i> = "37) + y".chars();<br>
+	<b>match</b> <i>parser</i>.init(<i>test_data1</i>).unwrap() {<br>
+	&nbsp; Continue(<i>parsing</i>) ⇒ <b>match</b> <i>parsing</i>.more(<i>test_data2</i>) {<br>
+	&nbsp; &nbsp; Done(<i>parsed</i>) ⇒ ··· // <i>yay, parsed it!</i><br>
+	} ··· }
+      </p>
+    </section>
+  </div></div>
+
+  <div id="goals-streaming3" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 1: Parse streaming input</h2>
+      </header>
+      <p>Streaming parsing is painful.</p>
+      <p>Input arrives in chunks (e.g. from the network).</p>
+      <p><b>Pain</b>: <i>save/restore parser state at chunk boundaries.</i></p>
+      <p><b>Gain</b>: <i>much less buffering</i>.</p>
+    </section>
+  </div></div>
+
+  <div id="goals-allocation1" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 2: no memory allocation</h2>
+      </header>
+      <p>We'd like the parsing library to use zero heap.</p>
+      <p>User code (e.g. building an AST) can do what it likes.</p>
+      <p>Can the library work with no memory allocation?</p>
+    </section>
+  </div></div>
+
+  <div id="goals-allocation2" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 2: no memory allocation</h2>
+      </header>
+      <p><b>No.</b></p>
+      <p>Contradicts goal 1.</p>
+    </section>
+  </div></div>
+
+  <div id="goals-allocation3" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 2: no memory allocation</h2>
+      </header>
+      <p>Remember <i>save/restore parser state at chunk boundaries</i>?</p>
+      <p>That state has to go somewhere.</p>
+      <p>Can't go on the stack (not fixed size).</p>
+      <p>This just leaves the heap.</p>
+    </section>
+  </div></div>
+
+  <div id="goals-allocation4" class="slide"><div>
+    <section>
+      <header>
+        <h2>Revised goal 2</h2>
+      </header>
+      <p>No memory allocation <i>between chunk boundaries</i>.</p>
+    </section>
+  </div></div>
+
+  <div id="goals-types1" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 3: infer complex types</h2>
+      </header>
+      <p>Parser libraries often have complex types.</p>
+      <p>For example, the parser “(foo or bar) then baz”<br>
+	has type “AndThen〈OrElse〈Foo,Bar〉,Baz〉”<br>
+        This is very similar to the Rust iterator library.</p>
+      <p><i>Users should not have to see complex types.</i></p>
+      <p>Yay type inference!</p>
+    </section>
+  </div></div>
+
+  <div id="goals-static1" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 4: no dynamic method calls</h2>
+      </header>
+      <p>Dynamic method calls can be expensive.</p>
+      <ul>
+	<li>Can mess up instruction pipelining / prefetching</li>
+	<li>Can mess up optimizations from inlining</li>
+      </ul>
+      <p>Can we do everything with static method calls?</p>
+    </section>
+  </div></div>
+
+  <div id="goals-static2" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 4: no dynamic method calls</h2>
+      </header>
+      <p>AFAIK <b>no</b>, at least not in Rust.</p>
+      <p>Contradicts previous goal.</p>
+    </section>
+  </div></div>
+
+  <div id="goals-static3" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 4: no dynamic method calls</h2>
+      </header>
+      <p>Rust does static method dispatch by type.</p>
+      <p>You write “this.that()”,
+        rustc works out “this: SomeType”<br>
+        and looks up “impl ThatTrait for Sometype”</code>,<br>
+        <i>at compile time</code>.</p>
+    </section>
+  </div></div>
+
+  <div id="goals-static4" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 4: no dynamic method calls</h2>
+      </header>
+      <p>Imagine a parser for expressions like "(x + 37) + y".</p>
+      <p>Expressions are arbitrarily deep, so the parser is recursive.</p>
+      <p>Imagine a type <i>Exp1</i>〈<i>P</i>〉 that can parse expressions of depth 1,<br>
+        and uses parser <i>P</i> each time it reaches parentheses.</p>
+      <p>We're looking for the type <i>Exp1</i>〈<i>Exp1</i>〈<i>Exp1</i>〈···〉〉〉.</p>
+    </section>
+  </div></div>
+
+  <div id="goals-static5" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 4: no dynamic method calls</h2>
+      </header>
+      <p>Yay, Rust has recursive types, using Box.</p>
+      <p><b>struct</b> Exp(Box〈<i>Exp1</i>〈Exp〉〉);</p>
+      <p>Yay! Recursive parsers, static dispatch, we're good?</p>
+    </section>
+  </div></div>
+
+  <div id="goals-static6" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 4: no dynamic method calls</h2>
+      </header>
+      <p>Remember <i>Users should not have to see complex types</i>?</p>
+      <p><b>struct</b> Exp(Box〈<i>Exp1</i>〈Exp〉〉);</p>
+      <p><i>Exp1</i> is one of those complex types.</p>
+      <p>AFAIK, Rust doesn't allow type inference to make these invisible,<br>
+	(e.g. in supertrait type arguments or associated type definitions).</p>
+    </section>
+  </div></div>
+
+  <div id="goals-static7" class="slide"><div>
+    <section>
+      <header>
+        <h2>Goal 4: no dynamic method calls</h2>
+      </header>
+      <p>Trait objects to the rescue!</p>
+      <p><b>struct</b> Exp(Box〈<i>SomeParserTrait</i>〉);</p>
+      <p><b>Yay</b>: parser traits much are simpler than the complex parser types.<p>
+      <p><b>But</b>: trait objects use dynamic dispatch.<p>
+    </section>
+  </div></div>
+
+  <div id="goals-static8" class="slide"><div>
+    <section>
+      <header>
+        <h2>Revised goal 4</h2>
+      </header>
+      <p>No dynamic method calls <i>between chunk boundaries</i>.</p>
+    </section>
+  </div></div>
+
+  <div id="revised-goals-list" class="slide"><div>
+    <section>
+      <header>
+        <h2>Revised goals</h2>
+      </header>
+      <ol>
+        <li>Parse streaming input</li>
+        <li>No memory allocation <i>between chunk boundaries</i></li>
+        <li>Infer complex types</li>
+        <li>No dynamic method calls <i>between chunk boundaries</i></li>
+      </ol>
+    </section>
+  </div></div>
+
+  <div id="sota" class="slide oneline"><div>
+    <section>
+      <header>
+        <h2>State of the art</h2>
+      </header>
+    </section>
+  </div></div>  
+
+  <div id="sota-list" class="slide"><div>
+    <section>
+      <header>
+        <h2>Rust parser libraries</h2>
+      </header>
+      <ul>
+        <li>LALRPOP (Niko Matsakis)</li>
+        <li>Nom (Geoffroy Couprie)</li>
+        <li>Parsell (me)</li>
+        <li>···</li>
+      </ul>
+    </section>
+  </div></div>
+
+  <div id="sota-lalrpop" class="slide"><div>
+    <section>
+      <header>
+        <h2>Rust parser libraries: LALRPOP</h2>
+      </header>
+      <ul>
+	<li>Domain-specific language (a la yacc, Bison, JavaCC, ...).</li>
+	<li>Recognizes a rich class of languages (LALR).</li>
+        <li>All-at-once parsing.</li>
+      </ul>
+    </section>
+  </div></div>
+
+  <div id="sota-nom" class="slide"><div>
+    <section>
+      <header>
+        <h2>Rust parser libraries: Nom</h2>
+      </header>
+      <ul>
+	<li>Parser library, makes heavy use of macros.</li>
+	<li>Recognizes a rich class of languages (CFG).</li>
+        <li>Streaming parsers.</li>
+        <li>Does some allocation / dynamic calls.</li>
+        <li>Hides complex types behind macros.</li>	
+      </ul>
+    </section>
+  </div></div>
+
+  <div id="sota-parsell" class="slide"><div>
+    <section>
+      <header>
+        <h2>Rust parser libraries: Parsell</h2>
+      </header>
+      <ul>
+	<li>Parser library, no macros.</li>
+	<li>Recognizes a limited class of languages (LL(1)).</li>
+        <li>Streaming parsers.</li>
+        <li>Only does allocation / dynamic calls at chunk boundaries.</li>
+	<li>Inspired by Nom and Hutton/Meijer monadic parsing.</li>
+      </ul>
+    </section>
+  </div></div>
+
+  <div id="parsell" class="slide oneline"><div>
+    <section>
+      <header>
+        <h2>Parsell</h2>
+      </header>
+    </section>
+  </div></div>  
+
+  <div id="parsell-meets-goals" class="slide"><div>
+    <section>
+      <header>
+        <h2>Parsell: meets goals</h2>
+      </header>
+      <ol>
+        <li>Parse streaming input</li>
+        <li>No memory allocation between chunk boundaries</li>
+        <li>Infer complex types</li>
+        <li>No dynamic method calls between chunk boundaries</li>
+      </ol>
+    </section>
+  </div></div>
+
+  <div id="parsell-example1" class="slide"><div>
+    <section>
+      <header>
+        <h2>Parsell: example</h2>
+      </header>
+      <p>
+	<b>let</b> <i>ALPHABETIC</i> = character(char::is_alphabetic);<br>
+	<b>let</b> <i>ALPHANUMERIC</i> = character(char::is_alphanumeric);<br>
+	<b>let</b> <i>parser</i> = <i>ALPHABETIC</i><br>&nbsp;
+	  .and_then(<i>ALPHABETIC</i>.star(String::new));<br>
+	<b>let mut</b> <i>test_data</i> = "abc123!".chars();<br>
+	<b>match</b> <i>parser</i>.init(<i>test_data</i>).unwrap() {<br>
+	&nbsp; Done(<i>result</i>) ⇒ assert_eq!(<i>result</i>, ('a', "bc123")), ...<br>
+	}<br>
+	assert_eq!(<i>test_data</i>.as_str(), "!");
+      </p>
+    </section>
+  </div></div>
+
+  <div id="parsell-example2" class="slide"><div>
+    <section>
+      <header>
+        <h2>Parsell: example with no copying</h2>
+      </header>
+      <p>
+	<b>let</b> <i>parser</i> = <i>ALPHABETIC</i><br>&nbsp;
+	  .and_then(<i>ALPHABETIC</i>.star(ignore))<br>&nbsp;
+	  .buffer(); // <i>Returns a Cow<'a,str></i><br>
+	<b>let mut</b> <i>test_data</i> = "abc123!".chars();<br>
+	<b>match</b> <i>parser</i>.init(<i>test_data</i>).unwrap() {<br>
+	&nbsp; Done(<i>result</i>) ⇒ assert_eq!(<i>result</i>, Borrowed("abc123")), ...<br>
+	}<br>
+      </p>
+    </section>
+  </div></div>
+
+  <div id="parsell-example3" class="slide"><div>
+    <section>
+      <header>
+        <h2>Parsell: example with copying</h2>
+      </header>
+      <p>
+	<b>let</b> <i>parser</i> = <i>ALPHABETIC</i><br>&nbsp;
+	  .and_then(<i>ALPHABETIC</i>.star(ignore))<br>&nbsp;
+	  .buffer(); // <i>Returns a Cow<'a,str></i><br>
+	<b>let mut</b> <i>test_data1</i> = "abc".chars();<br>
+	<b>let mut</b> <i>test_data2</i> = "123!".chars();<br>
+	<b>match</b> <i>parser</i>.init(<i>test_data1</i>).unwrap() {<br>
+	&nbsp; Continue(<i>parsing</i>) ⇒ <b>match</b> <i>parsing</i>.more(<i>test_data2</i>) {<br>
+	&nbsp; &nbsp; Done(<i>result</i>) ⇒ assert_eq!(<i>result</i>, Owned(String::from("abc123"))), ...
+	}, ... }<br>
+      </p>
+    </section>
+  </div></div>
+
+  <div id="parsell-impl" class="slide"><div>
+    <section>
+      <header>
+        <h2>Parsell: implementation fragment</h2>
+      </header>
+      <p>
+	<b>trait</b> Stateful〈<i>Ch</i>, <i>Str</i>〉<b>where</b> <i>Str</i>: Iterator〈Item=<i>Ch</i>〉{<br>
+	&nbsp; <b>type</b> Output;<br>
+	&nbsp; <b>fn</b> more(self, <i>data</i>: &amp;<b>mut</b> <i>Str</i>) → ParseResult〈Self, Self::Output〉;<br>
+	}
+      </p>
+      <p>
+	<b>enum</b> ParseResult〈<i>State</i>, <i>Output</i>〉{<br>
+	&nbsp; Continue(<i>State</i>),<br>
+	&nbsp; Done(<i>Output</i>),<br>
+	}
+      </p>
+    </section>
+  </div></div>
+
+  <div id="parsell-ll" class="slide"><div>
+    <section>
+      <header>
+        <h2>Parsell: lessons learned</h2>
+      </header>
+      <ol>
+        <li>Goals can be met (I wasn't sure about this when I started!)</li>
+        <li>Rust borrowchk catches bugs that testing wouldn't.</li>
+        <li>Linearity enforces safety (can't call more after done).</li>
+        <li>Lifetime polymorphism / HRTB is tricky.</li>
+      </ol>
+    </section>
+  </div></div>
+
+  <div id="thanks" class="slide"><div>
+    <section>
+      <header>
+        <h2>Thanks</h2>
+      </header>
+      <ul class="nobull">
+        <li><strong>IRL</strong>: Alan Jeffrey</li>
+        <li><strong>EMail</strong>: ajeffrey@mozilla.com</li>
+        <li><strong>Twitter</strong>: @asajeffrey</li>
+        <li><strong>Repo</strong>: https://github.com/asajeffrey/parsell</li>
+        <li><strong>Doc</strong>: http://asajeffrey.github.io/parsell</li>
+        <li><strong>Crate</strong>: https://crates.io/crates/parsell</li>
+      </ul>
+    </section>
+  </div></div>
+
+  <div class="progress"><div></div></div>
+  <script src="scripts/script.js"></script>
+</body>
+</html>
