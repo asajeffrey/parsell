@@ -1196,37 +1196,27 @@ fn test_CHARACTER() {
     assert_eq!(data.as_str(), "bcd");
 }
 
-// // #[test]
-// // fn test_emit() {
-// //     let parser = emit(37);
-// //     let iter = parser.init_str("".chars()).unEmpty();
-// //     assert_eq!(iter.as_str(), "");
-// //     let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
-// //     assert_eq!(res, 37);
-// //     assert_eq!(ch, 'a');
-// //     assert_eq!(iter.as_str(), "bcd");
-// // }
-
-// #[test]
-// fn test_map1() {
-//     // uncommitted map
-//     let parser = character(char::is_alphabetic).map(Some);
-//     assert!(parser.init_maybe("".chars()).is_none());
-//     let (ch, iter) = parser.init_maybe("989".chars()).unwrap().unBacktrack();
-//     assert_eq!(ch, '9');
-//     assert_eq!(iter.as_str(), "89");
-//     let (ch, iter, res) = parser.init_maybe("abcd".chars()).unwrap().unCommit().unDone();
-//     assert_eq!(res, Some('a'));
-//     assert_eq!(ch, 'b');
-//     assert_eq!(iter.as_str(), "cd");
-//     // committed map
-//     let parser = CHARACTER.map(Some);
-//     assert!(parser.init("".chars()).is_none());
-//     let (ch, iter, res) = parser.init("abcd".chars()).unwrap().unDone();
-//     assert_eq!(res, Some(Some('a')));
-//     assert_eq!(ch, 'b');
-//     assert_eq!(iter.as_str(), "cd");
-// }
+#[test]
+fn test_map() {
+    // uncommitted map
+    let parser = character(char::is_alphabetic).map(Some);
+    let mut data = "".chars();
+    parser.init_maybe(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "");
+    let mut data = "989".chars();
+    parser.init_maybe(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "989");
+    let mut data = "abcd".chars();
+    assert_eq!(parser.init_maybe(&mut data).unDone(), Some('a'));
+    assert_eq!(data.as_str(), "bcd");
+    // committed map
+    let parser = CHARACTER.map(Some);
+    let mut data = "".chars();
+    parser.init(&mut data).unBacktrack();
+    let mut data = "abcd".chars();
+    assert_eq!(parser.init(&mut data).unDone(), Some(Some('a')));
+    assert_eq!(data.as_str(), "bcd");
+}
 
 // // #[test]
 // // fn test_map2() {
@@ -1342,25 +1332,36 @@ fn test_CHARACTER() {
 // // //                ("!", Some(('a', 'b', 'c', 'd', 'e'))));
 // // // }
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_and_then() {
-//     // uncommitted
-//     let parser = character(char::is_alphabetic).and_then(CHARACTER);
-//     let (ch, iter) = parser.init_maybe("989".chars()).unwrap().unBacktrack();
-//     assert_eq!(ch, '9');
-//     assert_eq!(iter.as_str(), "89");
-//     let (ch, iter, res) = parser.init_maybe("abcd".chars()).unwrap().unCommit().unDone();
-//     assert_eq!(res, ('a', Some('b')));
-//     assert_eq!(ch, 'c');
-//     assert_eq!(iter.as_str(), "d");
-//     // committed
-//     let parser = CHARACTER.and_then(CHARACTER);
-//     let (ch, iter, res) = parser.init("abcd".chars()).unwrap().unDone();
-//     assert_eq!(res, (Some('a'), Some('b')));
-//     assert_eq!(ch, 'c');
-//     assert_eq!(iter.as_str(), "d");
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_and_then() {
+    // uncommitted
+    let parser = character(char::is_alphabetic).and_then(CHARACTER);
+    let mut data = "989".chars();
+    parser.init_maybe(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "989");
+    let mut data = "abcd".chars();
+    assert_eq!(parser.init_maybe(&mut data).unDone(), ('a', Some('b')));
+    assert_eq!(data.as_str(), "cd");
+    let mut data1 = "a".chars();
+    let mut data2 = "bcd".chars();
+    assert_eq!(parser.init_maybe(&mut data1).unContinue().more(&mut data2).unDone(), ('a', Some('b')));
+    assert_eq!(data1.as_str(), "");
+    assert_eq!(data2.as_str(), "cd");
+    // committed
+    let parser = CHARACTER.and_then(CHARACTER);
+    let mut data = "".chars();
+    parser.init(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "");
+    let mut data = "abcd".chars();
+    assert_eq!(parser.init(&mut data).unDone(), (Some('a'), Some('b')));
+    assert_eq!(data.as_str(), "cd");
+    let mut data1 = "a".chars();
+    let mut data2 = "bcd".chars();
+    assert_eq!(parser.init(&mut data1).unContinue().more(&mut data2).unDone(), (Some('a'), Some('b')));
+    assert_eq!(data1.as_str(), "");
+    assert_eq!(data2.as_str(), "cd");
+}
 
 // // // #[test]
 // // // #[allow(non_snake_case)]
