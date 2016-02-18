@@ -19,9 +19,8 @@
 
 #![feature(unboxed_closures)]
 
-use self::ParseResult::{Done, Continue, Backtrack};
+use self::ParseResult::{Done, Continue};
 
-// use std::fmt::{Formatter, Debug};
 use std::borrow::Cow;
 use std::str::Chars;
 use std::iter::Peekable;
@@ -167,9 +166,6 @@ pub enum ParseResult<State, Output> {
     /// The parse can continue.
     Continue(State),
 
-    /// The parse should backtrack.
-    Backtrack,
-
 }
 
 /// A trait for stateless parsers.
@@ -180,17 +176,9 @@ pub enum ParseResult<State, Output> {
 /// it will backtrack on any non-alphabetic character, but
 /// `CHARACTER` is not, because it will produce `None` rather than backtracking.
 
-pub trait Committed<Ch, Str>
+pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
     where Str: Iterator<Item = Ch>,
 {
-
-    type Output;
-    type State: 'static + Stateful<Ch, Str, Output=Self::Output>;
-
-    /// Parse a string of data.
-    ///
-    /// Should only baktrack if the string is empty.
-    fn init(&self, string: &mut Str) -> ParseResult<Self::State, Self::Output>;
 
     /// Parse an EOF.
     fn empty(&self) -> Self::Output;
@@ -204,8 +192,8 @@ pub trait Uncommitted<Ch, Str>
     type Output;
     type State: 'static + Stateful<Ch, Str, Output=Self::Output>;
 
-    /// Parse a non-empty string of data.
-    fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, Self::Output>;
+    /// Parse a string of data.
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>>;
 
 }
 
@@ -1158,25 +1146,19 @@ impl<State, Output> ParseResult<State, Output>
         }
     }
 
-    pub fn unBacktrack(self) -> () {
-        match self {
-            Backtrack => (),
-            _ => panic!("Not backtrack"),
-        }
-    }
 }
 
 #[test]
 fn test_character() {
     let parser = character(char::is_alphabetic);
     let mut data = "".chars();
-    parser.init_maybe(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "");
     let mut data = "989".chars();
-    parser.init_maybe(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "989");
     let mut data = "abcd".chars();
-    assert_eq!(parser.init_maybe(&mut data).unDone(), 'a');
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), 'a');
     assert_eq!(data.as_str(), "bcd");
 }
 
@@ -1185,13 +1167,13 @@ fn test_character_ref() {
     fn is_alphabetic<'a>(ch: &'a char) -> bool { ch.is_alphabetic() }
     let parser = character_ref(is_alphabetic);
     let mut data = "".chars();
-    parser.init_maybe(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "");
     let mut data = "989".chars();
-    parser.init_maybe(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "989");
     let mut data = "abcd".chars();
-    assert_eq!(parser.init_maybe(&mut data).unDone(), 'a');
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), 'a');
     assert_eq!(data.as_str(), "bcd");
 }
 
@@ -1200,9 +1182,9 @@ fn test_character_ref() {
 fn test_CHARACTER() {
     let parser = CHARACTER;
     let mut data = "".chars();
-    parser.init(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     let mut data = "abcd".chars();
-    assert_eq!(parser.init(&mut data).unDone(), Some('a'));
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Some('a'));
     assert_eq!(data.as_str(), "bcd");
 }
 
@@ -1211,20 +1193,20 @@ fn test_map() {
     // uncommitted map
     let parser = character(char::is_alphabetic).map(Some);
     let mut data = "".chars();
-    parser.init_maybe(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "");
     let mut data = "989".chars();
-    parser.init_maybe(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "989");
     let mut data = "abcd".chars();
-    assert_eq!(parser.init_maybe(&mut data).unDone(), Some('a'));
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Some('a'));
     assert_eq!(data.as_str(), "bcd");
     // committed map
     let parser = CHARACTER.map(Some);
     let mut data = "".chars();
-    parser.init(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     let mut data = "abcd".chars();
-    assert_eq!(parser.init(&mut data).unDone(), Some(Some('a')));
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Some(Some('a')));
     assert_eq!(data.as_str(), "bcd");
 }
 
@@ -1348,27 +1330,27 @@ fn test_and_then() {
     // uncommitted
     let parser = character(char::is_alphabetic).and_then(CHARACTER);
     let mut data = "989".chars();
-    parser.init_maybe(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "989");
     let mut data = "abcd".chars();
-    assert_eq!(parser.init_maybe(&mut data).unDone(), ('a', Some('b')));
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), ('a', Some('b')));
     assert_eq!(data.as_str(), "cd");
     let mut data1 = "a".chars();
     let mut data2 = "bcd".chars();
-    assert_eq!(parser.init_maybe(&mut data1).unContinue().more(&mut data2).unDone(), ('a', Some('b')));
+    assert_eq!(parser.init(&mut data1).unwrap().unContinue().more(&mut data2).unDone(), ('a', Some('b')));
     assert_eq!(data1.as_str(), "");
     assert_eq!(data2.as_str(), "cd");
     // committed
     let parser = CHARACTER.and_then(CHARACTER);
     let mut data = "".chars();
-    parser.init(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "");
     let mut data = "abcd".chars();
-    assert_eq!(parser.init(&mut data).unDone(), (Some('a'), Some('b')));
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), (Some('a'), Some('b')));
     assert_eq!(data.as_str(), "cd");
     let mut data1 = "a".chars();
     let mut data2 = "bcd".chars();
-    assert_eq!(parser.init(&mut data1).unContinue().more(&mut data2).unDone(), (Some('a'), Some('b')));
+    assert_eq!(parser.init(&mut data1).unwrap().unContinue().more(&mut data2).unDone(), (Some('a'), Some('b')));
     assert_eq!(data1.as_str(), "");
     assert_eq!(data2.as_str(), "cd");
 }
@@ -1440,22 +1422,22 @@ fn test_or_else() {
                      .or_else(character(char::is_numeric).and_then(NUMERIC).map(Some))
                      .or_else(CHARACTER.map(mk_none));
     let mut data = "".chars();
-    parser.init(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "");
     let mut data = "abcd".chars();
-    assert_eq!(parser.init(&mut data).unDone(), Some(('a', Some('b'))));
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Some(('a', Some('b'))));
     assert_eq!(data.as_str(), "cd");
     let mut data = "a89".chars();
-    assert_eq!(parser.init(&mut data).unDone(), Some(('a', None)));
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Some(('a', None)));
     assert_eq!(data.as_str(), "9");
     let mut data = "789".chars();
-    assert_eq!(parser.init(&mut data).unDone(), Some(('7', Some('8'))));
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Some(('7', Some('8'))));
     assert_eq!(data.as_str(), "9");
     let mut data = "7cd".chars();
-    assert_eq!(parser.init(&mut data).unDone(), Some(('7', None)));
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Some(('7', None)));
     assert_eq!(data.as_str(), "d");
     let mut data = "!?".chars();
-    assert_eq!(parser.init(&mut data).unDone(), None);
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), None);
     assert_eq!(data.as_str(), "?");
 }
 
@@ -1464,21 +1446,21 @@ fn test_or_else() {
 fn test_plus() {
     let parser = character(char::is_alphanumeric).plus(String::new);
     let mut data = "!?".chars();
-    parser.init_maybe(&mut data).unBacktrack();
+    assert!(parser.init(&mut data).is_none());
     assert_eq!(data.as_str(), "!?");
     let mut data = "abc!".chars();
-    assert_eq!(parser.init_maybe(&mut data).unDone(), "abc");
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), "abc");
     assert_eq!(data.as_str(), "!");
     let mut data1 = "ab".chars();
     let mut data2 = "c!".chars();
-    assert_eq!(parser.init_maybe(&mut data1).unContinue().more(&mut data2).unDone(), "abc");
+    assert_eq!(parser.init(&mut data1).unwrap().unContinue().more(&mut data2).unDone(), "abc");
     assert_eq!(data.as_str(), "!");
-//     let (ch, _) = parser.init_maybe("!?".chars()).unwrap().unBacktrack();
+//     let (ch, _) = parser.init("!?".chars()).unwrap().unBacktrack();
 //     assert_eq!(ch, '!');
-//     let (ch, _, result) = parser.init_maybe("abc!".chars()).unwrap().unCommit().unDone();
+//     let (ch, _, result) = parser.init("abc!".chars()).unwrap().unCommit().unDone();
 //     assert_eq!(ch, '!');
 //     assert_eq!(result, "abc");
-//     let (_, state) = parser.init_maybe("abc".chars()).unwrap().unCommit().unContinue();
+//     let (_, state) = parser.init("abc".chars()).unwrap().unCommit().unContinue();
 //     let (ch, _, result) = state.maybe_more("def!".chars()).unwrap().unDone();
 //     assert_eq!(ch, '!');
 //     assert_eq!(result, "abcdef");
@@ -1534,7 +1516,7 @@ fn test_plus() {
 //     let OTHER = CHARACTER.map(mk_other);
 //     let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
 //     let mut data = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo"),Cow::Borrowed("baz")]);
-//     let (ch, _, ((fst, snd), thd)) = parser.init_maybe(data.0, data.1.drain(..)).unCommit().unDone();
+//     let (ch, _, ((fst, snd), thd)) = parser.init(data.0, data.1.drain(..)).unCommit().unDone();
 //     assert_eq!(ch, "baz");
 //     assert_eq!(fst, "foo");
 //     assert_eq!(snd, "other");
@@ -1544,7 +1526,7 @@ fn test_plus() {
 //     assert!(!is_owned(thd));
 //     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar")]);
 //     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
 //     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
 //     assert_eq!(ch, "baz");
 //     assert_eq!(fst, "foo");
@@ -1555,7 +1537,7 @@ fn test_plus() {
 //     assert!(!is_owned(thd));
 //     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("foo")]);
 //     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
 //     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
 //     assert_eq!(ch, "baz");
 //     assert_eq!(fst, "foo");
@@ -1566,7 +1548,7 @@ fn test_plus() {
 //     assert!(!is_owned(thd));
 //     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo")]);
 //     let mut data2 = (Cow::Borrowed("baz"), vec![]);
-//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
 //     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
 //     assert_eq!(ch, "baz");
 //     assert_eq!(fst, "foo");
@@ -1591,14 +1573,14 @@ fn test_plus() {
 //     impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
 //         type Output = TestOutput<'a>;
 //         type State = TestState;
-//         fn init_maybe(&self, string: &mut TestStr<'a>) -> ParseResult<TestState, TestOutput<'a>> {
+//         fn init(&self, string: &mut TestStr<'a>) -> ParseResult<TestState, TestOutput<'a>> {
 //             fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
 //             fn mk_other<'a>(_: Option<TestCh<'a>>) -> TestCh<'a> { Cow::Borrowed("other") }
 //             let ONE = character_ref(is_foo);
 //             let OTHER = CHARACTER.map(mk_other);
 //             let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
 //             // This bit should be in the API
-//             match parser.init_maybe(string) {
+//             match parser.init(string) {
 //                 Backtrack => Backtrack,
 //                 Done(result) => Done(result),
 //                 Continue(state) => Continue(Box::new(impls::BoxableState::new(state))),
@@ -1608,7 +1590,7 @@ fn test_plus() {
 //     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
 //     let parser = Test; 
 //     let mut data = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo"),Cow::Borrowed("baz")]);
-//     let (ch, _, ((fst, snd), thd)) = parser.init_maybe(data.0, data.1.drain(..)).unCommit().unDone();
+//     let (ch, _, ((fst, snd), thd)) = parser.init(data.0, data.1.drain(..)).unCommit().unDone();
 //     assert_eq!(ch, "baz");
 //     assert_eq!(fst, "foo");
 //     assert_eq!(snd, "other");
@@ -1618,7 +1600,7 @@ fn test_plus() {
 //     assert!(!is_owned(thd));
 //     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar")]);
 //     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
 //     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
 //     assert_eq!(ch, "baz");
 //     assert_eq!(fst, "foo");
@@ -1629,7 +1611,7 @@ fn test_plus() {
 //     assert!(!is_owned(thd));
 //     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("foo")]);
 //     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
 //     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
 //     assert_eq!(ch, "baz");
 //     assert_eq!(fst, "foo");
@@ -1640,7 +1622,7 @@ fn test_plus() {
 //     assert!(!is_owned(thd));
 //     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo")]);
 //     let mut data2 = (Cow::Borrowed("baz"), vec![]);
-//     let (_, state) = parser.init_maybe(data1.0, data1.1.drain(..)).unCommit().unContinue();
+//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
 //     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
 //     assert_eq!(ch, "baz");
 //     assert_eq!(fst, "foo");

@@ -4,7 +4,7 @@ use super::{Parser, ParseResult};
 use super::{Stateful, Committed, Uncommitted, Boxable};
 use super::{Function, Consumer, Factory, PeekableIterator};
 use super::{Upcast, ToStatic};
-use super::ParseResult::{Done, Continue, Backtrack};
+use super::ParseResult::{Done, Continue};
 
 use self::OrElseState::{Lhs, Rhs};
 use self::AndThenState::{InLhs, InBetween, InRhs};
@@ -200,7 +200,6 @@ impl<P, F, Ch, Str> Stateful<Ch, Str> for Map<P, F>
 
     fn more(self, string: &mut Str) -> ParseResult<Self, F::Output> {
         match self.0.more(string) {
-            Backtrack => Backtrack,
             Done(result) => Done(self.1.apply(result)),
             Continue(state) => Continue(Map(state, self.1)),
         }
@@ -213,17 +212,6 @@ impl<P, F, Ch, Str> Committed<Ch, Str> for Map<P, F>
           F: 'static + Copy + Function<P::Output>,
           Str: Iterator<Item = Ch>,
 {
-
-    type Output = F::Output;
-    type State = Map<P::State, F>;
-    
-    fn init(&self, string: &mut Str) -> ParseResult<Self::State, F::Output> {
-        match self.0.init(string) {
-            Backtrack => Backtrack,
-            Done(result) => Done(self.1.apply(result)),
-            Continue(state) => Continue(Map(state, self.1)),
-        }
-    }
 
     fn empty(&self) -> F::Output {
         self.1.apply(self.0.empty())
@@ -240,11 +228,11 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Map<P, F>
     type Output = F::Output;
     type State = Map<P::State, F>;
     
-    fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, F::Output> {
-        match self.0.init_maybe(string) {
-            Backtrack => Backtrack,
-            Done(result) => Done(self.1.apply(result)),
-            Continue(state) => Continue(Map(state, self.1)),
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, F::Output>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Done(result)) => Some(Done(self.1.apply(result))),
+            Some(Continue(state)) => Some(Continue(Map(state, self.1))),
         }
     }
 
@@ -271,21 +259,6 @@ impl<P, Q, Ch, Str, PStaticOutput> Committed<Ch, Str> for AndThen<P, Q>
           P::Output: ToStatic<Static = PStaticOutput>,
 {
 
-    type Output = (P::Output, Q::Output);
-    type State = AndThenState<P::State, Q, PStaticOutput, Q::State>;
-
-    fn init(&self, string: &mut Str) -> ParseResult<Self::State, Self::Output> {
-        match self.0.init(string) {
-            Backtrack => Backtrack,
-            Done(fst) => match self.1.init(string) {
-                Backtrack => Continue(InBetween(fst.to_static(), self.1)),
-                Done(snd) => Done((fst, snd)),
-                Continue(snd) => Continue(InRhs(fst.to_static(), snd)),
-            },
-            Continue(fst) => Continue(InLhs(fst, self.1)),
-        }
-    }
-
     fn empty(&self) -> Self::Output {
         (self.0.empty(), self.1.empty())
     }
@@ -303,15 +276,15 @@ impl<P, Q, Ch, Str, PStaticOutput> Uncommitted<Ch, Str> for AndThen<P, Q>
     type Output = (P::Output, Q::Output);
     type State = AndThenState<P::State, Q, PStaticOutput, Q::State>;
 
-    fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, Self::Output> {
-        match self.0.init_maybe(string) {
-            Backtrack => Backtrack,
-            Done(fst) => match self.1.init(string) {
-                Backtrack => Continue(InBetween(fst.to_static(), self.1)),
-                Done(snd) => Done((fst, snd)),
-                Continue(snd) => Continue(InRhs(fst.to_static(), snd)),
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Done(fst)) => match self.1.init(string) {
+                None => Some(Continue(InBetween(fst.to_static(), self.1))),
+                Some(Done(snd)) => Some(Done((fst, snd))),
+                Some(Continue(snd)) => Some(Continue(InRhs(fst.to_static(), snd))),
             },
-            Continue(fst) => Continue(InLhs(fst, self.1)),
+            Some(Continue(fst)) => Some(Continue(InLhs(fst, self.1))),
         }
     }
 
@@ -356,24 +329,22 @@ impl<PState, Q, Ch, Str, PStaticOutput> Stateful<Ch, Str> for AndThenState<PStat
             InLhs(fst, snd) => {
                 match fst.more(string) {
                     Done(fst) => match snd.init(string) {
-                        Backtrack => Continue(InBetween(fst.to_static(), snd)),
-                        Done(snd) => Done((fst, snd)),
-                        Continue(snd) => Continue(InRhs(fst.to_static(), snd)),
+                        None => Continue(InBetween(fst.to_static(), snd)),
+                        Some(Done(snd)) => Done((fst, snd)),
+                        Some(Continue(snd)) => Continue(InRhs(fst.to_static(), snd)),
                     },
-                    Backtrack => Backtrack,
                     Continue(fst) => Continue(InLhs(fst, snd)),
                 }
             }
             InBetween(fst, snd) => {
                 match snd.init(string) {
-                    Backtrack => Backtrack,
-                    Done(snd) => Done((fst.upcast(), snd)),
-                    Continue(snd) => Continue(InRhs(fst, snd)),
+                    None => Continue(InBetween(fst, snd)),
+                    Some(Done(snd)) => Done((fst.upcast(), snd)),
+                    Some(Continue(snd)) => Continue(InRhs(fst, snd)),
                 }
             }
             InRhs(fst, snd) => {
                 match snd.more(string) {
-                    Backtrack => Backtrack,
                     Done(snd) => Done((fst.upcast(), snd)),
                     Continue(snd) => Continue(InRhs(fst, snd)),
                 }
@@ -396,21 +367,6 @@ impl<P, Q, Ch, Str> Committed<Ch, Str> for OrElse<P, Q>
           Str: Iterator<Item = Ch>,
 {
     
-    type Output = P::Output;
-    type State = OrElseState<P::State, Q::State>;
-
-    fn init(&self, string: &mut Str) -> ParseResult<Self::State, Self::Output> {
-        match self.0.init_maybe(string) {
-            Done(result) => Done(result),
-            Continue(lhs) => Continue(Lhs(lhs)),
-            Backtrack => match self.1.init(string) {
-                Backtrack => Backtrack,
-                Done(result) => Done(result),
-                Continue(rhs) => Continue(Rhs(rhs)),
-            },
-        }
-    }
-
     fn empty(&self) -> P::Output {
         self.1.empty()
     }
@@ -426,14 +382,14 @@ impl<P, Q, Ch, Str> Uncommitted<Ch, Str> for OrElse<P, Q>
     type Output = P::Output;
     type State = OrElseState<P::State, Q::State>;
 
-    fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, Self::Output> {
-        match self.0.init_maybe(string) {
-            Done(result) => Done(result),
-            Continue(lhs) => Continue(Lhs(lhs)),
-            Backtrack => match self.1.init_maybe(string) {
-                Done(result) => Done(result),
-                Continue(rhs) => Continue(Rhs(rhs)),
-                Backtrack => Backtrack,
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
+        match self.0.init(string) {
+            Some(Done(result)) => Some(Done(result)),
+            Some(Continue(lhs)) => Some(Continue(Lhs(lhs))),
+            None => match self.1.init(string) {
+                Some(Done(result)) => Some(Done(result)),
+                Some(Continue(rhs)) => Some(Continue(Rhs(rhs))),
+                None => None,
             },
         }
     }
@@ -462,12 +418,10 @@ impl<P, Q, Ch, Str> Stateful<Ch, Str> for OrElseState<P, Q>
     fn more(self, string: &mut Str) -> ParseResult<Self, P::Output> {
         match self {
             Lhs(lhs) => match lhs.more(string) {
-                Backtrack => Backtrack,
                 Done(result) => Done(result),
                 Continue(lhs) => Continue(Lhs(lhs)),
             },
             Rhs(rhs) => match rhs.more(string) {
-                Backtrack => Backtrack,
                 Done(result) => Done(result),
                 Continue(rhs) => Continue(Rhs(rhs)),
             },
@@ -499,10 +453,10 @@ impl<P, PState, T, Ch, Str> Stateful<Ch, Str> for StarState<P, PState, T>
         loop {
             match self.1.take() {
                 None => {
-                    match self.0.init_maybe(string) {
-                        Continue(state) => return Continue(StarState(self.0, Some(state), self.2)),
-                        Done(result) => self.2.accept(result),
-                        Backtrack => return if string.is_empty() {
+                    match self.0.init(string) {
+                        Some(Continue(state)) => return Continue(StarState(self.0, Some(state), self.2)),
+                        Some(Done(result)) => self.2.accept(result),
+                        None => return if string.is_empty() {
                             Continue(self)
                         } else {
                             Done(self.2)
@@ -511,7 +465,6 @@ impl<P, PState, T, Ch, Str> Stateful<Ch, Str> for StarState<P, PState, T>
                 }
                 Some(state) => {
                     match state.more(string) {
-                        Backtrack => panic!("stateful parsers shouldn't backtrack"),
                         Continue(state) => return Continue(StarState(self.0, Some(state), self.2)),
                         Done(result) => self.2.accept(result),
                     }
@@ -563,14 +516,14 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Plus<P, F>
     type State = StarState<P, P::State, F::Output>;
     type Output = F::Output;
         
-    fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, F::Output> {
-        match self.0.init_maybe(string) {
-            Backtrack => Backtrack,
-            Continue(state) => Continue(StarState(self.0, Some(state), self.1.build())),
-            Done(result) => {
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, F::Output>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Continue(state)) => Some(Continue(StarState(self.0, Some(state), self.1.build()))),
+            Some(Done(result)) => {
                 let mut buffer = self.1.build();
                 buffer.accept(result);
-                StarState(self.0, None, buffer).more(string)
+                Some(StarState(self.0, None, buffer).more(string))
             },
         }
     }
@@ -611,6 +564,27 @@ impl<P, F> Debug for Star<P, F>
 
 impl<P, F> Parser for Star<P, F> {}
 
+impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Star<P, F>
+    where P: 'static + Copy + Uncommitted<Ch, Str>,
+          F: 'static + Factory,
+          Str: PeekableIterator<Item = Ch>,
+          P::State: 'static + Stateful<Ch, Str>,
+          F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
+{
+
+    type State = StarState<P, P::State, F::Output>;
+    type Output = F::Output;
+        
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, F::Output>> {
+        if string.is_empty() {
+            None
+        } else {
+            Some(StarState(self.0, None, self.1.build()).more(string))
+        }
+    }
+    
+}
+
 impl<P, F, Ch, Str> Committed<Ch, Str> for Star<P, F>
     where P: 'static + Copy + Uncommitted<Ch, Str>,
           F: 'static + Factory,
@@ -618,12 +592,6 @@ impl<P, F, Ch, Str> Committed<Ch, Str> for Star<P, F>
           P::State: 'static + Stateful<Ch, Str>,
           F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
 {
-    type State = StarState<P, P::State, F::Output>;
-    type Output = F::Output;
-        
-    fn init(&self, string: &mut Str) -> ParseResult<Self::State, F::Output> {
-        StarState(self.0, None, self.1.build()).more(string)
-    }
 
     fn empty(&self) -> F::Output {
         self.1.build()
@@ -661,18 +629,29 @@ impl<F, Ch, Str> Stateful<Ch, Str> for Emit<F>
     
 }
 
-impl<F, Ch, Str> Committed<Ch, Str> for Emit<F>
-    where Str: Iterator<Item = Ch>,
+impl<F, Ch, Str> Uncommitted<Ch, Str> for Emit<F>
+    where Str: PeekableIterator<Item = Ch>,
           F: 'static + Copy + Factory,
 {
 
     type Output = F::Output;
     type State = Self;
 
-    fn init(&self, _: &mut Str) -> ParseResult<Self, F::Output> {
-        Done(self.0.build())
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self, F::Output>> {
+        if string.is_empty() {
+            None
+        } else {
+            Some(Done(self.0.build()))
+        }
     }
     
+}
+
+impl<F, Ch, Str> Committed<Ch, Str> for Emit<F>
+    where Str: PeekableIterator<Item = Ch>,
+          F: 'static + Copy + Factory,
+{
+
     fn empty(&self) -> F::Output {
         self.0.build()
     }
@@ -742,10 +721,10 @@ impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for Character<F>
     type Output = Ch;
     type State = CharacterState<StaticCh>;
     
-    fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, Ch> {
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Ch>> {
         match string.next_if(self.0) {
-            None => Backtrack,
-            Some(ch) => Done(ch),
+            None => None,
+            Some(ch) => Some(Done(ch)),
         }
     }
     
@@ -789,10 +768,10 @@ impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for CharacterRef<F>
     type Output = Ch;
     type State = CharacterState<StaticCh>;
     
-    fn init_maybe(&self, string: &mut Str) -> ParseResult<Self::State, Ch> {
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Ch>> {
         match string.next_if_ref(self.0) {
-            None => Backtrack,
-            Some(ch) => Done(ch),
+            None => None,
+            Some(ch) => Some(Done(ch)),
         }
     }
     
@@ -816,7 +795,7 @@ impl<Ch, Str> Stateful<Ch, Str> for AnyCharacter
 
     fn more(self, string: &mut Str) -> ParseResult<Self, Option<Ch>> {
         match string.next() {
-            None => Backtrack,
+            None => Continue(self),
             Some(ch) => Done(Some(ch)),
         }
     }
@@ -826,7 +805,7 @@ impl<Ch, Str> Stateful<Ch, Str> for AnyCharacter
     }
 }
     
-impl<Ch, Str, StaticCh> Committed<Ch, Str> for AnyCharacter
+impl<Ch, Str, StaticCh> Uncommitted<Ch, Str> for AnyCharacter
     where Str: Iterator<Item = Ch>,
           Ch: ToStatic<Static = StaticCh>,
           StaticCh: 'static + Upcast<Ch>,
@@ -834,12 +813,20 @@ impl<Ch, Str, StaticCh> Committed<Ch, Str> for AnyCharacter
     type Output = Option<Ch>;
     type State = AnyCharacter;
     
-    fn init(&self, string: &mut Str) -> ParseResult<Self::State, Option<Ch>> {
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Option<Ch>>> {
         match string.next() {
-            None => Backtrack,
-            Some(ch) => Done(Some(ch)),
+            None => None,
+            Some(ch) => Some(Done(Some(ch))),
         }
     }
+
+}
+
+impl<Ch, Str, StaticCh> Committed<Ch, Str> for AnyCharacter
+    where Str: Iterator<Item = Ch>,
+          Ch: ToStatic<Static = StaticCh>,
+          StaticCh: 'static + Upcast<Ch>,
+{
 
     fn empty(&self) -> Option<Ch> {
         None
@@ -871,12 +858,12 @@ impl<'a, P> Uncommitted<char, Chars<'a>> for Buffered<P>
     type Output = Cow<'a, str>;
     type State = BufferedState<P::State>;
     
-    fn init_maybe(&self, string: &mut Chars<'a>) -> ParseResult<Self::State, Self::Output> {
+    fn init(&self, string: &mut Chars<'a>) -> Option<ParseResult<Self::State, Self::Output>> {
         let string0 = string.as_str();
-        match self.0.init_maybe(string) {
-            Done(_) => Done(Borrowed(&string0[..(string0.len() - string.as_str().len())])),
-            Continue(state) => Continue(BufferedState(state, String::from(string0))),
-            Backtrack => Backtrack,
+        match self.0.init(string) {
+            Some(Done(_)) => Some(Done(Borrowed(&string0[..(string0.len() - string.as_str().len())]))),
+            Some(Continue(state)) => Some(Continue(BufferedState(state, String::from(string0)))),
+            None => None,
         }
     }
 }
@@ -899,7 +886,6 @@ impl<'a, P> Stateful<char, Chars<'a>> for BufferedState<P>
     fn more(mut self, string: &mut Chars<'a>) -> ParseResult<Self, Self::Output> {
         let string0 = string.as_str();
         match self.0.more(string) {
-            Backtrack => Backtrack,
             Done(_) => {
                 self.1.push_str(&string0[..(string0.len() - string.as_str().len())]);
                 Done(Owned(self.1))
@@ -929,7 +915,6 @@ impl<P, Ch, Str> Boxable<Ch, Str> for BoxableState<P>
     type Output = P::Output;
     fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), P::Output> {
         match self.0.take().unwrap().more(string) {
-            Backtrack => Backtrack,
             Done(result) => Done(result),
             Continue(state) => {
                 self.0 = Some(state);
@@ -949,7 +934,6 @@ impl<P: ?Sized, Ch, Str, Output> Stateful<Ch, Str> for Box<P>
     type Output = Output;
     fn more(mut self, string: &mut Str) -> ParseResult<Self, Output> {
         match self.more_boxable(string) {
-            Backtrack => Backtrack,
             Done(result) => Done(result),
             Continue(()) => Continue(self),
         }
