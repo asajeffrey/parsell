@@ -492,7 +492,7 @@ impl<P, PState, T, Ch, Str> Stateful<Ch, Str> for StarState<P, PState, T>
     where P: Copy + Uncommitted<Ch, Str, State = PState>,
           PState: 'static + Stateful<Ch, Str, Output = P::Output>,
           T: Consumer<P::Output>,
-          Str: Iterator<Item = Ch>,
+          Str: PeekableIterator<Item = Ch>,
 {
     type Output = T;
     fn more(mut self, string: &mut Str) -> ParseResult<Self, T> {
@@ -502,12 +502,16 @@ impl<P, PState, T, Ch, Str> Stateful<Ch, Str> for StarState<P, PState, T>
                     match self.0.init_maybe(string) {
                         Continue(state) => return Continue(StarState(self.0, Some(state), self.2)),
                         Done(result) => self.2.accept(result),
-                        Backtrack => return Done(self.2),
+                        Backtrack => return if string.is_empty() {
+                            Continue(self)
+                        } else {
+                            Done(self.2)
+                        },
                     }
                 }
                 Some(state) => {
                     match state.more(string) {
-                        Backtrack => return Backtrack,
+                        Backtrack => panic!("stateful parsers shouldn't backtrack"),
                         Continue(state) => return Continue(StarState(self.0, Some(state), self.2)),
                         Done(result) => self.2.accept(result),
                     }
@@ -520,39 +524,39 @@ impl<P, PState, T, Ch, Str> Stateful<Ch, Str> for StarState<P, PState, T>
     }
 }
 
-pub struct PlusParser<P, F>(P, F);
+pub struct Plus<P, F>(P, F);
 
 // A work around for functions implmenting copy but not clone
 // https://github.com/rust-lang/rust/issues/28229
-impl<P, F> Copy for PlusParser<P, F>
+impl<P, F> Copy for Plus<P, F>
     where P: Copy,
           F: Copy
 {}
-impl<P, F> Clone for PlusParser<P, F>
+impl<P, F> Clone for Plus<P, F>
     where P: Clone,
           F: Copy
 {
     fn clone(&self) -> Self {
-        PlusParser(self.0.clone(), self.1)
+        Plus(self.0.clone(), self.1)
     }
 }
 
 // A work around for named functions not implmenting Debug
 // https://github.com/rust-lang/rust/issues/31522
-impl<P, F> Debug for PlusParser<P, F>
+impl<P, F> Debug for Plus<P, F>
     where P: Debug
 {
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-        write!(fmt, "PlusParser({:?}, ...)", self.0)
+        write!(fmt, "Plus({:?}, ...)", self.0)
     }
 }
 
-impl<P, F> Parser for PlusParser<P, F> {}
+impl<P, F> Parser for Plus<P, F> {}
 
-impl<P, F, Ch, Str> Uncommitted<Ch, Str> for PlusParser<P, F>
+impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Plus<P, F>
     where P: 'static + Copy + Uncommitted<Ch, Str>,
           F: 'static + Factory,
-          Str: Iterator<Item = Ch>,
+          Str: PeekableIterator<Item = Ch>,
           P::State: 'static + Stateful<Ch, Str>,
           F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
 {
@@ -572,45 +576,45 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for PlusParser<P, F>
     }
 }
 
-impl<P, F> PlusParser<P, F> {
+impl<P, F> Plus<P, F> {
     pub fn new(parser: P, factory: F) -> Self {
-        PlusParser(parser, factory)
+        Plus(parser, factory)
     }
 }
 
-pub struct StarParser<P, F>(P, F);
+pub struct Star<P, F>(P, F);
 
 // A work around for functions implmenting copy but not clone
 // https://github.com/rust-lang/rust/issues/28229
-impl<P, F> Copy for StarParser<P, F>
+impl<P, F> Copy for Star<P, F>
     where P: Copy,
           F: Copy
 {}
-impl<P, F> Clone for StarParser<P, F>
+impl<P, F> Clone for Star<P, F>
     where P: Clone,
           F: Copy
 {
     fn clone(&self) -> Self {
-        StarParser(self.0.clone(), self.1)
+        Star(self.0.clone(), self.1)
     }
 }
 
 // A work around for named functions not implmenting Debug
 // https://github.com/rust-lang/rust/issues/31522
-impl<P, F> Debug for StarParser<P, F>
+impl<P, F> Debug for Star<P, F>
     where P: Debug
 {
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-        write!(fmt, "StarParser({:?}, ...)", self.0)
+        write!(fmt, "Star({:?}, ...)", self.0)
     }
 }
 
-impl<P, F> Parser for StarParser<P, F> {}
+impl<P, F> Parser for Star<P, F> {}
 
-impl<P, F, Ch, Str> Committed<Ch, Str> for StarParser<P, F>
+impl<P, F, Ch, Str> Committed<Ch, Str> for Star<P, F>
     where P: 'static + Copy + Uncommitted<Ch, Str>,
           F: 'static + Factory,
-          Str: Iterator<Item = Ch>,
+          Str: PeekableIterator<Item = Ch>,
           P::State: 'static + Stateful<Ch, Str>,
           F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
 {
@@ -627,9 +631,9 @@ impl<P, F, Ch, Str> Committed<Ch, Str> for StarParser<P, F>
     
 }
 
-impl<P, F> StarParser<P, F> {
+impl<P, F> Star<P, F> {
     pub fn new(parser: P, factory: F) -> Self {
-        StarParser(parser, factory)
+        Star(parser, factory)
     }
 }
 

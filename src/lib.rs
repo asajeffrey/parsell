@@ -259,19 +259,19 @@ pub trait Parser {
 // //     }
 
     /// Iterate one or more times (returns an uncommitted parser).
-    fn plus<F>(self, factory: F) -> impls::PlusParser<Self, F>
+    fn plus<F>(self, factory: F) -> impls::Plus<Self, F>
         where Self: Sized,
               F: Factory,
     {
-        impls::PlusParser::new(self, factory)
+        impls::Plus::new(self, factory)
     }
 
     /// Iterate zero or more times (returns a committed parser).
-    fn star<F>(self, factory: F) -> impls::StarParser<Self, F>
+    fn star<F>(self, factory: F) -> impls::Star<Self, F>
         where Self: Sized,
               F: Factory,
     {
-        impls::StarParser::new(self, factory)
+        impls::Star::new(self, factory)
     }
 
     /// Apply a function to the result
@@ -1054,6 +1054,8 @@ impl<'a, T, F> Function<&'a T> for ByRef<F> where
 
 pub trait PeekableIterator: Iterator {
 
+    fn is_empty(&mut self) -> bool;
+
     fn next_if_ref<F>(&mut self, f: F) -> Option<Self::Item>
         where F: for<'a> Function<&'a Self::Item, Output = bool>;
 
@@ -1069,6 +1071,10 @@ pub trait PeekableIterator: Iterator {
 impl<I> PeekableIterator for Peekable<I>
     where I: Iterator
 {
+    fn is_empty(&mut self) -> bool {
+        self.peek().is_none()
+    }
+        
     fn next_if_ref<F>(&mut self, f: F) -> Option<Self::Item>
         where F: for<'a> Function<&'a Self::Item, Output = bool>
     {
@@ -1082,6 +1088,10 @@ impl<I> PeekableIterator for Peekable<I>
 
 impl<'a> PeekableIterator for Chars<'a>
 {
+    fn is_empty(&mut self) -> bool {
+        self.as_str().is_empty()
+    }
+
     fn next_if_ref<F>(&mut self, f: F) -> Option<char>
         where F: for<'b> Function<&'b char, Output = bool>
     {
@@ -1420,38 +1430,49 @@ fn test_and_then() {
 // // //                ("c", Ok(('a', 'b'))));
 // // // }
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_or_else() {
-//     fn mk_none<T>(_: Option<char>) -> Option<T> {
-//         None
-//     }
-//     let NUMERIC = character(char::is_numeric).map(Some).or_else(CHARACTER.map(mk_none));
-//     let ALPHABETIC = character(char::is_alphabetic).map(Some).or_else(CHARACTER.map(mk_none));
-//     let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some)
-//                      .or_else(character(char::is_numeric).and_then(NUMERIC).map(Some))
-//                      .or_else(CHARACTER.map(mk_none));
-//     let (ch, _, res) = parser.init("abcd".chars()).unwrap().unDone();
-//     assert_eq!(ch, 'c');
-//     assert_eq!(res, Some(('a', Some('b'))));
-//     let (ch, _, res) = parser.init("a89".chars()).unwrap().unDone();
-//     assert_eq!(ch, '9');
-//     assert_eq!(res, Some(('a', None)));
-//     let (ch, _, res) = parser.init("789".chars()).unwrap().unDone();
-//     assert_eq!(ch, '9');
-//     assert_eq!(res, Some(('7', Some('8'))));
-//     let (ch, _, res) = parser.init("7cd".chars()).unwrap().unDone();
-//     assert_eq!(ch, 'd');
-//     assert_eq!(res, Some(('7', None)));
-//     let (ch, _, res) = parser.init("!?".chars()).unwrap().unDone();
-//     assert_eq!(ch, '?');
-//     assert_eq!(res, None);
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_or_else() {
+    fn mk_none<T>(_: Option<char>) -> Option<T> { None }
+    let NUMERIC = character(char::is_numeric).map(Some).or_else(CHARACTER.map(mk_none));
+    let ALPHABETIC = character(char::is_alphabetic).map(Some).or_else(CHARACTER.map(mk_none));
+    let parser = character(char::is_alphabetic).and_then(ALPHABETIC).map(Some)
+                     .or_else(character(char::is_numeric).and_then(NUMERIC).map(Some))
+                     .or_else(CHARACTER.map(mk_none));
+    let mut data = "".chars();
+    parser.init(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "");
+    let mut data = "abcd".chars();
+    assert_eq!(parser.init(&mut data).unDone(), Some(('a', Some('b'))));
+    assert_eq!(data.as_str(), "cd");
+    let mut data = "a89".chars();
+    assert_eq!(parser.init(&mut data).unDone(), Some(('a', None)));
+    assert_eq!(data.as_str(), "9");
+    let mut data = "789".chars();
+    assert_eq!(parser.init(&mut data).unDone(), Some(('7', Some('8'))));
+    assert_eq!(data.as_str(), "9");
+    let mut data = "7cd".chars();
+    assert_eq!(parser.init(&mut data).unDone(), Some(('7', None)));
+    assert_eq!(data.as_str(), "d");
+    let mut data = "!?".chars();
+    assert_eq!(parser.init(&mut data).unDone(), None);
+    assert_eq!(data.as_str(), "?");
+}
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_plus() {
-//     let parser = character(char::is_alphanumeric).plus(String::new);
+#[test]
+#[allow(non_snake_case)]
+fn test_plus() {
+    let parser = character(char::is_alphanumeric).plus(String::new);
+    let mut data = "!?".chars();
+    parser.init_maybe(&mut data).unBacktrack();
+    assert_eq!(data.as_str(), "!?");
+    let mut data = "abc!".chars();
+    assert_eq!(parser.init_maybe(&mut data).unDone(), "abc");
+    assert_eq!(data.as_str(), "!");
+    let mut data1 = "ab".chars();
+    let mut data2 = "c!".chars();
+    assert_eq!(parser.init_maybe(&mut data1).unContinue().more(&mut data2).unDone(), "abc");
+    assert_eq!(data.as_str(), "!");
 //     let (ch, _) = parser.init_maybe("!?".chars()).unwrap().unBacktrack();
 //     assert_eq!(ch, '!');
 //     let (ch, _, result) = parser.init_maybe("abc!".chars()).unwrap().unCommit().unDone();
@@ -1461,7 +1482,7 @@ fn test_and_then() {
 //     let (ch, _, result) = state.maybe_more("def!".chars()).unwrap().unDone();
 //     assert_eq!(ch, '!');
 //     assert_eq!(result, "abcdef");
-// }
+}
 
 // #[test]
 // #[allow(non_snake_case)]
