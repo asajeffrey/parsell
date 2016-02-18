@@ -845,8 +845,6 @@ impl<Ch, Str, StaticCh> Committed<Ch, Str> for AnyCharacter
 
 // TODO(ajeffrey): make this code generic.
 
-// TODO(ajeffrey): the output type should be Cow<'a,str> not (char, Cow<'a,str>).
-
 #[derive(Copy, Clone, Debug)]
 pub struct Buffered<P>(P);
 
@@ -866,6 +864,12 @@ impl<'a, P> Uncommitted<char, Chars<'a>> for Buffered<P>
             None => None,
         }
     }
+}
+
+impl<'a, P> Committed<char, Chars<'a>> for Buffered<P>
+    where P: Committed<char, Chars<'a>>,
+{
+    fn empty(&self) -> Cow<'a, str> { Borrowed("") }
 }
 
 impl<P> Buffered<P> {

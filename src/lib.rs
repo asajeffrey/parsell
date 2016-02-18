@@ -333,37 +333,36 @@ pub trait Parser {
 // //     //     impls::PipeParser::new(self, other)
 // //     // }
 
-// //     /// A parser which produces its input.
-// //     ///
-// //     /// This does its best to avoid having to buffer the input. The result of a buffered parser
-// //     /// may be borrowed (because no buffering was required) or owned (because buffering was required).
-// //     /// Buffering is required in the case that the input was provided in chunks, rather than
-// //     /// contiguously. For example:
-// //     ///
-// //     /// ```
-// //     /// # use parsell::{character,Parser,Uncommitted,Stateful};
-// //     /// # use parsell::MaybeParseResult::{Commit};
-// //     /// # use parsell::ParseResult::{Done,Continue};
-// //     /// # use std::borrow::Cow::{Borrowed,Owned};
-// //     /// fn ignore() {}
-// //     /// let parser = character(char::is_alphabetic).plus(ignore).buffer();
-// //     /// match parser.parse("abc!") {
-// //     ///     Commit(Done("!",Borrowed(result))) => assert_eq!(result,"abc"),
-// //     ///     _ => panic!("can't happen"),
-// //     /// }
-// //     /// match parser.parse("abc") {
-// //     ///     Commit(Continue("",parsing)) => match parsing.parse("def!") {
-// //     ///         Done("!",Owned(result)) => assert_eq!(result,"abcdef"),
-// //     ///         _ => panic!("can't happen"),
-// //     ///     },
-// //     ///     _ => panic!("can't happen"),
-// //     /// }
-// //     /// ```
-// //     fn buffer(self) -> impls::BufferedParser<Self>
-// //         where Self: Sized
-// //     {
-// //         impls::BufferedParser::new(self)
-// //     }
+    /// A parser which produces its input.
+    ///
+    /// This does its best to avoid having to buffer the input. The result of a buffered parser
+    /// may be borrowed (because no buffering was required) or owned (because buffering was required).
+    /// Buffering is required in the case that the input was provided in chunks, rather than
+    /// contiguously. For example:
+    ///
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,Stateful};
+    /// # use parsell::ParseResult::{Done,Continue};
+    /// # use std::borrow::Cow::{Borrowed,Owned};
+    /// fn ignore() {}
+    /// let parser = character(char::is_alphabetic).plus(ignore).buffer();
+    /// match parser.init(&mut "abc!".chars()).unwrap() {
+    ///     Done(Borrowed(result)) => assert_eq!(result,"abc"),
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// match parser.init(&mut "abc".chars()).unwrap() {
+    ///     Continue(parsing) => match parsing.more(&mut "def!".chars()) {
+    ///         Done(Owned(result)) => assert_eq!(result,"abcdef"),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+    fn buffer(self) -> impls::Buffered<Self>
+        where Self: Sized
+    {
+        impls::Buffered::new(self)
+    }
 
 }
 
@@ -1479,29 +1478,32 @@ fn test_star() {
     assert_eq!(data.as_str(), "!");
 }
 
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_buffer() {
-// // //     use std::borrow::Cow::{Borrowed, Owned};
-// // //     fn ignore() {}
-// // //     let ALPHABETIC = character(char::is_alphabetic);
-// // //     let ALPHANUMERIC = character(char::is_alphanumeric);
-// // //     let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(ignore)).buffer();
-// // //     assert_eq!(parser.parse("989").unAbort(), "989");
-// // //     assert_eq!(parser.parse("a!").unCommit().unDone(), ("!", Borrowed("a")));
-// // //     assert_eq!(parser.parse("abc!").unCommit().unDone(),
-// // //                ("!", Borrowed("abc")));
-// // //     let parsing = parser.parse("a").unCommit().unContinue();
-// // //     assert_eq!(parsing.parse("bc!").unDone(),
-// // //                ("!", Owned(String::from("abc"))));
-// // //     let parser = ALPHANUMERIC.star(ignore).buffer();
-// // //     assert_eq!(parser.init().parse("!").unDone(), ("!", Borrowed("")));
-// // //     assert_eq!(parser.init().parse("a!").unDone(), ("!", Borrowed("a")));
-// // //     assert_eq!(parser.init().parse("abc!").unDone(), ("!", Borrowed("abc")));
-// // //     let parsing = parser.init().parse("a").unContinue();
-// // //     assert_eq!(parsing.parse("bc!").unDone(),
-// // //                ("!", Owned(String::from("abc"))));
-// // // }
+#[test]
+#[allow(non_snake_case)]
+fn test_buffer() {
+    use std::borrow::Cow::{Borrowed,Owned};
+    fn ignore() {}
+    let ALPHABETIC = character(char::is_alphabetic);
+    let ALPHANUMERIC = character(char::is_alphanumeric);
+    let parser = ALPHABETIC.and_then(ALPHANUMERIC.star(ignore)).buffer();
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "!?".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "!?");
+    let mut data = "abc!".chars();
+    if let Borrowed(result) = parser.init(&mut data).unwrap().unDone() {
+        assert_eq!(result, "abc");
+    } else { panic!("cow") }
+    assert_eq!(data.as_str(), "!");
+    let mut data1 = "abc".chars();
+    let mut data2 = "def!".chars();
+    if let Owned(result) = parser.init(&mut data1).unwrap().unContinue().more(&mut data2).unDone() {
+        assert_eq!(result, "abcdef");
+    } else { panic!("cow") }
+    assert_eq!(data.as_str(), "!");
+}
 
 // #[test]
 // #[allow(non_snake_case)]
