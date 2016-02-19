@@ -31,30 +31,34 @@ pub mod impls;
 
 /// A trait for stateful parsers.
 ///
-/// Stateful parsers are typically constructed by calling the `init` method of a stateless parser,
+/// Stateful parsers are typically constructed by calling an `init` method of a stateless parser,
 /// for example:
 ///
-/// ```text
-/// # use parsell::{character,Parser,Uncommitted,Committed};
+/// ```
+/// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful};
+/// # use parsell::ParseResult::{Continue,Done};
 /// let stateless = character(char::is_alphanumeric).star(String::new);
-/// let stateful = stateless.init();
+/// match stateless.init_str("abc").unwrap() {
+///    Continue(stateful) => (),
+///    _ => panic!("Can't happen"),
+/// }
 /// ```
 ///
-/// Here, `stateless` is a `Committed<&str,Output=String>`, and `stateful` is a `Stateful<&str,Output=String>`.
+/// Here, `stateless` is a `Committed<char, Chars<'a>>`, and `stateful` is a `Stateful<char, Chars<'a>>`.
 ///
 /// The reason for distinguishing between stateful and stateless parsers is that
 /// stateless parsers are usually copyable, whereas stateful parsers are usually not
 /// (they may, for example, have created and partially filled some buffers).
 /// Copying parsers is quite common, for example:
 ///
-/// ```text
-/// # use parsell::{character,CHARACTER,Uncommitted,Parser,Committed,Stateful};
+/// ```
+/// # use parsell::{character,CHARACTER,Uncommitted,UncommittedStr,Parser,Committed,Stateful};
 /// # use parsell::ParseResult::Done;
 /// fn mk_err(_: Option<char>) -> Result<char,String> { Err(String::from("Expecting a digit")) }
 /// let DIGIT = character(char::is_numeric).map(Ok).or_else(CHARACTER.map(mk_err));
 /// let TWO_DIGITS = DIGIT.try_and_then_try(DIGIT);
-/// match TWO_DIGITS.init().parse("123") {
-///    Done("3",result) => assert_eq!(result,Ok(('1','2'))),
+/// match TWO_DIGITS.init_str("123").unwrap() {
+///    Done(result) => assert_eq!(result, Ok(('1','2'))),
 ///    _ => panic!("Can't happen"),
 /// }
 /// ```
@@ -66,7 +70,37 @@ pub trait Stateful<Ch, Str>
     /// The type of the data being produced by the parser.
     type Output;
 
-    /// Parse a string of data.
+    /// Provides data to the parser.
+    ///
+    /// If `parser: Stateful<Ch, Str>` and `data: Str`, then `parser.parse(&mut data)` either:
+    ///
+    /// * returns `Done(result)` where and `result: Self::Output` is the parsed output, or
+    /// * returns `Continue(parsing)` where `parsing: Self` is the new state of the parser.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let data1 = "ab";
+    /// let data2 = "cd";
+    /// let data3 = "ef!";
+    /// match parser.init(&mut data1.chars()).unwrap() {
+    ///     Continue(stateful) => match stateful.more(&mut data2.chars()) { 
+    ///         Continue(stateful) => match stateful.more(&mut data3.chars()) { 
+    ///             Done(result) => assert_eq!(result, "abcdef"),
+    ///             _ => panic!("can't happen"),
+    ///         },
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+    ///
+    /// Note that `parser.parse(data)` consumes the `parser`, but borrows the `data`
+    /// mutably.
+
     fn more(self, string: &mut Str) -> ParseResult<Self, Self::Output>
         where Self: Sized;
 
@@ -76,42 +110,43 @@ pub trait Stateful<Ch, Str>
 
 }
 
-// //     /// Provides data to the parser.
-// //     ///
-// //     /// If `parser: Stateful<S,Output=T>`, then `parser.parse(data)` either:
-// //     ///
-// //     /// * returns `Done(rest, result)` where `rest: S` is any remaining input,
-// //     ///   and `result: T` is the parsed output, or
-// //     /// * returns `Continue(rest,parsing)` where `parsing: Self` is the new state of the parser.
-// //     ///
-// //     /// For example:
-// //     ///
-// //     /// ```
-// //     /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
-// //     /// # use parsell::ParseResult::{Continue,Done};
-// //     /// let parser = character(char::is_alphabetic).star(String::new);
-// //     /// let stateful = parser.init();
-// //     /// match stateful.parse("abc") {
-// //     ///     Continue("",parsing) => match parsing.parse("def!") {
-// //     ///         Done("!",result) => assert_eq!(result,"abcdef"),
-// //     ///         _ => panic!("can't happen"),
-// //     ///     },
-// //     ///     _ => panic!("can't happen"),
-// //     /// }
-// //     /// ```
-// //     ///
-// //     /// Note that `parser.parse(data)` consumes both the `parser` and the `data`. In particular,
-// //     /// the `parser` is no longer available, so the following does not typecheck:
-// //     ///
-// //     /// ```text
-// //     /// let parser = character(char::is_alphabetic).star(String::new);
-// //     /// let stateful = parser.init();
-// //     /// stateful.parse("abc");
-// //     /// stateful.parse("def!");
-// //     /// ```
-// //     ///
-// //     /// This helps with parser safety, as it stops a client from calling `parse` after a
-// //     /// a stateful parser has finished.
+/// A trait for stateful string parsers.
+
+pub trait StatefulStr<'a>: Stateful<char, Chars<'a>> {
+
+    /// Provides string data to the parser.
+    ///
+    /// If `parser: Stateful<char, Chars<'a>>` and `data: &'a str`, then `parser.more_str(data)`
+    /// is short-hand for `parser.more(&mut data.chars())`.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful,StatefulStr};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// match parser.init_str("ab").unwrap() {
+    ///     Continue(stateful) => match stateful.more_str("cd") { 
+    ///         Continue(stateful) => match stateful.more_str("ef!") { 
+    ///             Done(result) => assert_eq!(result, "abcdef"),
+    ///             _ => panic!("can't happen"),
+    ///         },
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+
+    fn more_str(self, string: &'a str) -> ParseResult<Self, Self::Output>
+        where Self: Sized,
+    {
+        self.more(&mut string.chars())
+    }
+
+}
+
+impl<'a, P> StatefulStr<'a> for P where P: Stateful<char, Chars<'a>> {}
+
 // //     fn parse(self, value: Str) -> ParseResult<Self, Str> where Self: Sized;
 
 // //     /// Tells the parser that it will not receive any more data.
@@ -196,6 +231,44 @@ pub trait Uncommitted<Ch, Str>
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>>;
 
 }
+
+
+/// A trait for stateless string parsers.
+
+pub trait UncommittedStr<'a>: Uncommitted<char, Chars<'a>> {
+
+    /// Provides string data to the parser.
+    ///
+    /// If `parser: Uncommitted<char, Chars<'a>>` and `data: &'a str`, then `parser.init_str(data)`
+    /// is short-hand for `parser.init(&mut data.chars())`.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful,StatefulStr};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// match parser.init_str("ab").unwrap() {
+    ///     Continue(stateful) => match stateful.more_str("cd") { 
+    ///         Continue(stateful) => match stateful.more_str("ef!") { 
+    ///             Done(result) => assert_eq!(result, "abcdef"),
+    ///             _ => panic!("can't happen"),
+    ///         },
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+
+    fn init_str(&self, string: &'a str) -> Option<ParseResult<Self::State, Self::Output>>
+        where Self: Sized,
+    {
+        self.init(&mut string.chars())
+    }
+
+}
+
+impl<'a, P> UncommittedStr<'a> for P where P: Uncommitted<char, Chars<'a>> {}
 
 pub trait Parser {
 
