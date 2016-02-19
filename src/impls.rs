@@ -1,17 +1,17 @@
 //! Provide implementations of parser traits.
 
-use super::{Stateful, Parser, Uncommitted, Committed, Boxable, ParseResult, MaybeParseResult,
-            Factory, Function, Consumer, ToFromOwned};
-use super::ParseResult::{Continue, Done};
-use super::MaybeParseResult::{Abort, Commit, Empty};
+use super::{Parser, ParseResult};
+use super::{Stateful, Committed, Uncommitted, Boxable};
+use super::{Function, Consumer, Factory, PeekableIterator};
+use super::{Upcast, ToStatic};
+use super::ParseResult::{Done, Continue};
 
-use self::AndThenStatefulParser::{InLhs, InRhs};
-use self::OrElseStatefulParser::{Lhs, Rhs};
-use self::OrElseCommittedParser::{Uncommit, CommitLhs, CommitRhs};
+use self::OrElseState::{Lhs, Rhs};
+use self::AndThenState::{InLhs, InBetween, InRhs};
 
 use std::borrow::Cow;
 use std::borrow::Cow::{Borrowed, Owned};
-use std::iter::Peekable;
+use std::str::Chars;
 use std::fmt::{Formatter, Debug};
 use std;
 
@@ -143,361 +143,330 @@ impl<S, T, E> Function<(Result<S, E>, Result<T, E>)> for TryZipTry {
     }
 }
 
+// ----------- Deal with options ---------------
+
+#[derive(Copy, Clone, Debug)]
+pub struct MkSome;
+impl<T> Function<T> for MkSome
+{
+    type Output = Option<T>;
+    fn apply(&self, arg: T) -> Option<T> {
+        Some(arg)
+    }
+}
+
 // ----------- Map ---------------
 
-#[derive(Debug)]
-pub struct MapStatefulParser<P, F>(P, F);
+pub struct Map<P, F>(P, F);
 
 // A work around for functions implmenting copy but not clone
 // https://github.com/rust-lang/rust/issues/28229
-impl<P, F> Copy for MapStatefulParser<P, F>
+impl<P, F> Copy for Map<P, F>
     where P: Copy,
           F: Copy
 {}
-impl<P, F> Clone for MapStatefulParser<P, F>
+impl<P, F> Clone for Map<P, F>
     where P: Clone,
           F: Copy
 {
     fn clone(&self) -> Self {
-        MapStatefulParser(self.0.clone(), self.1)
-    }
-}
-
-impl<P, F, S, T> Stateful<S> for MapStatefulParser<P, F>
-    where P: Stateful<S, Output = T>,
-          F: Function<T>
-{
-    type Output = F::Output;
-    fn parse(self, value: S) -> ParseResult<Self, S> {
-        match self.0.parse(value) {
-            Done(rest, result) => Done(rest, self.1.apply(result)),
-            Continue(rest, parsing) => Continue(rest, MapStatefulParser(parsing, self.1)),
-        }
-    }
-    fn done(self) -> Self::Output {
-        self.1.apply(self.0.done())
-    }
-}
-
-pub struct MapParser<P, F>(P, F);
-
-// A work around for functions implmenting copy but not clone
-// https://github.com/rust-lang/rust/issues/28229
-impl<P, F> Copy for MapParser<P, F>
-    where P: Copy,
-          F: Copy
-{}
-impl<P, F> Clone for MapParser<P, F>
-    where P: Clone,
-          F: Copy
-{
-    fn clone(&self) -> Self {
-        MapParser(self.0.clone(), self.1)
+        Map(self.0.clone(), self.1)
     }
 }
 
 // A work around for named functions not implmenting Debug
 // https://github.com/rust-lang/rust/issues/31522
-impl<P, F> Debug for MapParser<P, F>
+impl<P, F> Debug for Map<P, F>
     where P: Debug
 {
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-        write!(fmt, "MapParser({:?}, ...)", self.0)
+        write!(fmt, "Map({:?}, ...)", self.0)
     }
 }
 
-impl<P, F> Parser for MapParser<P, F> {}
-impl<P, F, S> Uncommitted<S> for MapParser<P, F>
-    where P: Uncommitted<S>,
-          F: Copy + Function<P::Output>
+impl<P, F> Parser for Map<P, F> {}
+
+impl<P, F, Ch, Str> Stateful<Ch, Str> for Map<P, F>
+    where P: Stateful<Ch, Str>,
+          F: Function<P::Output>,
+          Str: Iterator<Item = Ch>,
 {
+    
     type Output = F::Output;
-    type State = MapStatefulParser<P::State,F>;
-    fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
-        match self.0.parse(value) {
-            Empty(rest) => Empty(rest),
-            Commit(Done(rest, result)) => Commit(Done(rest, self.1.apply(result))),
-            Commit(Continue(rest, parsing)) => {
-                Commit(Continue(rest, MapStatefulParser(parsing, self.1)))
-            }
-            Abort(value) => Abort(value),
+
+    fn done(self) -> F::Output {
+        self.1.apply(self.0.done())
+    }
+
+    fn more(self, string: &mut Str) -> ParseResult<Self, F::Output> {
+        match self.0.more(string) {
+            Done(result) => Done(self.1.apply(result)),
+            Continue(state) => Continue(Map(state, self.1)),
         }
     }
-}
-impl<P, F, S> Committed<S> for MapParser<P, F>
-    where P: Committed<S>,
-          F: Copy + Function<P::Output>
-{
-    type Output = F::Output;
-    type State = MapStatefulParser<P::State,F>;
-    fn init(&self) -> Self::State {
-        MapStatefulParser(self.0.init(), self.1)
-    }
+
 }
 
-impl<P, F> MapParser<P, F> {
-    pub fn new(parser: P, function: F) -> Self {
-        MapParser(parser, function)
+impl<P, F, Ch, Str> Committed<Ch, Str> for Map<P, F>
+    where P: Committed<Ch, Str>,
+          F: 'static + Copy + Function<P::Output>,
+          Str: Iterator<Item = Ch>,
+{
+
+    fn empty(&self) -> F::Output {
+        self.1.apply(self.0.empty())
+    }
+    
+}
+
+impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Map<P, F>
+    where P: Uncommitted<Ch, Str>,
+          F: 'static + Copy + Function<P::Output>,
+          Str: Iterator<Item = Ch>,
+{
+
+    type Output = F::Output;
+    type State = Map<P::State, F>;
+    
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, F::Output>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Done(result)) => Some(Done(self.1.apply(result))),
+            Some(Continue(state)) => Some(Continue(Map(state, self.1))),
+        }
+    }
+
+}
+
+impl<P, F> Map<P, F> {
+    pub fn new(p: P, f: F) -> Self {
+        Map(p, f)
     }
 }
 
 // ----------- Sequencing ---------------
 
 #[derive(Copy, Clone, Debug)]
-pub struct AndThenParser<P, Q>(P, Q);
+pub struct AndThen<P, Q>(P, Q);
 
-impl<P, Q> Parser for AndThenParser<P, Q> {}
-impl<P, Q, S> Committed<S> for AndThenParser<P, Q>
-    where P: Committed<S>,
-          Q: Committed<S>,
-          P::Output: ToFromOwned,
+impl<P, Q> Parser for AndThen<P, Q> {}
+
+impl<P, Q, Ch, Str, PStaticOutput> Committed<Ch, Str> for AndThen<P, Q>
+    where P: Committed<Ch, Str>,
+          Q: 'static + Copy + Committed<Ch, Str>,
+          Str: Iterator<Item = Ch>,
+          PStaticOutput: 'static + Upcast<P::Output>,
+          P::Output: ToStatic<Static = PStaticOutput>,
 {
-    type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToFromOwned>::Owned>;
-    fn init(&self) -> Self::State {
-        InLhs(self.0.init(), self.1.init())
+
+    fn empty(&self) -> Self::Output {
+        (self.0.empty(), self.1.empty())
     }
+    
 }
-impl<P, Q, S> Uncommitted<S> for AndThenParser<P, Q>
-    where P: Uncommitted<S>,
-          Q: Committed<S>,
-          P::Output: ToFromOwned,
+
+impl<P, Q, Ch, Str, PStaticOutput> Uncommitted<Ch, Str> for AndThen<P, Q>
+    where P: Uncommitted<Ch, Str>,
+          Q: 'static + Copy + Committed<Ch, Str>,
+          Str: Iterator<Item = Ch>,
+          PStaticOutput: 'static + Upcast<P::Output>,
+          P::Output: ToStatic<Static = PStaticOutput>,
 {
-    type Output = (P::Output,Q::Output);
-    type State = AndThenStatefulParser<P::State,Q::State,<P::Output as ToFromOwned>::Owned>;
-    fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
-        match self.0.parse(value) {
-            Empty(rest) => Empty(rest),
-            Commit(Done(rest, result1)) => {
-                match self.1.init().parse(rest) {
-                    Done(rest, result2) => Commit(Done(rest, (result1, result2))),
-                    Continue(rest, parsing) => Commit(Continue(rest, InRhs(result1.to_owned(), parsing))),
-                }
-            }
-            Commit(Continue(rest, parsing)) => {
-                Commit(Continue(rest, InLhs(parsing, self.1.init())))
-            }
-            Abort(value) => Abort(value),
+
+    type Output = (P::Output, Q::Output);
+    type State = AndThenState<P::State, Q, PStaticOutput, Q::State>;
+
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Done(fst)) => match self.1.init(string) {
+                None => Some(Continue(InBetween(fst.to_static(), self.1))),
+                Some(Done(snd)) => Some(Done((fst, snd))),
+                Some(Continue(snd)) => Some(Continue(InRhs(fst.to_static(), snd))),
+            },
+            Some(Continue(fst)) => Some(Continue(InLhs(fst, self.1))),
         }
+    }
+
+}
+
+impl<P, Q> AndThen<P, Q> {
+    pub fn new(p: P, q: Q) -> Self {
+        AndThen(p, q)
     }
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum AndThenStatefulParser<P, Q, T> {
-    InLhs(P, Q),
-    InRhs(T, Q),
+pub enum AndThenState<PState, Q, PStaticOutput, QState> {
+    InLhs(PState, Q),
+    InBetween(PStaticOutput, Q),
+    InRhs(PStaticOutput, QState),
 }
 
-impl<P, Q, S> Stateful<S> for AndThenStatefulParser<P, Q, <P::Output as ToFromOwned>::Owned>
-    where P: Stateful<S>,
-          Q: Stateful<S>,
-          P::Output: ToFromOwned,
+impl<PState, Q, Ch, Str, PStaticOutput> Stateful<Ch, Str> for AndThenState<PState, Q, PStaticOutput, Q::State>
+    where PState: Stateful<Ch, Str>,
+          Q: Committed<Ch, Str>,
+          Str: Iterator<Item = Ch>,
+          PStaticOutput: 'static + Upcast<PState::Output>,
+          PState::Output: ToStatic<Static = PStaticOutput>,
+
 {
-    type Output = (P::Output,Q::Output);
-    fn parse(self, value: S) -> ParseResult<Self, S> {
-        match self {
-            InLhs(lhs, rhs) => {
-                match lhs.parse(value) {
-                    Done(rest, result1) => {
-                        match rhs.parse(rest) {
-                            Done(rest, result2) => Done(rest, (result1, result2)),
-                            Continue(rest, parsing) => Continue(rest, InRhs(result1.to_owned(), parsing)),
-                        }
-                    }
-                    Continue(rest, parsing) => Continue(rest, InLhs(parsing, rhs)),
-                }
-            }
-            InRhs(result1, rhs) => {
-                match rhs.parse(value) {
-                    Done(rest, result2) => Done(rest, (ToFromOwned::from_owned(result1), result2)),
-                    Continue(rest, parsing) => Continue(rest, InRhs(result1, parsing)),
-                }
-            }
-        }
-    }
-    fn done(self) -> Self::Output {
-        match self {
-            InLhs(lhs, rhs) => (lhs.done(), rhs.done()),
-            InRhs(result1, rhs) => (ToFromOwned::from_owned(result1), rhs.done()),
-        }
-    }
-}
+    
+    type Output = (PState::Output, Q::Output);
 
-impl<P, Q> AndThenParser<P, Q> {
-    pub fn new(lhs: P, rhs: Q) -> Self {
-        AndThenParser(lhs, rhs)
+    fn done(self) -> Self::Output
+    {
+        match self {
+            InLhs(fst, snd) => (fst.done(), snd.empty()),
+            InBetween(fst, snd) => (fst.upcast(), snd.empty()),
+            InRhs(fst, snd) => (fst.upcast(), snd.done()),
+        }
     }
+
+    fn more(self, string: &mut Str) -> ParseResult<Self, Self::Output>
+    {
+        match self {
+            InLhs(fst, snd) => {
+                match fst.more(string) {
+                    Done(fst) => match snd.init(string) {
+                        None => Continue(InBetween(fst.to_static(), snd)),
+                        Some(Done(snd)) => Done((fst, snd)),
+                        Some(Continue(snd)) => Continue(InRhs(fst.to_static(), snd)),
+                    },
+                    Continue(fst) => Continue(InLhs(fst, snd)),
+                }
+            }
+            InBetween(fst, snd) => {
+                match snd.init(string) {
+                    None => Continue(InBetween(fst, snd)),
+                    Some(Done(snd)) => Done((fst.upcast(), snd)),
+                    Some(Continue(snd)) => Continue(InRhs(fst, snd)),
+                }
+            }
+            InRhs(fst, snd) => {
+                match snd.more(string) {
+                    Done(snd) => Done((fst.upcast(), snd)),
+                    Continue(snd) => Continue(InRhs(fst, snd)),
+                }
+            }
+        }
+    }
+   
 }
 
 // ----------- Choice ---------------
 
 #[derive(Copy, Clone, Debug)]
-pub struct OrElseParser<P, Q>(P, Q);
+pub struct OrElse<P, Q>(P, Q);
 
-impl<P, Q> Parser for OrElseParser<P, Q> {}
-impl<P, Q, S> Committed<S> for OrElseParser<P, Q>
-    where P: Copy + Uncommitted<S>,
-          Q: Committed<S, Output = P::Output>
+impl<P, Q> Parser for OrElse<P, Q> {}
+
+impl<P, Q, Ch, Str> Committed<Ch, Str> for OrElse<P, Q>
+    where P: Uncommitted<Ch, Str>,
+          Q: Committed<Ch, Str, Output = P::Output>,
+          Str: Iterator<Item = Ch>,
 {
-    type Output = P::Output;
-    type State = OrElseCommittedParser<P,P::State,Q::State>;
-    fn init(&self) -> Self::State {
-        Uncommit(self.0, self.1.init())
+    
+    fn empty(&self) -> P::Output {
+        self.1.empty()
     }
+    
 }
-impl<P, Q, S> Uncommitted<S> for OrElseParser<P, Q>
-    where P: Uncommitted<S>,
-          Q: Uncommitted<S, Output = P::Output>
+
+impl<P, Q, Ch, Str> Uncommitted<Ch, Str> for OrElse<P, Q>
+    where P: Uncommitted<Ch, Str>,
+          Q: Uncommitted<Ch, Str, Output = P::Output>,
+          Str: Iterator<Item = Ch>,
 {
+
     type Output = P::Output;
-    type State = OrElseStatefulParser<P::State,Q::State>;
-    fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
-        match self.0.parse(value) {
-            Empty(rest) => Empty(rest),
-            Commit(Done(rest, result)) => Commit(Done(rest, result)),
-            Commit(Continue(rest, parsing)) => Commit(Continue(rest, Lhs(parsing))),
-            Abort(value) => {
-                match self.1.parse(value) {
-                    Empty(rest) => Empty(rest),
-                    Commit(Done(rest, result)) => Commit(Done(rest, result)),
-                    Commit(Continue(rest, parsing)) => Commit(Continue(rest, Rhs(parsing))),
-                    Abort(value) => Abort(value),
-                }
-            }
+    type State = OrElseState<P::State, Q::State>;
+
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
+        match self.0.init(string) {
+            Some(Done(result)) => Some(Done(result)),
+            Some(Continue(lhs)) => Some(Continue(Lhs(lhs))),
+            None => match self.1.init(string) {
+                Some(Done(result)) => Some(Done(result)),
+                Some(Continue(rhs)) => Some(Continue(Rhs(rhs))),
+                None => None,
+            },
         }
     }
+    
 }
 
-impl<P, Q> OrElseParser<P, Q> {
+impl<P, Q> OrElse<P, Q> {
     pub fn new(lhs: P, rhs: Q) -> Self {
-        OrElseParser(lhs, rhs)
+        OrElse(lhs, rhs)
     }
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum OrElseStatefulParser<P, Q> {
+pub enum OrElseState<P, Q> {
     Lhs(P),
     Rhs(Q),
 }
 
-impl<P, Q, S> Stateful<S> for OrElseStatefulParser<P, Q>
-    where P: Stateful<S>,
-          Q: Stateful<S, Output = P::Output>
+impl<P, Q, Ch, Str> Stateful<Ch, Str> for OrElseState<P, Q>
+    where P: Stateful<Ch, Str>,
+          Q: Stateful<Ch, Str, Output = P::Output>,
+          Str: Iterator<Item = Ch>,
 {
     type Output = P::Output;
-    fn parse(self, value: S) -> ParseResult<Self, S> {
+    
+    fn more(self, string: &mut Str) -> ParseResult<Self, P::Output> {
         match self {
-            Lhs(lhs) => {
-                match lhs.parse(value) {
-                    Done(rest, result) => Done(rest, result),
-                    Continue(rest, parsing) => Continue(rest, Lhs(parsing)),
-                }
-            }
-            Rhs(rhs) => {
-                match rhs.parse(value) {
-                    Done(rest, result) => Done(rest, result),
-                    Continue(rest, parsing) => Continue(rest, Rhs(parsing)),
-                }
-            }
+            Lhs(lhs) => match lhs.more(string) {
+                Done(result) => Done(result),
+                Continue(lhs) => Continue(Lhs(lhs)),
+            },
+            Rhs(rhs) => match rhs.more(string) {
+                Done(result) => Done(result),
+                Continue(rhs) => Continue(Rhs(rhs)),
+            },
         }
     }
+
     fn done(self) -> Self::Output {
         match self {
             Lhs(lhs) => lhs.done(),
             Rhs(rhs) => rhs.done(),
         }
     }
-}
 
-#[derive(Copy, Clone, Debug)]
-pub enum OrElseCommittedParser<P, Q, R> {
-    Uncommit(P, R),
-    CommitLhs(Q),
-    CommitRhs(R),
-}
-
-impl<P, Q, S> Stateful<S> for OrElseCommittedParser<P, P::State, Q>
-    where P: Uncommitted<S>,
-          Q: Stateful<S, Output = P::Output>
-{
-    type Output = P::Output;
-    fn parse(self, value: S) -> ParseResult<Self, S> {
-        match self {
-            Uncommit(lhs, rhs) => {
-                match lhs.parse(value) {
-                    Empty(value) => Continue(value, Uncommit(lhs, rhs)),
-                    Commit(Done(rest, result)) => Done(rest, result),
-                    Commit(Continue(rest, parsing)) => Continue(rest, CommitLhs(parsing)),
-                    Abort(value) => {
-                        match rhs.parse(value) {
-                            Done(rest, result) => Done(rest, result),
-                            Continue(rest, parsing) => Continue(rest, CommitRhs(parsing)),
-                        }
-                    }
-                }
-            }
-            CommitLhs(lhs) => {
-                match lhs.parse(value) {
-                    Done(rest, result) => Done(rest, result),
-                    Continue(rest, parsing) => Continue(rest, CommitLhs(parsing)),
-                }
-            }
-            CommitRhs(rhs) => {
-                match rhs.parse(value) {
-                    Done(rest, result) => Done(rest, result),
-                    Continue(rest, parsing) => Continue(rest, CommitRhs(parsing)),
-                }
-            }
-        }
-    }
-    fn done(self) -> Self::Output {
-        match self {
-            Uncommit(_, rhs) => rhs.done(),
-            CommitLhs(lhs) => lhs.done(),
-            CommitRhs(rhs) => rhs.done(),
-        }
-    }
 }
 
 // ----------- Kleene star ---------------
 
 #[derive(Clone,Debug)]
-pub struct StarStatefulParser<P, Q, T>(P, Option<Q>, T);
+pub struct StarState<P, PState, T>(P, Option<PState>, T);
 
-impl<P, T, S> Stateful<S> for StarStatefulParser<P, P::State, T>
-    where P: Copy + Uncommitted<S>,
-          T: Consumer<P::Output>
+impl<P, PState, T, Ch, Str> Stateful<Ch, Str> for StarState<P, PState, T>
+    where P: Copy + Uncommitted<Ch, Str, State = PState>,
+          PState: 'static + Stateful<Ch, Str, Output = P::Output>,
+          T: Consumer<P::Output>,
+          Str: PeekableIterator<Item = Ch>,
 {
     type Output = T;
-    fn parse(mut self, mut value: S) -> ParseResult<Self, S> {
+    fn more(mut self, string: &mut Str) -> ParseResult<Self, T> {
         loop {
             match self.1.take() {
                 None => {
-                    match self.0.parse(value) {
-                        Empty(rest) => {
-                            return Continue(rest, StarStatefulParser(self.0, None, self.2))
-                        }
-                        Commit(Continue(rest, parsing)) => {
-                            return Continue(rest,
-                                            StarStatefulParser(self.0, Some(parsing), self.2))
-                        }
-                        Commit(Done(rest, result)) => {
-                            self.2.accept(result);
-                            value = rest;
-                        }
-                        Abort(rest) => return Done(rest, self.2),
+                    match self.0.init(string) {
+                        Some(Continue(state)) => return Continue(StarState(self.0, Some(state), self.2)),
+                        Some(Done(result)) => self.2.accept(result),
+                        None => return if string.is_empty() {
+                            Continue(self)
+                        } else {
+                            Done(self.2)
+                        },
                     }
                 }
-                Some(parser) => {
-                    match parser.parse(value) {
-                        Continue(rest, parsing) => {
-                            return Continue(rest,
-                                            StarStatefulParser(self.0, Some(parsing), self.2))
-                        }
-                        Done(rest, result) => {
-                            self.2.accept(result);
-                            value = rest;
-                        }
+                Some(state) => {
+                    match state.more(string) {
+                        Continue(state) => return Continue(StarState(self.0, Some(state), self.2)),
+                        Done(result) => self.2.accept(result),
                     }
                 }
             }
@@ -508,291 +477,367 @@ impl<P, T, S> Stateful<S> for StarStatefulParser<P, P::State, T>
     }
 }
 
-pub struct PlusParser<P, F>(P, F);
+pub struct Plus<P, F>(P, F);
 
 // A work around for functions implmenting copy but not clone
 // https://github.com/rust-lang/rust/issues/28229
-impl<P, F> Copy for PlusParser<P, F>
+impl<P, F> Copy for Plus<P, F>
     where P: Copy,
           F: Copy
 {}
-impl<P, F> Clone for PlusParser<P, F>
+impl<P, F> Clone for Plus<P, F>
     where P: Clone,
           F: Copy
 {
     fn clone(&self) -> Self {
-        PlusParser(self.0.clone(), self.1)
+        Plus(self.0.clone(), self.1)
     }
 }
 
 // A work around for named functions not implmenting Debug
 // https://github.com/rust-lang/rust/issues/31522
-impl<P, F> Debug for PlusParser<P, F>
+impl<P, F> Debug for Plus<P, F>
     where P: Debug
 {
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-        write!(fmt, "PlusParser({:?}, ...)", self.0)
+        write!(fmt, "Plus({:?}, ...)", self.0)
     }
 }
 
-impl<P, F> Parser for PlusParser<P, F> {}
-impl<P, F, S> Uncommitted<S> for PlusParser<P, F>
-    where P: Copy + Uncommitted<S>,
-          F: Factory,
-          F::Output: Consumer<P::Output>
+impl<P, F> Parser for Plus<P, F> {}
+
+impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Plus<P, F>
+    where P: 'static + Copy + Uncommitted<Ch, Str>,
+          F: 'static + Factory,
+          Str: PeekableIterator<Item = Ch>,
+          P::State: 'static + Stateful<Ch, Str>,
+          F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
 {
+    type State = StarState<P, P::State, F::Output>;
     type Output = F::Output;
-    type State = StarStatefulParser<P,P::State,F::Output>;
-    fn parse(&self, value: S) -> MaybeParseResult<Self::State, S> {
-        match self.0.parse(value) {
-            Empty(rest) => Empty(rest),
-            Abort(rest) => Abort(rest),
-            Commit(Continue(rest, parsing)) => {
-                Commit(Continue(rest,
-                                StarStatefulParser(self.0, Some(parsing), self.1.build())))
-            }
-            Commit(Done(rest, result)) => {
+        
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, F::Output>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Continue(state)) => Some(Continue(StarState(self.0, Some(state), self.1.build()))),
+            Some(Done(result)) => {
                 let mut buffer = self.1.build();
                 buffer.accept(result);
-                Commit(StarStatefulParser(self.0, None, buffer).parse(rest))
-            }
+                Some(StarState(self.0, None, buffer).more(string))
+            },
         }
     }
 }
 
-impl<P, F> PlusParser<P, F> {
+impl<P, F> Plus<P, F> {
     pub fn new(parser: P, factory: F) -> Self {
-        PlusParser(parser, factory)
+        Plus(parser, factory)
     }
 }
 
-pub struct StarParser<P, F>(P, F);
+pub struct Star<P, F>(P, F);
 
 // A work around for functions implmenting copy but not clone
 // https://github.com/rust-lang/rust/issues/28229
-impl<P, F> Copy for StarParser<P, F>
+impl<P, F> Copy for Star<P, F>
     where P: Copy,
           F: Copy
 {}
-impl<P, F> Clone for StarParser<P, F>
+impl<P, F> Clone for Star<P, F>
     where P: Clone,
           F: Copy
 {
     fn clone(&self) -> Self {
-        StarParser(self.0.clone(), self.1)
+        Star(self.0.clone(), self.1)
     }
 }
 
 // A work around for named functions not implmenting Debug
 // https://github.com/rust-lang/rust/issues/31522
-impl<P, F> Debug for StarParser<P, F>
+impl<P, F> Debug for Star<P, F>
     where P: Debug
 {
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-        write!(fmt, "StarParser({:?}, ...)", self.0)
+        write!(fmt, "Star({:?}, ...)", self.0)
     }
 }
 
-impl<P, F> Parser for StarParser<P, F> {}
-impl<P, F, S> Committed<S> for StarParser<P, F>
-    where P: Copy + Uncommitted<S>,
-          F: Factory,
-          F::Output: Consumer<P::Output>
+impl<P, F> Parser for Star<P, F> {}
+
+impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Star<P, F>
+    where P: 'static + Copy + Uncommitted<Ch, Str>,
+          F: 'static + Factory,
+          Str: PeekableIterator<Item = Ch>,
+          P::State: 'static + Stateful<Ch, Str>,
+          F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
 {
+
+    type State = StarState<P, P::State, F::Output>;
     type Output = F::Output;
-    type State = StarStatefulParser<P,P::State,F::Output>;
-    fn init(&self) -> Self::State {
-        StarStatefulParser(self.0, None, self.1.build())
+        
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, F::Output>> {
+        if string.is_empty() {
+            None
+        } else {
+            Some(StarState(self.0, None, self.1.build()).more(string))
+        }
     }
+    
 }
 
-impl<P, F> StarParser<P, F> {
+impl<P, F, Ch, Str> Committed<Ch, Str> for Star<P, F>
+    where P: 'static + Copy + Uncommitted<Ch, Str>,
+          F: 'static + Factory,
+          Str: PeekableIterator<Item = Ch>,
+          P::State: 'static + Stateful<Ch, Str>,
+          F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
+{
+
+    fn empty(&self) -> F::Output {
+        self.1.build()
+    }
+    
+}
+
+impl<P, F> Star<P, F> {
     pub fn new(parser: P, factory: F) -> Self {
-        StarParser(parser, factory)
+        Star(parser, factory)
     }
 }
 
-// ----------- A type for empty parsers -------------
+// ----------- A type for parsers which immediately emit a result -------------
 
 #[derive(Copy, Clone, Debug)]
-enum Impossible {}
+pub struct Emit<F>(F);
 
-impl Impossible {
-    fn cant_happen<T>(&self) -> T {
-        match *self {}
+impl<F> Parser for Emit<F> {}
+
+impl<F, Ch, Str> Stateful<Ch, Str> for Emit<F>
+    where Str: Iterator<Item = Ch>,
+          F: Factory,
+{
+
+    type Output = F::Output;
+
+    fn more(self, _: &mut Str) -> ParseResult<Self, F::Output> {
+        Done(self.0.build())
+    }
+    
+    fn done(self) -> F::Output {
+        self.0.build()
+    }
+    
+}
+
+impl<F, Ch, Str> Uncommitted<Ch, Str> for Emit<F>
+    where Str: PeekableIterator<Item = Ch>,
+          F: 'static + Copy + Factory,
+{
+
+    type Output = F::Output;
+    type State = Self;
+
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self, F::Output>> {
+        if string.is_empty() {
+            None
+        } else {
+            Some(Done(self.0.build()))
+        }
+    }
+    
+}
+
+impl<F, Ch, Str> Committed<Ch, Str> for Emit<F>
+    where Str: PeekableIterator<Item = Ch>,
+          F: 'static + Copy + Factory,
+{
+
+    fn empty(&self) -> F::Output {
+        self.0.build()
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct ImpossibleStatefulParser<T>(Impossible, T);
-
-impl<T, S> Stateful<S> for ImpossibleStatefulParser<T> {
-    type Output = T;
-    fn parse(self, _: S) -> ParseResult<Self, S> {
-        self.0.cant_happen()
-    }
-    fn done(self) -> T {
-        self.0.cant_happen()
+impl<T> Emit<T> {
+    pub fn new(t: T) -> Self {
+        Emit(t)
     }
 }
 
 // ----------- Character parsers -------------
 
-pub struct CharacterParser<F>(F);
+#[derive(Copy, Clone, Debug)]
+pub struct CharacterState<StaticCh>(StaticCh);
+
+impl<StaticCh, Ch, Str> Stateful<Ch, Str> for CharacterState<StaticCh>
+    where Str: Iterator<Item = Ch>,
+          StaticCh: Upcast<Ch>,
+{
+    type Output = Ch;
+
+    fn more(self, _: &mut Str) -> ParseResult<Self, Ch> {
+        Done(self.0.upcast())
+    }
+
+    fn done(self) -> Ch {
+        self.0.upcast()
+    }
+}
+    
+impl<StaticCh> CharacterState<StaticCh> {
+    pub fn new(ch: StaticCh) -> Self {
+        CharacterState(ch)
+    }
+}
+
+pub struct Character<F>(F);
 
 // A work around for functions implmenting copy but not clone
 // https://github.com/rust-lang/rust/issues/28229
-impl<F> Copy for CharacterParser<F> where F: Copy
-{}
-impl<F> Clone for CharacterParser<F> where F: Copy
+impl<F> Copy for Character<F> where F: Copy {}
+impl<F> Clone for Character<F> where F: Copy
 {
     fn clone(&self) -> Self {
-        CharacterParser(self.0)
+        Character(self.0)
     }
 }
 
 // A work around for named functions not implmenting Debug
 // https://github.com/rust-lang/rust/issues/31522
-impl<F> Debug for CharacterParser<F>
+impl<F> Debug for Character<F>
 {
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-        write!(fmt, "CharacterParser(...)")
+        write!(fmt, "Character(...)")
     }
 }
 
-impl<F> Parser for CharacterParser<F> {}
-impl<'a, F> Uncommitted<&'a str> for CharacterParser<F> where F: Function<char, Output = bool>
+impl<F> Parser for Character<F> {}
+
+impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for Character<F>
+    where Str: PeekableIterator<Item = Ch>,
+          F: Copy + Function<Ch, Output = bool>,
+          Ch: ToStatic<Static = StaticCh> + Copy,
+          StaticCh: 'static + Upcast<Ch>,
 {
-    type Output = char;
-    type State = ImpossibleStatefulParser<char>;
-    fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State, &'a str> {
-        match value.chars().next() {
-            None => Empty(value),
-            Some(ch) if self.0.apply(ch) => {
-                let len = ch.len_utf8();
-                Commit(Done(&value[len..], ch))
-            }
-            Some(_) => Abort(value),
-        }
-    }
-}
-
-impl<F> CharacterParser<F> {
-    pub fn new(function: F) -> Self {
-        CharacterParser(function)
-    }
-}
-
-#[derive(Copy,Clone,Debug)]
-pub struct AnyCharacterParser;
-
-impl Parser for AnyCharacterParser {}
-impl<'a> Stateful<&'a str> for AnyCharacterParser {
-    type Output = Option<char>;
-    fn parse(self, value: &'a str) -> ParseResult<Self, &'a str> {
-        match value.chars().next() {
-            None => Continue(value, AnyCharacterParser),
-            Some(ch) => {
-                let len = ch.len_utf8();
-                Done(&value[len..], Some(ch))
-            }
-        }
-    }
-    fn done(self) -> Self::Output {
-        None
-    }
-}
-impl<'a> Committed<&'a str> for AnyCharacterParser {
-    type Output = Option<char>;
-    type State = Self;
-    fn init(&self) -> Self {
-        AnyCharacterParser
-    }
-}
-
-// ----------- Token parsers -------------
-
-pub struct TokenParser<F>(F);
-
-// A work around for functions implmenting copy but not clone
-// https://github.com/rust-lang/rust/issues/28229
-impl<F> Copy for TokenParser<F> where F: Copy
-{}
-impl<F> Clone for TokenParser<F> where F: Copy
-{
-    fn clone(&self) -> Self {
-        TokenParser(self.0)
-    }
-}
-
-// A work around for named functions not implmenting Debug
-// https://github.com/rust-lang/rust/issues/31522
-impl<F> Debug for TokenParser<F>
-{
-    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
-        write!(fmt, "TokenParser(...)")
-    }
-}
-
-impl<F> Parser for TokenParser<F> {}
-impl<F, I> Uncommitted<Peekable<I>> for TokenParser<F>
-    where F: for<'a> Function<&'a I::Item, Output = bool>,
-          I: Iterator
-{
-    type Output = I::Item;
-    type State = ImpossibleStatefulParser<I::Item>;
-    fn parse(&self, mut iterator: Peekable<I>) -> MaybeParseResult<Self::State, Peekable<I>> {
-        let matched = match iterator.peek() {
+    type Output = Ch;
+    type State = CharacterState<StaticCh>;
+    
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Ch>> {
+        match string.next_if(self.0) {
             None => None,
-            Some(tok) => Some(self.0.apply(tok)),
-        };
-        match matched {
-            None => Empty(iterator),
-            Some(true) => {
-                let tok = iterator.next().unwrap();
-                Commit(Done(iterator, tok))
-            }
-            Some(false) => Abort(iterator),
+            Some(ch) => Some(Done(ch)),
         }
+    }
+    
+}
+
+impl<F> Character<F> {
+    pub fn new(function: F) -> Self {
+        Character(function)
     }
 }
 
-impl<F> TokenParser<F> {
+pub struct CharacterRef<F>(F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<F> Copy for CharacterRef<F> where F: Copy {}
+impl<F> Clone for CharacterRef<F> where F: Copy
+{
+    fn clone(&self) -> Self {
+        CharacterRef(self.0)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<F> Debug for CharacterRef<F>
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "CharacterRef(...)")
+    }
+}
+
+impl<F> Parser for CharacterRef<F> {}
+
+impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for CharacterRef<F>
+    where Str: PeekableIterator<Item = Ch>,
+          F: Copy + for<'a> Function<&'a Ch, Output = bool>,
+          Ch: ToStatic<Static = StaticCh>,
+          StaticCh: 'static + Upcast<Ch>,
+{
+    type Output = Ch;
+    type State = CharacterState<StaticCh>;
+    
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Ch>> {
+        match string.next_if_ref(self.0) {
+            None => None,
+            Some(ch) => Some(Done(ch)),
+        }
+    }
+    
+}
+
+impl<F> CharacterRef<F> {
     pub fn new(function: F) -> Self {
-        TokenParser(function)
+        CharacterRef(function)
     }
 }
 
 #[derive(Copy,Clone,Debug)]
-pub struct AnyTokenParser;
+pub struct AnyCharacter;
 
-impl Parser for AnyTokenParser {}
-impl<I> Stateful<I> for AnyTokenParser where I: Iterator
+impl Parser for AnyCharacter {}
+
+impl<Ch, Str> Stateful<Ch, Str> for AnyCharacter
+    where Str: Iterator<Item = Ch>,
 {
-    type Output = Option<I::Item>;
-    fn parse(self, mut iter: I) -> ParseResult<Self, I> {
-        match iter.next() {
-            None => Continue(iter, AnyTokenParser),
-            Some(tok) => Done(iter, Some(tok)),
+    type Output = Option<Ch>;
+
+    fn more(self, string: &mut Str) -> ParseResult<Self, Option<Ch>> {
+        match string.next() {
+            None => Continue(self),
+            Some(ch) => Done(Some(ch)),
         }
     }
-    fn done(self) -> Self::Output {
+
+    fn done(self) -> Option<Ch> {
         None
     }
 }
-impl<I> Committed<I> for AnyTokenParser where I: Iterator
+    
+impl<Ch, Str, StaticCh> Uncommitted<Ch, Str> for AnyCharacter
+    where Str: Iterator<Item = Ch>,
+          Ch: ToStatic<Static = StaticCh>,
+          StaticCh: 'static + Upcast<Ch>,
 {
-    type Output = Option<I::Item>;
-    type State = Self;
-    fn init(&self) -> Self {
-        AnyTokenParser
+    type Output = Option<Ch>;
+    type State = AnyCharacter;
+    
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Option<Ch>>> {
+        match string.next() {
+            None => None,
+            Some(ch) => Some(Done(Some(ch))),
+        }
     }
+
+}
+
+impl<Ch, Str, StaticCh> Committed<Ch, Str> for AnyCharacter
+    where Str: Iterator<Item = Ch>,
+          Ch: ToStatic<Static = StaticCh>,
+          StaticCh: 'static + Upcast<Ch>,
+{
+
+    fn empty(&self) -> Option<Ch> {
+        None
+    }
+
 }
 
 // ----------- Buffering -------------
 
-// If m is a Uncommitted<&'a str>, then
-// m.buffer() is a Uncommitted<&'a str> with Output Cow<'a,str>.
+// If p is a Uncommitted<char, Chars<'a>>, then
+// m.buffer() is a Uncommitted<char, Chars<'a>> with Output (char, Cow<'a,str>).
 // It does as little buffering as it can, but it does allocate as buffer for the case
 // where the boundary marker of the input is misaligned with that of the parser.
 // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
@@ -801,186 +846,208 @@ impl<I> Committed<I> for AnyTokenParser where I: Iterator
 // TODO(ajeffrey): make this code generic.
 
 #[derive(Copy, Clone, Debug)]
-pub struct BufferedParser<P>(P);
+pub struct Buffered<P>(P);
 
-impl<P> Parser for BufferedParser<P> {}
-impl<'a, P> Uncommitted<&'a str> for BufferedParser<P> where P: Uncommitted<&'a str>
+impl<P> Parser for Buffered<P> where P: Parser {}
+
+impl<'a, P> Uncommitted<char, Chars<'a>> for Buffered<P>
+    where P: Uncommitted<char, Chars<'a>>,
 {
-    type Output = Cow<'a,str>;
-    type State = BufferedStatefulParser<P::State>;
-    fn parse(&self, value: &'a str) -> MaybeParseResult<Self::State, &'a str> {
-        match self.0.parse(value) {
-            Empty(rest) => Empty(rest),
-            Commit(Done(rest, _)) => {
-                Commit(Done(rest, Borrowed(&value[..(value.len() - rest.len())])))
-            }
-            Commit(Continue(rest, parsing)) => {
-                Commit(Continue(rest, BufferedStatefulParser(parsing, String::from(value))))
-            }
-            Abort(value) => Abort(value),
+    type Output = Cow<'a, str>;
+    type State = BufferedState<P::State>;
+    
+    fn init(&self, string: &mut Chars<'a>) -> Option<ParseResult<Self::State, Self::Output>> {
+        let string0 = string.as_str();
+        match self.0.init(string) {
+            Some(Done(_)) => Some(Done(Borrowed(&string0[..(string0.len() - string.as_str().len())]))),
+            Some(Continue(state)) => Some(Continue(BufferedState(state, String::from(string0)))),
+            None => None,
         }
     }
 }
-impl<'a, P> Committed<&'a str> for BufferedParser<P> where P: Committed<&'a str>
+
+impl<'a, P> Committed<char, Chars<'a>> for Buffered<P>
+    where P: Committed<char, Chars<'a>>,
 {
-    type Output = Cow<'a,str>;
-    type State = BufferedStatefulParser<P::State>;
-    fn init(&self) -> Self::State {
-        BufferedStatefulParser(self.0.init(), String::new())
-    }
+    fn empty(&self) -> Cow<'a, str> { Borrowed("") }
 }
 
-impl<P> BufferedParser<P> {
+impl<P> Buffered<P> {
     pub fn new(parser: P) -> Self {
-        BufferedParser(parser)
+        Buffered(parser)
     }
 }
 
 #[derive(Clone,Debug)]
-pub struct BufferedStatefulParser<P>(P, String);
+pub struct BufferedState<P>(P, String);
 
-impl<'a, P> Stateful<&'a str> for BufferedStatefulParser<P> where P: Stateful<&'a str>
+impl<'a, P> Stateful<char, Chars<'a>> for BufferedState<P>
+    where P: Stateful<char, Chars<'a>>
 {
-    type Output = Cow<'a,str>;
-    fn parse(mut self, value: &'a str) -> ParseResult<Self, &'a str> {
-        match self.0.parse(value) {
-            Done(rest, _) if self.1.is_empty() => {
-                Done(rest, Borrowed(&value[..(value.len() - rest.len())]))
-            }
-            Done(rest, _) => {
-                self.1.push_str(&value[..(value.len() - rest.len())]);
-                Done(rest, Owned(self.1))
-            }
-            Continue(rest, parsing) => {
-                self.1.push_str(value);
-                Continue(rest, BufferedStatefulParser(parsing, self.1))
-            }
+    
+    type Output = Cow<'a, str>;
+    
+    fn more(mut self, string: &mut Chars<'a>) -> ParseResult<Self, Self::Output> {
+        let string0 = string.as_str();
+        match self.0.more(string) {
+            Done(_) => {
+                self.1.push_str(&string0[..(string0.len() - string.as_str().len())]);
+                Done(Owned(self.1))
+            },
+            Continue(state) => {
+                self.1.push_str(string0);
+                Continue(BufferedState(state, self.1))
+            },
         }
     }
+    
     fn done(self) -> Self::Output {
         Owned(self.1)
     }
+    
 }
 
 // ----------- Parsers which are boxable -------------
 
 #[derive(Debug)]
-pub struct BoxableParser<P>(Option<P>);
-impl<P, S> Boxable<S> for BoxableParser<P> where P: Stateful<S>
+pub struct BoxableState<P>(Option<P>);
+
+impl<P, Ch, Str> Boxable<Ch, Str> for BoxableState<P>
+    where P: Stateful<Ch, Str>,
+          Str: Iterator<Item = Ch>,
 {
     type Output = P::Output;
-    fn parse_boxable(&mut self, value: S) -> (S, Option<Self::Output>) {
-        match self.0.take().unwrap().parse(value) {
-            Done(rest, result) => (rest, Some(result)),
-            Continue(rest, parsing) => {
-                self.0 = Some(parsing);
-                (rest, None)
+    fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), P::Output> {
+        match self.0.take().unwrap().more(string) {
+            Done(result) => Done(result),
+            Continue(state) => {
+                self.0 = Some(state);
+                Continue(())
             }
         }
     }
-    fn done_boxable(&mut self) -> Self::Output {
+    fn done_boxable(&mut self) -> P::Output {
         self.0.take().unwrap().done()
     }
 }
 
-impl<P: ?Sized, S> Stateful<S> for Box<P> where P: Boxable<S>
+impl<P: ?Sized, Ch, Str, Output> Stateful<Ch, Str> for Box<P>
+    where P: Boxable<Ch, Str, Output = Output>,
+          Str: Iterator<Item = Ch>,
 {
-    type Output = P::Output;
-    fn parse(mut self, value: S) -> ParseResult<Self, S> {
-        match self.parse_boxable(value) {
-            (rest, Some(result)) => Done(rest, result),
-            (rest, None) => Continue(rest, self),
+    type Output = Output;
+    fn more(mut self, string: &mut Str) -> ParseResult<Self, Output> {
+        match self.more_boxable(string) {
+            Done(result) => Done(result),
+            Continue(()) => Continue(self),
         }
     }
-    fn done(mut self) -> Self::Output {
+    fn done(mut self) -> Output {
         self.done_boxable()
     }
 }
 
-impl<P> BoxableParser<P> {
+impl<P> BoxableState<P> {
     pub fn new(parser: P) -> Self {
-        BoxableParser(Some(parser))
+        BoxableState(Some(parser))
     }
 }
 
-// ----------- Iterate over parse results -------------
+// // ----------- Iterate over parse results -------------
 
-#[derive(Copy, Clone, Debug)]
-pub struct IterParser<P, Q, S>(P, Option<(Q, S)>);
+// #[derive(Copy, Clone, Debug)]
+// pub struct IterParser<P, Q, S>(P, Option<(Q, S)>);
 
-impl<P, S> Iterator for IterParser<P, P::State, S> where P: Copy + Committed<S>
-{
-    type Item = P::Output;
-    fn next(&mut self) -> Option<P::Output> {
-        let (state, result) = match self.1.take() {
-            None => (None, None),
-            Some((parsing, data)) => {
-                match parsing.parse(data) {
-                    Done(rest, result) => (Some((self.0.init(), rest)), Some(result)),
-                    Continue(rest, parsing) => (Some((parsing, rest)), None),
-                }
-            }
-        };
-        *self = IterParser(self.0, state);
-        result
-    }
-}
+// impl<P, Str> Iterator for IterParser<P, P::State, Str>
+//     where P: Copy + Committed<Str>,
+//           Str: IntoPeekable,
+//           Str::Item: ToStatic,
+//           P::State: Stateful<Str>,
+// {
+//     type Item = <P::State as Stateful<Str>>::Output;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let (state, result) = match self.1.take() {
+//             None => (None, None),
+//             Some((parsing, data)) => {
+//                 match parsing.parse(data) {
+//                     Done(rest, result) => (Some((self.0.init(), rest)), Some(result)),
+//                     Continue(rest, parsing) => (Some((parsing, rest)), None),
+//                 }
+//             }
+//         };
+//         *self = IterParser(self.0, state);
+//         result
+//     }
+// }
 
-impl<P, S> IterParser<P, P::State, S> where P: Copy + Committed<S>
-{
-    pub fn new(parser: P, data: S) -> Self {
-        IterParser(parser, Some((parser.init(), data)))
-    }
-}
+// impl<P, Str> IterParser<P, P::State, Str>
+//     where P: Copy + Committed<Str>,
+//           Str: IntoPeekable,
+//           Str::Item: ToStatic,
+// {
+//     pub fn new(parser: P, data: Str) -> Self {
+//         IterParser(parser, Some((parser.init(), data)))
+//     }
+// }
 
-// ----------- Pipe parsers -------------
+// // ----------- Pipe parsers -------------
 
-#[derive(Copy, Clone, Debug)]
-pub struct PipeStateful<P, Q, R>(P, Q, R);
+// TODO: restore these
 
-impl<P, Q, S, T> Stateful<S> for PipeStateful<P, P::State, Q>
-    where P: Copy + Committed<S>,
-          Q: for<'a> Stateful<Peekable<&'a mut IterParser<P, P::State, S>>, Output = T>
-{
-    type Output = T;
-    fn parse(self, data: S) -> ParseResult<Self, S> {
-        let mut iter = IterParser(self.0, Some((self.1, data)));
-        match self.2.parse(iter.by_ref().peekable()) {
-            Done(_, result) => Done(iter.1.unwrap().1, result),
-            Continue(_, parsing2) => {
-                let (parsing1, data) = iter.1.unwrap();
-                Continue(data, PipeStateful(self.0, parsing1, parsing2))
-            }
-        }
-    }
-    fn done(self) -> T {
-        // TODO: feed the output of self.1.done() into self.2.
-        self.1.done();
-        self.2.done()
-    }
-}
+// #[derive(Copy, Clone, Debug)]
+// pub struct PipeStateful<P, Q, R>(P, Q, R);
 
-#[derive(Copy, Clone, Debug)]
-pub struct PipeParser<P, Q>(P, Q);
+// impl<P, Q, Str> Stateful<Str> for PipeStateful<P, P::State, Q>
+//     where P: Copy + Committed<Str>,
+//           Q: Stateful<Peekable<IterParser<P, P::State, Str>>>,
+//           Str: IntoPeekable,
+//           Str::Item: ToStatic,
+//           P::State: Stateful<Str>,
+// {
+//     type Output = Q::Output;
+//     fn parse(self, data: Str) -> ParseResult<Self, Str> {
+//         let iterator = Peekable::new(IterParser(self.0, Some((self.1, data))));
+//         match self.2.parse(iterator) {
+//             Done(rest, result) => Done(rest.iter.1.unwrap().1, result),
+//             Continue(rest, parsing2) => {
+//                 let (parsing1, data) = rest.iter.1.unwrap();
+//                 Continue(data, PipeStateful(self.0, parsing1, parsing2))
+//             }
+//         }
+//     }
+//     fn done(self) -> Q::Output {
+//         // TODO: feed the output of self.1.done() into self.2.
+//         self.1.done();
+//         self.2.done()
+//     }
+// }
 
-impl<P, Q> Parser for PipeParser<P, Q> {}
-impl<P, Q, R, S, T> Committed<S> for PipeParser<P, Q>
-    where P: Copy + Committed<S>,
-          Q: for<'a> Committed<Peekable<&'a mut IterParser<P, P::State, S>>,
-                               State = R,
-                               Output = T>,
-          R: for<'a> Stateful<Peekable<&'a mut IterParser<P, P::State, S>>, Output = T>
-{
-    type State = PipeStateful<P,P::State,R>;
-    type Output = T;
-    fn init(&self) -> Self::State {
-        PipeStateful(self.0, self.0.init(), self.1.init())
-    }
-}
+// #[derive(Copy, Clone, Debug)]
+// pub struct PipeParser<P, Q>(P, Q);
 
-impl<P, Q> PipeParser<P, Q> {
-    pub fn new(lhs: P, rhs: Q) -> Self {
-        PipeParser(lhs, rhs)
-    }
-}
+// impl<P, Q, Ch> Parser<Ch> for PipeParser<P, Q>
+//     where P: 'static + Parser<Ch>,
+//           Q: Parser<Ch>,
+// {
+//     type State = PipeStateful<P,P::State,Q::State>;
+//     type StaticOutput = Q::StaticOutput;
+// }
+
+// impl<P, Q, Str> Committed<Str> for PipeParser<P, Q>
+//     where P: 'static + Copy + Committed<Str>,
+//           Q: for<'a> Committed<Peekable<&'a mut IterParser<P, P::State, Str>>>,
+//           Str: IntoPeekable,
+//           Str::Item: ToStatic,
+//           P::State: Stateful<Str>,
+// {
+//     fn init(&self) -> Self::State {
+//         PipeStateful(self.0, self.0.init(), self.1.init())
+//     }
+// }
+
+// impl<P, Q> PipeParser<P, Q> {
+//     pub fn new(lhs: P, rhs: Q) -> Self {
+//         PipeParser(lhs, rhs)
+//     }
+// }
 
