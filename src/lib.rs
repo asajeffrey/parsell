@@ -223,18 +223,7 @@ pub trait StatefulStr<'a>: Stateful<char, Chars<'a>> {
 
 impl<'a, P> StatefulStr<'a> for P where P: Stateful<char, Chars<'a>> {}
 
-// //     fn done(self) -> Self::Output where Self: Sized;
-
-// //     /// Make this parser boxable.
-// //     fn boxable(self) -> impls::BoxableParser<Self>
-// //         where Self: Sized
-// //     {
-// //         impls::BoxableParser::new(self)
-// //     }
-
-// // }
-
-/// The result of stateful parsing
+/// The result of parsing
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum ParseResult<State, Output> {
 
@@ -253,65 +242,6 @@ pub enum ParseResult<State, Output> {
 /// For example `character(char::is_alphabetic)` is uncommitted because
 /// it will backtrack on any non-alphabetic character, but
 /// `CHARACTER` is not, because it will produce `None` rather than backtracking.
-
-pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
-    where Str: Iterator<Item = Ch>,
-{
-
-    /// Parse an EOF.
-    fn empty(&self) -> Self::Output;
-    
-}
-
-pub trait Uncommitted<Ch, Str>
-    where Str: Iterator<Item = Ch>,
-{
-
-    type Output;
-    type State: 'static + Stateful<Ch, Str, Output=Self::Output>;
-
-    /// Parse a string of data.
-    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>>;
-
-}
-
-
-/// A trait for stateless string parsers.
-
-pub trait UncommittedStr<'a>: Uncommitted<char, Chars<'a>> {
-
-    /// Provides string data to the parser.
-    ///
-    /// If `parser: Uncommitted<char, Chars<'a>>` and `data: &'a str`, then `parser.init_str(data)`
-    /// is short-hand for `parser.init(&mut data.chars())`.
-    ///
-    /// For example:
-    ///
-    /// ```
-    /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful,StatefulStr};
-    /// # use parsell::ParseResult::{Continue,Done};
-    /// let parser = character(char::is_alphabetic).star(String::new);
-    /// match parser.init_str("ab").unwrap() {
-    ///     Continue(stateful) => match stateful.more_str("cd") { 
-    ///         Continue(stateful) => match stateful.more_str("ef!") { 
-    ///             Done(result) => assert_eq!(result, "abcdef"),
-    ///             _ => panic!("can't happen"),
-    ///         },
-    ///         _ => panic!("can't happen"),
-    ///     },
-    ///     _ => panic!("can't happen"),
-    /// }
-    /// ```
-
-    fn init_str(&self, string: &'a str) -> Option<ParseResult<Self::State, Self::Output>>
-        where Self: Sized,
-    {
-        self.init(&mut string.chars())
-    }
-
-}
-
-impl<'a, P> UncommittedStr<'a> for P where P: Uncommitted<char, Chars<'a>> {}
 
 pub trait Parser {
 
@@ -343,7 +273,6 @@ pub trait Parser {
     fn and_then_try<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::ZipTry>
         where Self: Sized,
               P: Parser,
-
     {
         self.and_then(other).map(impls::ZipTry)
     }
@@ -442,7 +371,7 @@ pub trait Parser {
         self.try_map(impls::Function5::new(f))
     }
 
-    /// Take the results of iterating this parser, and feed it into another parser.
+    // /// Take the results of iterating this parser, and feed it into another parser.
     // fn pipe<P>(self, other: P) -> impls::PipeParser<Self, P>
     //     where Self: Sized
     // {
@@ -482,87 +411,120 @@ pub trait Parser {
 
 }
 
-// // /// A trait for committed parsers.
-// // ///
-// // /// A parser is committed if it is guaranteed not to backtrack.
-// // /// Committed parsers are typically constructed by calling the methods of the library,
-// // /// for example:
-// // ///
-// // /// ```
-// // /// # use parsell::{character,Parser,Uncommitted};
-// // /// let parser = character(char::is_alphanumeric).star(String::new);
-// // /// ```
-// // ///
-// // /// Here, `parser` is a `Committed<&str,Output=String>`.
-// // ///
-// // /// The reason for distinguishing between committed and uncommitted parsers
-// // /// is that the library is designed for LL(1) grammars, that only use one token
-// // /// of lookahead. This means that the sequence of two parsers
-// // /// `p.and_then(q)` is only well-defined when `q` is committed,
-// // /// since if `p` commits, then `q` cannot backtrack.
-// // ///
-// // /// Semantically, a parser with input *S* and output *T* is a partial function *S\* → T*
-// // /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
-// // /// and non-empty.
+/// A trait for committed parsers.
+///
+/// A parser is committed if it is guaranteed only to backtrack on empty input.
+/// Committed parsers are typically constructed by calling the methods of the library,
+/// for example:
+///
+/// ```
+/// # use parsell::{character,Parser,Uncommitted};
+/// let parser = character(char::is_alphanumeric).star(String::new);
+/// ```
+///
+/// Here, `parser` is a `Committed<char, Chars<'a>, Output=String>`.
+///
+/// The reason for distinguishing between committed and uncommitted parsers
+/// is that the library is designed for LL(1) grammars, that only use one token
+/// of lookahead. This means that the sequence of two parsers
+/// `p.and_then(q)` is only well-defined when `q` is committed,
+/// since if `p` commits, then `q` cannot backtrack.
+///
+/// Semantically, a parser with input *S* and output *T* is a partial function *S\* → T*
+/// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
+/// and non-empty.
 
-// // pub trait Committed<Str>: Parser<<Str::Item as ToStatic>::Static>
-// //     where Str: IntoPeekable,
-// //           Str::Item: ToStatic,
-// // {
+pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
+    where Str: Iterator<Item = Ch>,
+{
 
-// //     /// Create a stateful parser by initializing a stateless parser.
-// //     fn init(&self) -> Self::State;
+    /// Parse an EOF.
+    fn empty(&self) -> Self::Output;
+    
+}
 
-// //     /// Build an iterator from a parser and some data.
-// //     fn iter(self, data: Str) -> impls::IterParser<Self, Self::State, Str>
-// //         where Self: Sized + Copy
-// //     {
-// //         impls::IterParser::new(self, data)
-// //     }
+/// A trait for uncommitted parsers.
+///
+/// An uncommitted parser can decide based on the first token of input whether
+/// it will commit to parsing, or immediately backtrack and try another option.
+///
+/// The advantage of uncommitted parsers over committed parsers is they support choice:
+/// `p.or_else(q)` will try `p`, and commit if it commits, but if it backtracks
+/// will then try `q`. For example:
+///
+/// ```
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,UncommittedStr,Committed,Stateful};
+/// # use parsell::ParseResult::Done;
+/// fn default(_: Option<char>) -> String { String::from("?") }
+/// let parser =
+///    character(char::is_numeric).plus(String::new)
+///        .or_else(character(char::is_alphabetic).plus(String::new))
+///        .or_else(CHARACTER.map(default));
+/// match parser.init_str("123abc").unwrap() {
+///    Done(result) => assert_eq!(result, "123"),
+///    _ => panic!("Can't happen"),
+/// }
+/// match parser.init_str("abc123").unwrap() {
+///    Done(result) => assert_eq!(result, "abc"),
+///    _ => panic!("Can't happen"),
+/// }
+/// match parser.init_str("!@#").unwrap() {
+///    Done(result) => assert_eq!(result, "?"),
+///    _ => panic!("Can't happen"),
+/// }
+/// ```
+///
+/// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
+/// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
-// //     /// Short hand for calling init then parse.
-// //     fn init_parse(&self, data: Str) -> ParseResult<Self::State, Str>
-// //         where Self: Sized,
-// //               Self::State: Stateful<Str>,
-// //     {
-// //         self.init().parse(data)
-// //     }
+pub trait Uncommitted<Ch, Str>
+    where Str: Iterator<Item = Ch>,
+{
 
-// // }
+    type Output;
+    type State: 'static + Stateful<Ch, Str, Output=Self::Output>;
 
-// // /// A trait for uncommitted parsers.
-// // ///
-// // /// An uncommitted parser can decide based on the first token of input whether
-// // /// it will commit to parsing, or immediately backtrack and try another option.
-// // ///
-// // /// The advantage of uncommitted parsers over committed parsers is they support choice:
-// // /// `p.or_else(q)` will try `p`, and commit if it commits, but if it backtracks
-// // /// will then try `q`. For example:
-// // ///
-// // /// ```
-// // /// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Stateful};
-// // /// # use parsell::ParseResult::Done;
-// // /// fn default(_: Option<char>) -> String { String::from("?") }
-// // /// let parser =
-// // ///    character(char::is_numeric).plus(String::new)
-// // ///        .or_else(character(char::is_alphabetic).plus(String::new))
-// // ///        .or_else(CHARACTER.map(default));
-// // /// match parser.init().parse("123abc") {
-// // ///    Done("abc",result) => assert_eq!(result,"123"),
-// // ///    _ => panic!("Can't happen"),
-// // /// }
-// // /// match parser.init().parse("abc123") {
-// // ///    Done("123",result) => assert_eq!(result,"abc"),
-// // ///    _ => panic!("Can't happen"),
-// // /// }
-// // /// match parser.init().parse("!@#") {
-// // ///    Done("@#",result) => assert_eq!(result,"?"),
-// // ///    _ => panic!("Can't happen"),
-// // /// }
-// // /// ```
-// // ///
-// // /// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
-// /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
+    /// Parse a string of data.
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>>;
+
+}
+
+/// A trait for uncommitted string parsers.
+
+pub trait UncommittedStr<'a>: Uncommitted<char, Chars<'a>> {
+
+    /// Provides string data to the parser.
+    ///
+    /// If `parser: Uncommitted<char, Chars<'a>>` and `data: &'a str`, then `parser.init_str(data)`
+    /// is short-hand for `parser.init(&mut data.chars())`.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful,StatefulStr};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// match parser.init_str("ab").unwrap() {
+    ///     Continue(stateful) => match stateful.more_str("cd") { 
+    ///         Continue(stateful) => match stateful.more_str("ef!") { 
+    ///             Done(result) => assert_eq!(result, "abcdef"),
+    ///             _ => panic!("can't happen"),
+    ///         },
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+
+    fn init_str(&self, string: &'a str) -> Option<ParseResult<Self::State, Self::Output>>
+        where Self: Sized,
+    {
+        self.init(&mut string.chars())
+    }
+
+}
+
+impl<'a, P> UncommittedStr<'a> for P where P: Uncommitted<char, Chars<'a>> {}
 
 // // pub trait Uncommitted<Str>: Parser<<Str::Item as ToStatic>::Static>
 // //     where Str: IntoPeekable,
