@@ -263,75 +263,75 @@ pub trait Parser {
         impls::Map::new(self, f)
     }
 
-// //     /// Apply a 2-arguent function to the result
-// //     fn map2<F>(self, f: F) -> impls::MapParser<Self, impls::Function2<F>>
-// //         where Self: Sized,
-// //     {
-// //         impls::MapParser::new(self, impls::Function2::new(f))
-// //     }
+    /// Apply a 2-arguent function to the result
+    fn map2<F>(self, f: F) -> impls::Map<Self, impls::Function2<F>>
+        where Self: Sized,
+    {
+        impls::Map::new(self, impls::Function2::new(f))
+    }
 
-// //     /// Apply a 3-arguent function to the result
-// //     fn map3<F>(self, f: F) -> impls::MapParser<Self, impls::Function3<F>>
-// //         where Self: Sized,
-// //     {
-// //         impls::MapParser::new(self, impls::Function3::new(f))
-// //     }
+    /// Apply a 3-arguent function to the result
+    fn map3<F>(self, f: F) -> impls::Map<Self, impls::Function3<F>>
+        where Self: Sized,
+    {
+        impls::Map::new(self, impls::Function3::new(f))
+    }
 
-// //     /// Apply a 4-arguent function to the result
-// //     fn map4<F>(self, f: F) -> impls::MapParser<Self, impls::Function4<F>>
-// //         where Self: Sized,
-// //     {
-// //         impls::MapParser::new(self, impls::Function4::new(f))
-// //     }
+    /// Apply a 4-arguent function to the result
+    fn map4<F>(self, f: F) -> impls::Map<Self, impls::Function4<F>>
+        where Self: Sized,
+    {
+        impls::Map::new(self, impls::Function4::new(f))
+    }
 
-// //     /// Apply a 5-arguent function to the result
-// //     fn map5<F>(self, f: F) -> impls::MapParser<Self, impls::Function5<F>>
-// //         where Self: Sized,
-// //     {
-// //         impls::MapParser::new(self, impls::Function5::new(f))
-// //     }
+    /// Apply a 5-arguent function to the result
+    fn map5<F>(self, f: F) -> impls::Map<Self, impls::Function5<F>>
+        where Self: Sized,
+    {
+        impls::Map::new(self, impls::Function5::new(f))
+    }
 
-// //     /// Apply a function to the result (bubble any errors).
-// //     fn try_map<F>(self, f: F) -> impls::MapParser<Self, impls::Try<F>>
-// //         where Self: Sized
-// //     {
-// //         self.map(impls::Try::new(f))
-// //     }
+    /// Apply a function to the result (bubble any errors).
+    fn try_map<F>(self, f: F) -> impls::Map<Self, impls::Try<F>>
+        where Self: Sized
+    {
+        self.map(impls::Try::new(f))
+    }
 
-// //     /// Apply a 2-argument function to the result (bubble any errors).
-// //     fn try_map2<F>(self, f: F) -> impls::MapParser<Self, impls::Try<impls::Function2<F>>>
-// //         where Self: Sized
-// //     {
-// //         self.try_map(impls::Function2::new(f))
-// //     }
+    /// Apply a 2-argument function to the result (bubble any errors).
+    fn try_map2<F>(self, f: F) -> impls::Map<Self, impls::Try<impls::Function2<F>>>
+        where Self: Sized
+    {
+        self.try_map(impls::Function2::new(f))
+    }
 
-// //     /// Apply a 3-argument function to the result (bubble any errors).
-// //     fn try_map3<F>(self, f: F) -> impls::MapParser<Self, impls::Try<impls::Function3<F>>>
-// //         where Self: Sized
-// //     {
-// //         self.try_map(impls::Function3::new(f))
-// //     }
+    /// Apply a 3-argument function to the result (bubble any errors).
+    fn try_map3<F>(self, f: F) -> impls::Map<Self, impls::Try<impls::Function3<F>>>
+        where Self: Sized
+    {
+        self.try_map(impls::Function3::new(f))
+    }
 
-// //     /// Apply a 4-argument function to the result (bubble any errors).
-// //     fn try_map4<F>(self, f: F) -> impls::MapParser<Self, impls::Try<impls::Function4<F>>>
-// //         where Self: Sized
-// //     {
-// //         self.try_map(impls::Function4::new(f))
-// //     }
+    /// Apply a 4-argument function to the result (bubble any errors).
+    fn try_map4<F>(self, f: F) -> impls::Map<Self, impls::Try<impls::Function4<F>>>
+        where Self: Sized
+    {
+        self.try_map(impls::Function4::new(f))
+    }
 
-// //     /// Apply a 5-argument function to the result (bubble any errors).
-// //     fn try_map5<F>(self, f: F) -> impls::MapParser<Self, impls::Try<impls::Function5<F>>>
-// //         where Self: Sized
-// //     {
-// //         self.try_map(impls::Function5::new(f))
-// //     }
+    /// Apply a 5-argument function to the result (bubble any errors).
+    fn try_map5<F>(self, f: F) -> impls::Map<Self, impls::Try<impls::Function5<F>>>
+        where Self: Sized
+    {
+        self.try_map(impls::Function5::new(f))
+    }
 
-// //     /// Take the results of iterating this parser, and feed it into another parser.
-// //     // fn pipe<P>(self, other: P) -> impls::PipeParser<Self, P>
-// //     //     where Self: Sized
-// //     // {
-// //     //     impls::PipeParser::new(self, other)
-// //     // }
+    /// Take the results of iterating this parser, and feed it into another parser.
+    // fn pipe<P>(self, other: P) -> impls::PipeParser<Self, P>
+    //     where Self: Sized
+    // {
+    //     impls::PipeParser::new(self, other)
+    // }
 
     /// A parser which produces its input.
     ///
@@ -1114,11 +1114,11 @@ pub fn character_ref<F>(f: F) -> impls::CharacterRef<F> {
 
 pub const CHARACTER: impls::AnyCharacter = impls::AnyCharacter;
 
-// /// A committed parser that reads zero characters.
+/// A committed parser that reads zero characters.
 
-// pub fn emit<T>(t: T) -> impls::Return<T> {
-//     impls::Return::new(t)
-// }
+pub fn emit<T>(t: T) -> impls::Emit<T> {
+    impls::Emit::new(t)
+}
 
 // ----------- Tests -------------
 
@@ -1202,120 +1202,6 @@ fn test_map() {
     assert_eq!(parser.init(&mut data).unwrap().unDone(), Some(Some('a')));
     assert_eq!(data.as_str(), "bcd");
 }
-
-// // #[test]
-// // fn test_map2() {
-// //     let parser = CHARACTER.map(Some);
-// //     let iter = parser.init_str("".chars()).unEmpty();
-// //     assert_eq!(iter.as_str(), "");
-// //     let (ch, iter, res) = parser.init_str("abcd".chars()).unCommit().unDone();
-// //     assert_eq!(res, Some(Some('a')));
-// //     assert_eq!(ch, 'b');
-// //     assert_eq!(iter.as_str(), "cd");
-// // }
-
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_map2() {
-// // //     fn f(ch1: char, ch2: Option<char>) -> Option<(char, char)> {
-// // //         ch2.and_then(|ch2| Some((ch1, ch2)))
-// // //     }
-// // //     fn mk_none<T>(_: Option<char>) -> Option<T> {
-// // //         None
-// // //     }
-// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-// // //     let parser = character(char::is_alphabetic).and_then(ALPHANUMERIC).map2(f);
-// // //     parser.parse("").unEmpty();
-// // //     assert_eq!(parser.parse("!b!").unAbort(), "!b!");
-// // //     assert_eq!(parser.parse("a!!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("ab!").unCommit().unDone(),
-// // //                ("!", Some(('a', 'b'))));
-// // // }
-
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_map3() {
-// // //     fn f(ch1: char, ch2: Option<char>, ch3: Option<char>) -> Option<(char, char, char)> {
-// // //         ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1, ch2, ch3))))
-// // //     }
-// // //     fn mk_none<T>(_: Option<char>) -> Option<T> {
-// // //         None
-// // //     }
-// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-// // //     let parser = character(char::is_alphabetic)
-// // //                      .and_then(ALPHANUMERIC)
-// // //                      .and_then(ALPHANUMERIC)
-// // //                      .map3(f);
-// // //     parser.parse("").unEmpty();
-// // //     assert_eq!(parser.parse("!bc!").unAbort(), "!bc!");
-// // //     assert_eq!(parser.parse("a!c!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("ab!!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("abc!").unCommit().unDone(),
-// // //                ("!", Some(('a', 'b', 'c'))));
-// // // }
-
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_map4() {
-// // //     fn f(ch1: char,
-// // //          ch2: Option<char>,
-// // //          ch3: Option<char>,
-// // //          ch4: Option<char>)
-// // //          -> Option<(char, char, char, char)> {
-// // //         ch4.and_then(|ch4| ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1, ch2, ch3, ch4)))))
-// // //     }
-// // //     fn mk_none<T>(_: Option<char>) -> Option<T> {
-// // //         None
-// // //     }
-// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-// // //     let parser = character(char::is_alphabetic)
-// // //                      .and_then(ALPHANUMERIC)
-// // //                      .and_then(ALPHANUMERIC)
-// // //                      .and_then(ALPHANUMERIC)
-// // //                      .map4(f);
-// // //     parser.parse("").unEmpty();
-// // //     assert_eq!(parser.parse("!bcd!").unAbort(), "!bcd!");
-// // //     assert_eq!(parser.parse("a!cd!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("ab!d!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("abc!!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("abcd!").unCommit().unDone(),
-// // //                ("!", Some(('a', 'b', 'c', 'd'))));
-// // // }
-
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_map5() {
-// // //     fn f(ch1: char,
-// // //          ch2: Option<char>,
-// // //          ch3: Option<char>,
-// // //          ch4: Option<char>,
-// // //          ch5: Option<char>)
-// // //          -> Option<(char, char, char, char, char)> {
-// // //         ch5.and_then(|ch5| {
-// // //             ch4.and_then(|ch4| {
-// // //                 ch3.and_then(|ch3| ch2.and_then(|ch2| Some((ch1, ch2, ch3, ch4, ch5))))
-// // //             })
-// // //         })
-// // //     }
-// // //     fn mk_none<T>(_: Option<char>) -> Option<T> {
-// // //         None
-// // //     }
-// // //     let ALPHANUMERIC = character(char::is_alphanumeric).map(Some).or_else(CHARACTER.map(mk_none));
-// // //     let parser = character(char::is_alphabetic)
-// // //                      .and_then(ALPHANUMERIC)
-// // //                      .and_then(ALPHANUMERIC)
-// // //                      .and_then(ALPHANUMERIC)
-// // //                      .and_then(ALPHANUMERIC)
-// // //                      .map5(f);
-// // //     parser.parse("").unEmpty();
-// // //     assert_eq!(parser.parse("!bcde!").unAbort(), "!bcde!");
-// // //     assert_eq!(parser.parse("a!cde!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("ab!de!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("abc!e!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("abcd!!").unCommit().unDone(), ("!", None));
-// // //     assert_eq!(parser.parse("abcde!").unCommit().unDone(),
-// // //                ("!", Some(('a', 'b', 'c', 'd', 'e'))));
-// // // }
 
 #[test]
 #[allow(non_snake_case)]
@@ -1505,132 +1391,104 @@ fn test_buffer() {
     assert_eq!(data.as_str(), "!");
 }
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_cow() {
-//     fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
-//     fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
-//     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
-//     let ONE = character_ref(is_foo);
-//     let OTHER = CHARACTER.map(mk_other);
-//     let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
-//     let mut data = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo"),Cow::Borrowed("baz")]);
-//     let (ch, _, ((fst, snd), thd)) = parser.init(data.0, data.1.drain(..)).unCommit().unDone();
-//     assert_eq!(ch, "baz");
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "other");
-//     assert_eq!(thd, "foo");
-//     assert!(!is_owned(fst));
-//     assert!(!is_owned(snd));
-//     assert!(!is_owned(thd));
-//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar")]);
-//     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
-//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-//     assert_eq!(ch, "baz");
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "other");
-//     assert_eq!(thd, "foo");
-//     assert!(is_owned(fst));
-//     assert!(!is_owned(snd));
-//     assert!(!is_owned(thd));
-//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("foo")]);
-//     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
-//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-//     assert_eq!(ch, "baz");
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "foo");
-//     assert_eq!(thd, "foo");
-//     assert!(is_owned(fst));
-//     assert!(is_owned(snd));
-//     assert!(!is_owned(thd));
-//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo")]);
-//     let mut data2 = (Cow::Borrowed("baz"), vec![]);
-//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
-//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-//     assert_eq!(ch, "baz");
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "other");
-//     assert_eq!(thd, "foo");
-//     assert!(is_owned(fst));
-//     assert!(is_owned(snd));
-//     assert!(is_owned(thd));
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_cow() {
+    fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
+    fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
+    fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
+    let ONE = character_ref(is_foo);
+    let OTHER = CHARACTER.map(mk_other);
+    let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+    let mut data = vec![Cow::Borrowed("foo"), Cow::Borrowed("bar"), Cow::Borrowed("foo")];
+    let ((fst, snd), thd) = parser.init(&mut data.drain(..).peekable()).unwrap().unDone();
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(!is_owned(fst));
+    assert!(!is_owned(snd));
+    assert!(!is_owned(thd));
+    let mut data1 = vec![Cow::Borrowed("foo")];
+    let mut data2 = vec![Cow::Borrowed("bar"), Cow::Borrowed("foo")];
+    let ((fst, snd), thd) = parser.init(&mut data1.drain(..).peekable()).unwrap().unContinue()
+        .more(&mut data2.drain(..).peekable()).unDone();
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(is_owned(fst));
+    assert!(!is_owned(snd));
+    assert!(!is_owned(thd));
+    let mut data1 = vec![Cow::Borrowed("foo"), Cow::Borrowed("bar")];
+    let mut data2 = vec![Cow::Borrowed("foo")];
+    let ((fst, snd), thd) = parser.init(&mut data1.drain(..).peekable()).unwrap().unContinue()
+        .more(&mut data2.drain(..).peekable()).unDone();
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(is_owned(fst));
+    assert!(is_owned(snd));
+    assert!(!is_owned(thd));
+}
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_boxable() {
-//     use std::vec::Drain;
-//     #[derive(Copy, Clone, Debug)]
-//     struct Test;
-//     type TestCh<'a> = Cow<'a,str>;
-//     type TestStr<'a> = Drain<'a,TestCh<'a>>;
-//     type TestOutput<'a> = ((TestCh<'a>, TestCh<'a>), TestCh<'a>);
-//     type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>>;
-//     impl Parser for Test {}
-//     impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
-//         type Output = TestOutput<'a>;
-//         type State = TestState;
-//         fn init(&self, string: &mut TestStr<'a>) -> ParseResult<TestState, TestOutput<'a>> {
-//             fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
-//             fn mk_other<'a>(_: Option<TestCh<'a>>) -> TestCh<'a> { Cow::Borrowed("other") }
-//             let ONE = character_ref(is_foo);
-//             let OTHER = CHARACTER.map(mk_other);
-//             let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
-//             // This bit should be in the API
-//             match parser.init(string) {
-//                 Backtrack => Backtrack,
-//                 Done(result) => Done(result),
-//                 Continue(state) => Continue(Box::new(impls::BoxableState::new(state))),
-//             }
-//         }
-//     }
-//     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
-//     let parser = Test; 
-//     let mut data = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo"),Cow::Borrowed("baz")]);
-//     let (ch, _, ((fst, snd), thd)) = parser.init(data.0, data.1.drain(..)).unCommit().unDone();
-//     assert_eq!(ch, "baz");
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "other");
-//     assert_eq!(thd, "foo");
-//     assert!(!is_owned(fst));
-//     assert!(!is_owned(snd));
-//     assert!(!is_owned(thd));
-//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar")]);
-//     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
-//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-//     assert_eq!(ch, "baz");
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "other");
-//     assert_eq!(thd, "foo");
-//     assert!(is_owned(fst));
-//     assert!(!is_owned(snd));
-//     assert!(!is_owned(thd));
-//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("foo")]);
-//     let mut data2 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("baz")]);
-//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
-//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-//     assert_eq!(ch, "baz");
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "foo");
-//     assert_eq!(thd, "foo");
-//     assert!(is_owned(fst));
-//     assert!(is_owned(snd));
-//     assert!(!is_owned(thd));
-//     let mut data1 = (Cow::Borrowed("foo"), vec![Cow::Borrowed("bar"),Cow::Borrowed("foo")]);
-//     let mut data2 = (Cow::Borrowed("baz"), vec![]);
-//     let (_, state) = parser.init(data1.0, data1.1.drain(..)).unCommit().unContinue();
-//     let (ch, _, ((fst, snd), thd)) = state.more(data2.0, data2.1.drain(..)).unDone();
-//     assert_eq!(ch, "baz");
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "other");
-//     assert_eq!(thd, "foo");
-//     assert!(is_owned(fst));
-//     assert!(is_owned(snd));
-//     assert!(is_owned(thd));
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_boxable() {
+    use std::vec::Drain;
+    #[derive(Copy, Clone, Debug)]
+    struct Test;
+    type TestCh<'a> = Cow<'a,str>;
+    type TestStr<'a> = Peekable<Drain<'a,TestCh<'a>>>;
+    type TestOutput<'a> = ((TestCh<'a>, TestCh<'a>), TestCh<'a>);
+    type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>>;
+    impl Parser for Test {}
+    impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
+        type Output = TestOutput<'a>;
+        type State = TestState;
+        fn init(&self, string: &mut TestStr<'a>) -> Option<ParseResult<TestState, TestOutput<'a>>> {
+            fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
+            fn mk_other<'a>(_: Option<TestCh<'a>>) -> TestCh<'a> { Cow::Borrowed("other") }
+            let ONE = character_ref(is_foo);
+            let OTHER = CHARACTER.map(mk_other);
+            let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+            // This bit should be in the API
+            match parser.init(string) {
+                None => None,
+                Some(Done(result)) => Some(Done(result)),
+                Some(Continue(state)) => Some(Continue(Box::new(impls::BoxableState::new(state)))),
+            }
+        }
+    }
+    fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
+    let parser = Test; 
+    let mut data = vec![Cow::Borrowed("foo"), Cow::Borrowed("bar"), Cow::Borrowed("foo")];
+    let ((fst, snd), thd) = parser.init(&mut data.drain(..).peekable()).unwrap().unDone();
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(!is_owned(fst));
+    assert!(!is_owned(snd));
+    assert!(!is_owned(thd));
+    let mut data1 = vec![Cow::Borrowed("foo")];
+    let mut data2 = vec![Cow::Borrowed("bar"), Cow::Borrowed("foo")];
+    let ((fst, snd), thd) = parser.init(&mut data1.drain(..).peekable()).unwrap().unContinue()
+        .more(&mut data2.drain(..).peekable()).unDone();
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(is_owned(fst));
+    assert!(!is_owned(snd));
+    assert!(!is_owned(thd));
+    let mut data1 = vec![Cow::Borrowed("foo"), Cow::Borrowed("bar")];
+    let mut data2 = vec![Cow::Borrowed("foo")];
+    let ((fst, snd), thd) = parser.init(&mut data1.drain(..).peekable()).unwrap().unContinue()
+        .more(&mut data2.drain(..).peekable()).unDone();
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(is_owned(fst));
+    assert!(is_owned(snd));
+    assert!(!is_owned(thd));
+}
 
 // // // #[test]
 // // // #[allow(non_snake_case)]
