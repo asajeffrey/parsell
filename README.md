@@ -18,27 +18,33 @@ It is based on:
 
 ## Example
 
-```
+```rust
 extern crate parsell;
-use parsell::{character,Parser,Uncommitted,Committed,Stateful};
+use parsell::{character,Parser,UncommittedStr,StatefulStr};
 use parsell::ParseResult::{Done,Continue};
 #[allow(non_snake_case)]
 fn main() {
 
     // A sequence of alphanumerics, saved in a string buffer
     let ALPHANUMERIC = character(char::is_alphanumeric);
-    let ALPHANUMERICS = ALPHANUMERIC.star(String::new);
+    let ALPHANUMERICS = ALPHANUMERIC.plus(String::new);
+
+    // If you provide unmatching input to the parser, you'll get back a None response:
+    match ALPHANUMERICS.init_str("!$?") {
+        None => (),
+        _ => panic!("Can't happen."),
+    }
 
     // If you provide complete input to the parser, you'll get back a Done response:
-    match ALPHANUMERICS.init().parse("abc123!") {
-        Done("!",result) => assert_eq!(result, "abc123"),
+    match ALPHANUMERICS.init_str("abc123!") {
+        Some(Done(result)) => assert_eq!(result, "abc123"),
         _ => panic!("Can't happen."),
     }
 
     // If you provide incomplete input to the parser, you'll get back a Continue response:
-    match ALPHANUMERICS.init().parse("abc") {
-        Continue("",parsing) => match parsing.parse("123!") {
-            Done("!",result) => assert_eq!(result, "abc123"),
+    match ALPHANUMERICS.init_str("abc") {
+        Some(Continue(parsing)) => match parsing.more_str("123!") {
+            Done(result) => assert_eq!(result, "abc123"),
             _ => panic!("Can't happen."),
         },
         _ => panic!("Can't happen."),
