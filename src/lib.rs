@@ -104,9 +104,59 @@ pub trait Stateful<Ch, Str>
     fn more(self, string: &mut Str) -> ParseResult<Self, Self::Output>
         where Self: Sized;
 
-    /// Parse an EOF.
+    /// Tells the parser that it will not receive any more data.
+    ///
+    /// If `parser: Stateful<Ch, Str, Output=T>`, then `parser.done()` returns a result of type `T`
+    /// for example:
+    ///
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let data1 = "ab";
+    /// let data2 = "cd";
+    /// let data3 = "ef";
+    /// match parser.init(&mut data1.chars()).unwrap() {
+    ///     Continue(stateful) => match stateful.more(&mut data2.chars()) { 
+    ///         Continue(stateful) => assert_eq!(stateful.last(&mut data3.chars()), "abcdef"),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+    ///
+    /// Note that `parser.done()` consumes the `parser`. In particular,
+    /// the `parser` is no longer available, so the following does not typecheck:
+    ///
+    /// ```text
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// match parser.init_str("abc").unwrap() {
+    ///     Continue(parsing) => {
+    ///         parsing.done();
+    ///         parsing.more_str("def!");
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// This helps with parser safety, as it stops a client from calling `more` after
+    /// `done`.
+
     fn done(self) -> Self::Output
         where Self: Sized;
+
+    /// Provides the last data to the parser.
+    ///
+    /// If `parser: Stateful<Ch, Str>` and `data: Str`, then `parser.last(&mut data)`
+    /// calls `parser.more(&mut data)`, then calls `done()` if the parser continues.
+    
+    fn last(self, string: &mut Str) -> Self::Output
+        where Self: Sized
+    {
+        match self.more(string) {
+            Continue(parsing) => parsing.done(),
+            Done(result) => result,
+        }
+    }
 
 }
 
@@ -114,7 +164,7 @@ pub trait Stateful<Ch, Str>
 
 pub trait StatefulStr<'a>: Stateful<char, Chars<'a>> {
 
-    /// Provides string data to the parser.
+    /// Provides a string to the parser.
     ///
     /// If `parser: Stateful<char, Chars<'a>>` and `data: &'a str`, then `parser.more_str(data)`
     /// is short-hand for `parser.more(&mut data.chars())`.
@@ -143,43 +193,36 @@ pub trait StatefulStr<'a>: Stateful<char, Chars<'a>> {
         self.more(&mut string.chars())
     }
 
+    /// Provides the last string to the parser.
+    ///
+    /// If `parser: Stateful<char, Chars<'a>>` and `data: &'a str`, then `parser.last_str(data)`
+    /// is short-hand for `parser.last(&mut data.chars())`.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful,StatefulStr};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// match parser.init_str("ab").unwrap() {
+    ///     Continue(parsing) => match parsing.more_str("cd") {
+    ///         Continue(parsing) => assert_eq!(parsing.last_str("ef"),"abcdef"),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
+
+    fn last_str(self, string: &'a str) -> Self::Output
+        where Self: Sized,
+    {
+        self.last(&mut string.chars())
+    }
+
 }
 
 impl<'a, P> StatefulStr<'a> for P where P: Stateful<char, Chars<'a>> {}
 
-// //     fn parse(self, value: Str) -> ParseResult<Self, Str> where Self: Sized;
-
-// //     /// Tells the parser that it will not receive any more data.
-// //     ///
-// //     /// If `parser: Stateful<S,Output=T>`, then `parser.done()` returns a result of type `T`
-// //     /// for example:
-// //     ///
-// //     /// ```
-// //     /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
-// //     /// # use parsell::ParseResult::{Continue,Done};
-// //     /// let parser = character(char::is_alphabetic).star(String::new);
-// //     /// let stateful = parser.init();
-// //     /// match stateful.parse("abc") {
-// //     ///     Continue("",parsing) => match parsing.parse("def") {
-// //     ///         Continue("",parsing) => assert_eq!(parsing.done(),"abcdef"),
-// //     ///         _ => panic!("can't happen"),
-// //     ///     },
-// //     ///     _ => panic!("can't happen"),
-// //     /// }
-// //     /// ```
-// //     ///
-// //     /// Note that `parser.done()` consumes the `parser`. In particular,
-// //     /// the `parser` is no longer available, so the following does not typecheck:
-// //     ///
-// //     /// ```text
-// //     /// let parser = character(char::is_alphabetic).star(String::new);
-// //     /// let stateful = parser.init();
-// //     /// stateful.done();
-// //     /// stateful.parse("def!");
-// //     /// ```
-// //     ///
-// //     /// This helps with parser safety, as it stops a client from calling `parse` after a
-// //     /// a stateful parser has finished.
 // //     fn done(self) -> Self::Output where Self: Sized;
 
 // //     /// Make this parser boxable.
