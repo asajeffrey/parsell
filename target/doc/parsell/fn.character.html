@@ -9,6 +9,7 @@
 
     <title>parsell::character - Rust</title>
 
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../main.css">
 
     
@@ -45,12 +46,14 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-1523' class='srclink' href='../src/parsell/lib.rs.html#1006-1010' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn character&lt;F&gt;(f: F) -&gt; <a class='struct' href='../parsell/impls/struct.CharacterParser.html' title='parsell::impls::CharacterParser'>CharacterParser</a>&lt;F&gt; <span class='where'>where F: <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>, Output=<a href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>&gt;</span></pre><div class='docblock'><p>An uncommitted parser that reads one character.</p>
+        </span><a id='src-1381' class='srclink' href='../src/parsell/lib.rs.html#1045-1047' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn character&lt;F&gt;(f: F) -&gt; <a class='struct' href='../parsell/impls/struct.Character.html' title='parsell::impls::Character'>Character</a>&lt;F&gt;</pre><div class='docblock'><p>An uncommitted parser that reads one character.</p>
 
 <p>The parser <code>character(f)</code> reads one character <code>ch</code> from the input,
 if <code>f(ch)</code> is <code>true</code> then it commits and the result is <code>ch</code>,
 otherwise it backtracks.</p>
+
+<p>This requires characters to be copyable.</p>
 </div></section>
     <section id='search' class="content hidden"></section>
 
@@ -110,6 +113,6 @@ otherwise it backtracks.</p>
     <script src="../jquery.js"></script>
     <script src="../main.js"></script>
     
-    <script async src="../search-index.js"></script>
+    <script defer src="../search-index.js"></script>
 </body>
 </html>

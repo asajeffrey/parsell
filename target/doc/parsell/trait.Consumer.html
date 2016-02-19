@@ -9,6 +9,7 @@
 
     <title>parsell::Consumer - Rust</title>
 
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../main.css">
 
     
@@ -45,7 +46,7 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-1418' class='srclink' href='../src/parsell/lib.rs.html#878-881' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-1212' class='srclink' href='../src/parsell/lib.rs.html#819-822' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait Consumer&lt;T&gt; {
     fn <a href='#tymethod.accept' class='fnname'>accept</a>(&amp;mut self, value: T);
 }</pre><div class='docblock'><p>A trait for consumers of data, typically buffers.</p>
@@ -78,11 +79,11 @@
 </div></div>
         <h2 id='implementors'>Implementors</h2>
         <ul class='item-list' id='implementors-list'>
-    <li><code>impl&lt;T&gt; <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;T&gt; for <a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a></code></li>
+    <li><code>impl&lt;T&gt; <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;T&gt; for <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a></code></li>
 <li><code>impl <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>&gt; for <a class='struct' href='https://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a></code></li>
-<li><code>impl&lt;'a&gt; <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;&amp;'a <a href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt; for <a class='struct' href='https://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a></code></li>
-<li><code>impl <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>&gt; for <a class='struct' href='https://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a></code></li>
-<li><code>impl&lt;'a, T&gt; <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;'a [</a>T<a href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>&gt; for <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;T&gt; <span class='where'>where T: <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a></span></code></li>
+<li><code>impl&lt;'a&gt; <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;&amp;'a <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt; for <a class='struct' href='https://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a></code></li>
+<li><code>impl <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>&gt; for <a class='struct' href='https://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a></code></li>
+<li><code>impl&lt;'a, T&gt; <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;'a [</a>T<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>&gt; for <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;T&gt; <span class='where'>where T: <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a></span></code></li>
 <li><code>impl&lt;T&gt; <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;T&gt; for <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;T&gt;</code></li>
 <li><code>impl&lt;C, T, E&gt; <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;<a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;T, E&gt;&gt; for <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;C, E&gt; <span class='where'>where C: <a class='trait' href='../parsell/trait.Consumer.html' title='parsell::Consumer'>Consumer</a>&lt;T&gt;</span></code></li>
 </ul><script type="text/javascript" async
@@ -146,6 +147,6 @@
     <script src="../jquery.js"></script>
     <script src="../main.js"></script>
     
-    <script async src="../search-index.js"></script>
+    <script defer src="../search-index.js"></script>
 </body>
 </html>

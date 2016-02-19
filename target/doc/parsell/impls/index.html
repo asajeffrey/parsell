@@ -9,6 +9,7 @@
 
     <title>parsell::impls - Rust</title>
 
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../../main.css">
 
     
@@ -45,61 +46,77 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-9' class='srclink' href='../../src/parsell/impls.rs.html#1-985' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-8' class='srclink' href='../../src/parsell/impls.rs.html#1-954' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Provide implementations of parser traits.</p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.AndThenParser.html'
-                               title='parsell::impls::AndThenParser'>AndThenParser</a></td>
+                        <td><a class='struct' href='struct.AndThen.html'
+                               title='parsell::impls::AndThen'>AndThen</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.AnyCharacterParser.html'
-                               title='parsell::impls::AnyCharacterParser'>AnyCharacterParser</a></td>
+                        <td><a class='struct' href='struct.AnyCharacter.html'
+                               title='parsell::impls::AnyCharacter'>AnyCharacter</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.AnyTokenParser.html'
-                               title='parsell::impls::AnyTokenParser'>AnyTokenParser</a></td>
+                        <td><a class='struct' href='struct.BoxableState.html'
+                               title='parsell::impls::BoxableState'>BoxableState</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.BoxableParser.html'
-                               title='parsell::impls::BoxableParser'>BoxableParser</a></td>
+                        <td><a class='struct' href='struct.Buffered.html'
+                               title='parsell::impls::Buffered'>Buffered</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.BufferedParser.html'
-                               title='parsell::impls::BufferedParser'>BufferedParser</a></td>
+                        <td><a class='struct' href='struct.BufferedState.html'
+                               title='parsell::impls::BufferedState'>BufferedState</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.BufferedStatefulParser.html'
-                               title='parsell::impls::BufferedStatefulParser'>BufferedStatefulParser</a></td>
+                        <td><a class='struct' href='struct.Character.html'
+                               title='parsell::impls::Character'>Character</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.CharacterParser.html'
-                               title='parsell::impls::CharacterParser'>CharacterParser</a></td>
+                        <td><a class='struct' href='struct.CharacterRef.html'
+                               title='parsell::impls::CharacterRef'>CharacterRef</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.CharacterState.html'
+                               title='parsell::impls::CharacterState'>CharacterState</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Emit.html'
+                               title='parsell::impls::Emit'>Emit</a></td>
                         <td class='docblock short'>
                              
                         </td>
@@ -138,88 +155,48 @@
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.ImpossibleStatefulParser.html'
-                               title='parsell::impls::ImpossibleStatefulParser'>ImpossibleStatefulParser</a></td>
+                        <td><a class='struct' href='struct.Map.html'
+                               title='parsell::impls::Map'>Map</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.IterParser.html'
-                               title='parsell::impls::IterParser'>IterParser</a></td>
+                        <td><a class='struct' href='struct.MkSome.html'
+                               title='parsell::impls::MkSome'>MkSome</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.MapParser.html'
-                               title='parsell::impls::MapParser'>MapParser</a></td>
+                        <td><a class='struct' href='struct.OrElse.html'
+                               title='parsell::impls::OrElse'>OrElse</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.MapStatefulParser.html'
-                               title='parsell::impls::MapStatefulParser'>MapStatefulParser</a></td>
+                        <td><a class='struct' href='struct.Plus.html'
+                               title='parsell::impls::Plus'>Plus</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.OrElseParser.html'
-                               title='parsell::impls::OrElseParser'>OrElseParser</a></td>
+                        <td><a class='struct' href='struct.Star.html'
+                               title='parsell::impls::Star'>Star</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='struct' href='struct.PipeParser.html'
-                               title='parsell::impls::PipeParser'>PipeParser</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='struct' href='struct.PipeStateful.html'
-                               title='parsell::impls::PipeStateful'>PipeStateful</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='struct' href='struct.PlusParser.html'
-                               title='parsell::impls::PlusParser'>PlusParser</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='struct' href='struct.StarParser.html'
-                               title='parsell::impls::StarParser'>StarParser</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='struct' href='struct.StarStatefulParser.html'
-                               title='parsell::impls::StarStatefulParser'>StarStatefulParser</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='struct' href='struct.TokenParser.html'
-                               title='parsell::impls::TokenParser'>TokenParser</a></td>
+                        <td><a class='struct' href='struct.StarState.html'
+                               title='parsell::impls::StarState'>StarState</a></td>
                         <td class='docblock short'>
                              
                         </td>
@@ -259,24 +236,16 @@
                 </table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
                     <tr class=' module-item'>
-                        <td><a class='enum' href='enum.AndThenStatefulParser.html'
-                               title='parsell::impls::AndThenStatefulParser'>AndThenStatefulParser</a></td>
+                        <td><a class='enum' href='enum.AndThenState.html'
+                               title='parsell::impls::AndThenState'>AndThenState</a></td>
                         <td class='docblock short'>
                              
                         </td>
                     </tr>
                 
                     <tr class=' module-item'>
-                        <td><a class='enum' href='enum.OrElseCommittedParser.html'
-                               title='parsell::impls::OrElseCommittedParser'>OrElseCommittedParser</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='enum' href='enum.OrElseStatefulParser.html'
-                               title='parsell::impls::OrElseStatefulParser'>OrElseStatefulParser</a></td>
+                        <td><a class='enum' href='enum.OrElseState.html'
+                               title='parsell::impls::OrElseState'>OrElseState</a></td>
                         <td class='docblock short'>
                              
                         </td>
@@ -340,6 +309,6 @@
     <script src="../../jquery.js"></script>
     <script src="../../main.js"></script>
     
-    <script async src="../../search-index.js"></script>
+    <script defer src="../../search-index.js"></script>
 </body>
 </html>

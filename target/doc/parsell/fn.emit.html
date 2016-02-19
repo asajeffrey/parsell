@@ -4,11 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="API documentation for the Rust `token` fn in crate `parsell`.">
-    <meta name="keywords" content="rust, rustlang, rust-lang, token">
+    <meta name="description" content="API documentation for the Rust `emit` fn in crate `parsell`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, emit">
 
-    <title>parsell::token - Rust</title>
+    <title>parsell::emit - Rust</title>
 
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../main.css">
 
     
@@ -26,7 +27,7 @@
 
     <nav class="sidebar">
         
-        <p class='location'><a href='index.html'>parsell</a></p><script>window.sidebarCurrent = {name: 'token', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'><a href='index.html'>parsell</a></p><script>window.sidebarCurrent = {name: 'emit', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
     </nav>
 
     <nav class="sub">
@@ -41,16 +42,12 @@
     </nav>
 
     <section id='main' class="content fn">
-<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>parsell</a>::<wbr><a class='fn' href=''>token</a></span><span class='out-of-band'><span id='render-detail'>
+<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>parsell</a>::<wbr><a class='fn' href=''>emit</a></span><span class='out-of-band'><span id='render-detail'>
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-1527' class='srclink' href='../src/parsell/lib.rs.html#1025-1027' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn token&lt;F&gt;(f: F) -&gt; <a class='struct' href='../parsell/impls/struct.TokenParser.html' title='parsell::impls::TokenParser'>TokenParser</a>&lt;F&gt;</pre><div class='docblock'><p>An uncommitted parser that reads one token.</p>
-
-<p>The parser <code>token(f)</code> reads one token <code>tok</code> from the input,
-if <code>f(tok)</code> is <code>true</code> then it commits and the result is <code>tok</code>,
-otherwise it backtracks.</p>
+        </span><a id='src-1388' class='srclink' href='../src/parsell/lib.rs.html#1070-1072' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn emit&lt;T&gt;(t: T) -&gt; <a class='struct' href='../parsell/impls/struct.Emit.html' title='parsell::impls::Emit'>Emit</a>&lt;T&gt;</pre><div class='docblock'><p>A committed parser that reads zero characters.</p>
 </div></section>
     <section id='search' class="content hidden"></section>
 
@@ -110,6 +107,6 @@ otherwise it backtracks.</p>
     <script src="../jquery.js"></script>
     <script src="../main.js"></script>
     
-    <script async src="../search-index.js"></script>
+    <script defer src="../search-index.js"></script>
 </body>
 </html>

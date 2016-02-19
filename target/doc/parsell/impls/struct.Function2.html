@@ -9,6 +9,7 @@
 
     <title>parsell::impls::Function2 - Rust</title>
 
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../../main.css">
 
     
@@ -47,8 +48,8 @@
             </a>
         </span><a id='src-22' class='srclink' href='../../src/parsell/impls.rs.html#21' title='goto source code'>[src]</a></span></h1>
 <pre class='rust struct'>pub struct Function2&lt;F&gt;(_);</pre><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl&lt;F&gt; <a class='struct' href='../../parsell/impls/struct.Function2.html' title='parsell::impls::Function2'>Function2</a>&lt;F&gt;</code></h3><div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(f: F) -&gt; Self</code></h4>
-</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl&lt;F, S1, S2&gt; <a class='trait' href='../../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S1, S2)</a>&gt; for <a class='struct' href='../../parsell/impls/struct.Function2.html' title='parsell::impls::Function2'>Function2</a>&lt;F&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S1, S2)</a>&gt;</span></code></h3><div class='impl-items'><h4 id='assoc_type.Output' class='type'><code>type Output = F::Output</code></h4>
-<h4 id='method.apply' class='method'><code>fn <a href='../../parsell/trait.Function.html#method.apply' class='fnname'>apply</a>(&amp;self, args: <a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S1, S2)</a>) -&gt; F::Output</code></h4>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl&lt;F, S1, S2&gt; <a class='trait' href='../../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S1, S2)</a>&gt; for <a class='struct' href='../../parsell/impls/struct.Function2.html' title='parsell::impls::Function2'>Function2</a>&lt;F&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S1, S2)</a>&gt;</span></code></h3><div class='impl-items'><h4 id='assoc_type.Output' class='type'><code>type Output = F::Output</code></h4>
+<h4 id='method.apply' class='method'><code>fn <a href='../../parsell/trait.Function.html#method.apply' class='fnname'>apply</a>(&amp;self, args: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S1, S2)</a>) -&gt; F::Output</code></h4>
 </div><h3 id='derived_implementations'>Derived Implementations </h3><h3 class='impl'><code>impl&lt;F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a>&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../../parsell/impls/struct.Function2.html' title='parsell::impls::Function2'>Function2</a>&lt;F&gt;</code></h3><div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#method.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
 </div><h3 class='impl'><code>impl&lt;F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../../parsell/impls/struct.Function2.html' title='parsell::impls::Function2'>Function2</a>&lt;F&gt;</code></h3><div class='impl-items'><h4 id='method.clone' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../../parsell/impls/struct.Function2.html' title='parsell::impls::Function2'>Function2</a>&lt;F&gt;</code></h4>
 <h4 id='method.clone_from' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code></h4>
@@ -111,6 +112,6 @@
     <script src="../../jquery.js"></script>
     <script src="../../main.js"></script>
     
-    <script async src="../../search-index.js"></script>
+    <script defer src="../../search-index.js"></script>
 </body>
 </html>
