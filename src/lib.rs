@@ -1490,112 +1490,65 @@ fn test_boxable() {
     assert!(!is_owned(thd));
 }
 
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_iter() {
-// // //     fn mk_X(_: Option<char>) -> char {
-// // //         'X'
-// // //     }
-// // //     let ALPHABETIC = character(char::is_alphabetic);
-// // //     let parser = ALPHABETIC.or_else(CHARACTER.map(mk_X));
-// // //     let mut iter = parser.iter("abc");
-// // //     assert_eq!(iter.next(), Some('a'));
-// // //     assert_eq!(iter.next(), Some('b'));
-// // //     assert_eq!(iter.next(), Some('c'));
-// // //     assert_eq!(iter.next(), None);
-// // // }
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_iter() {
+//     fn mk_X(_: Option<char>) -> char {
+//         'X'
+//     }
+//     let ALPHABETIC = character(char::is_alphabetic);
+//     let parser = ALPHABETIC.or_else(CHARACTER.map(mk_X));
+//     let mut iter = parser.iter("abc");
+//     assert_eq!(iter.next(), Some('a'));
+//     assert_eq!(iter.next(), Some('b'));
+//     assert_eq!(iter.next(), Some('c'));
+//     assert_eq!(iter.next(), None);
+// }
 
-// // // // #[test]
-// // // // #[allow(non_snake_case)]
-// // // // fn test_pipe() {
-// // // //     use std::borrow::{Borrow, Cow};
-// // // //     #[derive(Clone,Debug,PartialEq,Eq)]
-// // // //     enum Token {
-// // // //         Identifier(String),
-// // // //         Number(usize),
-// // // //         Other,
-// // // //     }
-// // // //     fn mk_id<'a>(string: Cow<'a, str>) -> Token {
-// // // //         Token::Identifier(string.into_owned())
-// // // //     }
-// // // //     fn mk_num<'a>(string: Cow<'a, str>) -> Token {
-// // // //         Token::Number(usize::from_str_radix(string.borrow(), 10).unwrap())
-// // // //     }
-// // // //     fn mk_other(_: Option<char>) -> Token {
-// // // //         Token::Other
-// // // //     }
-// // // //     fn ignore() {}
-// // // //     fn is_decimal(ch: char) -> bool {
-// // // //         ch.is_digit(10)
-// // // //     }
-// // // //     fn is_identifier(tok: &Token) -> bool {
-// // // //         match *tok {
-// // // //             Token::Identifier(_) => true,
-// // // //             _ => false,
-// // // //         }
-// // // //     }
-// // // //     fn is_number(tok: &Token) -> bool {
-// // // //         match *tok {
-// // // //             Token::Number(_) => true,
-// // // //             _ => false,
-// // // //         }
-// // // //     }
-// // // //     let ALPHABETIC = character(char::is_alphabetic);
-// // // //     let DIGIT = character(is_decimal);
-// // // //     let lexer = ALPHABETIC.plus(ignore)
-// // // //                           .buffer()
-// // // //                           .map(mk_id)
-// // // //                           .or_else(DIGIT.plus(ignore).buffer().map(mk_num))
-// // // //                           .or_else(CHARACTER.map(mk_other));
-// // // //     let parser = token(is_identifier).or_else(token(is_number)).star(Vec::<Token>::new);
-// // // //     assert_eq!(lexer.pipe(parser).init().parse("abc37!!").unDone(),
-// // // //                ("!",
-// // // //                 vec![Token::Identifier(String::from("abc")), Token::Number(37)]));
-// // // // }
-
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_different_lifetimes1() {
-// // //     fn go<'a, 'b, P>(ab: &'a str, cd: &'b str, parser: P)
-// // //         where P: Copy + Parser<char> + for<'c> Committed<&'c str>,
-// // //               <P as Parser<char>>::State: for<'c> Stateful<&'c str, Output = (Option<char>, Option<char>)>,
-// // //     {
-// // //         let _: &'a str = parser.init().parse(ab).unDone().0;
-// // //         let _: &'b str = parser.init().parse(cd).unDone().0;
-// // //         assert_eq!(parser.init().parse(ab).unDone(),
-// // //                    ("", (Some('a'), Some('b'))));
-// // //         assert_eq!(parser.init().parse(cd).unDone(),
-// // //                    ("", (Some('c'), Some('d'))));
-// // //     }
-// // //     let parser = CHARACTER.and_then(CHARACTER);
-// // //     go("ab", "cd", parser);
-// // // }
-
-// // // #[test]
-// // // #[allow(non_snake_case)]
-// // // fn test_different_lifetimes2() {
-// // //     use std::borrow::Cow;
-// // //     use std::borrow::Cow::Owned;
-// // //     fn ignore() {}
-// // //     fn is_owned<'a,T:?Sized+ToOwned>(cow: &Cow<'a,T>) -> bool { match cow { &Owned(_) => true, _ => false } }
-// // //     let parser = character(char::is_alphabetic).star(ignore).buffer()
-// // //         .and_then(character(char::is_numeric).star(ignore).buffer());
-// // //     match parser.init().parse("abc123!") {
-// // //         Done("!", (ref fst, ref snd)) => {
-// // //             assert!(!is_owned(fst));
-// // //             assert!(!is_owned(snd));
-// // //             assert_eq!(fst, "abc");
-// // //             assert_eq!(snd, "123");
-// // //         },
-// // //         oops => panic!("Shouldn't happen {:?}", oops),
-// // //     };
-// // //     match parser.init().parse("abc1").unContinue().parse("23!") {
-// // //         Done("!", (ref fst, ref snd)) => {
-// // //             assert!(is_owned(fst));
-// // //             assert!(is_owned(snd));
-// // //             assert_eq!(fst, "abc");
-// // //             assert_eq!(snd, "123");
-// // //         },
-// // //         oops => panic!("Shouldn't happen {:?}", oops),
-// // //     };
-// // // }
+// #[test]
+// #[allow(non_snake_case)]
+// fn test_pipe() {
+//     use std::borrow::{Borrow, Cow};
+//     #[derive(Clone,Debug,PartialEq,Eq)]
+//     enum Token {
+//         Identifier(String),
+//         Number(usize),
+//         Other,
+//     }
+//     fn mk_id<'a>(string: Cow<'a, str>) -> Token {
+//         Token::Identifier(string.into_owned())
+//     }
+//     fn mk_num<'a>(string: Cow<'a, str>) -> Token {
+//         Token::Number(usize::from_str_radix(string.borrow(), 10).unwrap())
+//     }
+//     fn mk_other(_: Option<char>) -> Token {
+//         Token::Other
+//     }
+//     fn ignore() {}
+//     fn is_decimal(ch: char) -> bool {
+//         ch.is_digit(10)
+//     }
+//     fn is_identifier(tok: &Token) -> bool {
+//         match *tok {
+//             Token::Identifier(_) => true,
+//             _ => false,
+//         }
+//     }
+//     fn is_number(tok: &Token) -> bool {
+//         match *tok {
+//             Token::Number(_) => true,
+//             _ => false,
+//         }
+//     }
+//     let ALPHABETIC = character(char::is_alphabetic);
+//     let DIGIT = character(is_decimal);
+//     let lexer = ALPHABETIC.plus(ignore)
+//                           .buffer()
+//                           .map(mk_id)
+//                           .or_else(DIGIT.plus(ignore).buffer().map(mk_num))
+//                           .or_else(CHARACTER.map(mk_other));
+//     let parser = token(is_identifier).or_else(token(is_number)).star(Vec::<Token>::new);
+//     assert_eq!(lexer.pipe(parser).init().parse("abc37!!").unDone(),
+//                ("!",
+//                 vec![Token::Identifier(String::from("abc")), Token::Number(37)]));
+// }
