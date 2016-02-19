@@ -13,6 +13,8 @@ license = "MPL-2.0"
 
 build = "build.rs"
 
+exclude = [ "doc/*" ]
+
 [build-dependencies]
 skeptic = "0.4.0"
 
