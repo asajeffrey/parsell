@@ -1543,9 +1543,6 @@
 <span id="1500">1500</span>
 <span id="1501">1501</span>
 <span id="1502">1502</span>
-<span id="1503">1503</span>
-<span id="1504">1504</span>
-<span id="1505">1505</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Parsell: an LL(1) streaming parser combinator library for Rust</span>
 <span class='doccomment'>//!</span>
@@ -1562,6 +1559,8 @@
 <span class='doccomment'>//!   by G. Hutton and E. Meijer, JFP 8(4) pp. 437-444,</span>
 <span class='doccomment'>//! * [Nom, eating data byte by byte](https://github.com/Geal/nom) by G. Couprie.</span>
 <span class='doccomment'>//!</span>
+<span class='doccomment'>//! [Video](https://air.mozilla.org/bay-area-rust-meetup-february-2016/) |</span>
+<span class='doccomment'>//! [Slides](http://asajeffrey.github.io/parsell/doc/talks/sf-rust-2016-02-18/) |</span>
 <span class='doccomment'>//! [Repo](https://github.com/asajeffrey/parsell) |</span>
 <span class='doccomment'>//! [Crate](https://crates.io/crates/parsell) |</span>
 <span class='doccomment'>//! [CI](https://travis-ci.org/asajeffrey/parsell)</span>
@@ -1927,6 +1926,13 @@
     <span class='comment'>//     impls::PipeParser::new(self, other)</span>
     <span class='comment'>// }</span>
 
+    <span class='comment'>// Box up this parser</span>
+    <span class='kw'>fn</span> <span class='ident'>boxed</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Boxed</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
+        <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>
+    {
+        <span class='ident'>impls</span>::<span class='ident'>Boxed</span>::<span class='ident'>new</span>(<span class='self'>self</span>, <span class='ident'>f</span>)
+    }
+
     <span class='doccomment'>/// A parser which produces its input.</span>
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// This does its best to avoid having to buffer the input. The result of a buffered parser</span>
@@ -2076,199 +2082,189 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>P</span><span class='op'>&gt;</span> <span class='ident'>UncommittedStr</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>P</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>char</span>, <span class='ident'>Chars</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span> {}
 
 <span class='doccomment'>/// A trait for boxable parsers.</span>
-<span class='comment'>//</span>
-<span class='comment'>// TODO: finish this documentation!</span>
-<span class='comment'>//</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// Regular languages can be parsed in constant memory, so do not require any heap allocation (other than</span>
-<span class='comment'>// /// the heap allocation peformed by user code such as creating buffers). Context-free languages require</span>
-<span class='comment'>// /// allocating unbounded memory. In order to support streaming input, the state of the parser must be</span>
-<span class='comment'>// /// saved on the heap, and restored when more input arrives.</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// In Rust, heap-allocated data is often kept in a `Box&lt;T&gt;`, where `T` is a trait. In the case</span>
-<span class='comment'>// /// of parsers, the library needs to save and restore a stateful parser, for which the obvious</span>
-<span class='comment'>// /// type is `Box&lt;Stateful&lt;Ch, Str, Output=T&gt;`. There are two issues with this...</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// Firstly, the lifetimes mentioned in the type of the parser may change over time.</span>
-<span class='comment'>// /// For example, the program:</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// ```text</span>
-<span class='comment'>// /// let this: &amp;&#39;a str = ...;</span>
-<span class='comment'>// /// let that: &amp;&#39;b str = ...;</span>
-<span class='comment'>// /// let parser = character(char::is_alphanumeric).star(ignore).buffer();</span>
-<span class='comment'>// /// match parser.init_str(this).unwrap() {</span>
-<span class='comment'>// ///     Continue(stateful) =&gt; {</span>
-<span class='comment'>// ///         let boxed: Box&lt;Stateful&lt;char, Chars&lt;&#39;a&gt;, Output=Cow&lt;&#39;a, str&gt;&gt;&gt; = Box::new(stateful);</span>
-<span class='comment'>// ///         match boxed.more_str(that) {</span>
-<span class='comment'>// ///             Done(result: Cow&lt;&#39;b,str&gt;) =&gt; ...</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// does not typecheck, because the type of `boxed` is fixed as containing parsers for input `&amp;&#39;a str`,</span>
-<span class='comment'>// /// but it was fed input of type `&amp;&#39;b str`. To fix this, we change the type of the box to be</span>
-<span class='comment'>// /// polymorphic in the lifetime of the parser:</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// ```text</span>
-<span class='comment'>// /// let this: &amp;&#39;a str = ...;</span>
-<span class='comment'>// /// let that: &amp;&#39;b str = ...;</span>
-<span class='comment'>// /// let parser = character(char::is_alphanumeric).star(ignore).buffer();</span>
-<span class='comment'>// /// match parser.init_str(this).unwrap() {</span>
-<span class='comment'>// ///     Continue(stateful) =&gt; {</span>
-<span class='comment'>// ///         let boxed: Box&lt;for&lt;&#39;c&gt; Stateful&lt;char, Chars&lt;&#39;c&gt;, Output=Cow&lt;&#39;c, str&gt;&gt;&gt; = Box::new(stateful);</span>
-<span class='comment'>// ///         match boxed.more_str(that) {</span>
-<span class='comment'>// ///             Done(result: Cow&lt;&#39;b,str&gt;) =&gt; ...</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// Secondly, the `Stateful` trait is not</span>
-<span class='comment'>// /// [object-safe](https://doc.rust-lang.org/book/trait-objects.html#object-safety),</span>
-<span class='comment'>// /// so cannot be boxed and unboxed safely. In order to address this, there is a trait</span>
-<span class='comment'>// /// `Boxable&lt;Ch, Str&gt;`, which represents stateful parsers, but is object-safe</span>
-<span class='comment'>// /// and so can be boxed and unboxed safely:</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// /// # use parsell::{character,Parser,Uncommitted,Committed,Boxable,Stateful};</span>
-<span class='comment'>// /// # use parsell::ParseResult::{Done,Continue};</span>
-<span class='comment'>// /// # fn ignore() {}</span>
-<span class='comment'>// /// let parser = character(char::is_alphanumeric).star(ignore).buffer();</span>
-<span class='comment'>// /// match parser.init_str(this).unwrap() {</span>
-<span class='comment'>// ///     Continue(stateful) =&gt; {</span>
-<span class='comment'>// ///         let boxed: Box&lt;for&lt;&#39;c&gt; Stateful&lt;char, Chars&lt;&#39;c&gt;, Output=Cow&lt;&#39;c, str&gt;&gt;&gt; = Box::new(stateful.boxable());</span>
-<span class='comment'>// ///     },</span>
-<span class='comment'>// ///     _ =&gt; panic!(&quot;Can&#39;t happen.&quot;),</span>
-<span class='comment'>// /// }</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// The type `Box&lt;Boxable&lt;Ch, Str&gt;&gt;` implements the trait</span>
-<span class='comment'>// /// `Stateful&lt;Ch, Str&gt;`, so boxes can be used as parsers,</span>
-<span class='comment'>// /// which allows stateful parsers to heap-allocate their state.</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// Boxable parsers are usually used in recursive-descent parsing,</span>
-<span class='comment'>// /// for context-free grammars that cannot be parsed as a regular language.</span>
-<span class='comment'>// /// For example, consider a simple type for trees:</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// /// struct Tree(Vec&lt;Tree&gt;);</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// which can be parsed from a well-nested sequence of parentheses, for example</span>
-<span class='comment'>// /// `(()())` can be parsed as `Tree(vec![Tree(vec![]),Tree(vec![])])`.</span>
-<span class='comment'>// /// The desired implementation is:</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// ```text</span>
-<span class='comment'>// /// fn is_lparen(ch: char) -&gt; bool { ch == &#39;(&#39; }</span>
-<span class='comment'>// /// fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }</span>
-<span class='comment'>// /// fn mk_vec() -&gt; Vec&lt;Tree&gt; { Ok(Vec::new()) }</span>
-<span class='comment'>// /// fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T, String&gt; { Ok(ok) }</span>
-<span class='comment'>// /// fn mk_err&lt;T&gt;(_: Option&lt;char&gt;) -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }</span>
-<span class='comment'>// /// fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Tree {</span>
-<span class='comment'>// ///     Tree(children)</span>
-<span class='comment'>// /// }</span>
-<span class='comment'>// /// let LPAREN = character(is_lparen);</span>
-<span class='comment'>// /// let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));</span>
-<span class='comment'>// /// let TREE = LPAREN</span>
-<span class='comment'>// ///     .and_then_try(TREE.star(mk_vec))</span>
-<span class='comment'>// ///     .try_and_then_try(RPAREN)</span>
-<span class='comment'>// ///     .try_map3(mk_tree);</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// but this doesn&#39;t work because it gives the definition of `TREE` in terms of itself,</span>
-<span class='comment'>// /// and Rust doesn&#39;t allow this kind of cycle.</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// Instead, the solution is to define a struct `TreeParser`, and then implement `Uncommitted&lt;&amp;str&gt;`</span>
-<span class='comment'>// /// for it. The type of the state of a `TreeParser` is a box containing an appropriate</span>
-<span class='comment'>// /// `BoxableParserState` trait:</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// /// # use parsell::{Boxable},</span>
-<span class='comment'>// /// # struct Tree(Vec&lt;Tree&gt;);</span>
-<span class='comment'>// /// type TreeParserState = Box&lt;for&lt;&#39;b&gt; Boxable&lt;char, Chars&lt;&#39;b&gt;, Output=Tree&gt;&gt;;</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// The implementation of `Uncommitted&lt;char, Chars&lt;&#39;b&gt;&gt;` for `TreeParser` is mostly straightfoward:</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// /// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Static};</span>
-<span class='comment'>// /// # use parsell::ParseResult::{Done,Continue};</span>
-<span class='comment'>// /// # use parsell::MaybeParseResult::{Commit};</span>
-<span class='comment'>// /// # #[derive(Eq,PartialEq,Clone,Debug)]</span>
-<span class='comment'>// /// struct Tree(Vec&lt;Tree&gt;);</span>
-<span class='comment'>// /// impl Static for Tree {}</span>
-<span class='comment'>// /// # #[derive(Copy,Clone,Debug)]</span>
-<span class='comment'>// /// struct TreeParser;</span>
-<span class='comment'>// /// type TreeParserState = Box&lt;for&lt;&#39;b&gt; Boxable&lt;&amp;&#39;b str, Output=Result&lt;Tree,String&gt;&gt;&gt;;</span>
-<span class='comment'>// /// impl Parser&lt;char&gt; for TreeParser {</span>
-<span class='comment'>// ///     type StaticOutput = Result&lt;Tree,String&gt;;</span>
-<span class='comment'>// ///     type State = TreeParserState;</span>
-<span class='comment'>// /// }</span>
-<span class='comment'>// /// impl&lt;&#39;a&gt; Uncommitted&lt;&amp;&#39;a str&gt; for TreeParser {</span>
-<span class='comment'>// ///     fn parse(&amp;self, data: &amp;&#39;a str) -&gt; MaybeParseResult&lt;Self::State,&amp;&#39;a str&gt; {</span>
-<span class='comment'>// ///         // ... parser goes here...`</span>
-<span class='comment'>// /// #       fn is_lparen(ch: char) -&gt; bool { ch == &#39;(&#39; }</span>
-<span class='comment'>// /// #       fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }</span>
-<span class='comment'>// /// #       fn mk_vec() -&gt; Result&lt;Vec&lt;Tree&gt;,String&gt; { Ok(Vec::new()) }</span>
-<span class='comment'>// /// #       fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T,String&gt; { Ok(ok) }</span>
-<span class='comment'>// /// #       fn mk_err&lt;T&gt;(_: Option&lt;char&gt;) -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }</span>
-<span class='comment'>// /// #       fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Tree {</span>
-<span class='comment'>// /// #           Tree(children)</span>
-<span class='comment'>// /// #       }</span>
-<span class='comment'>// /// #       fn mk_box&lt;P&gt;(parser: P) -&gt; TreeParserState</span>
-<span class='comment'>// /// #       where P: &#39;static+for&lt;&#39;a&gt; Stateful&lt;&amp;&#39;a str, Output=Result&lt;Tree,String&gt;&gt; {</span>
-<span class='comment'>// /// #           Box::new(parser.boxable())</span>
-<span class='comment'>// /// #       }</span>
-<span class='comment'>// /// #       let LPAREN = character(is_lparen);</span>
-<span class='comment'>// /// #       let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));</span>
-<span class='comment'>// /// #       let parser = LPAREN</span>
-<span class='comment'>// /// #           .and_then_try(TreeParser.star(mk_vec))</span>
-<span class='comment'>// /// #           .try_and_then_try(RPAREN)</span>
-<span class='comment'>// /// #           .try_map3(mk_tree);</span>
-<span class='comment'>// /// #       parser.parse(data).map(mk_box)</span>
-<span class='comment'>// ///     }</span>
-<span class='comment'>// /// }</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// The important thing is that the definiton of `parse` can make use of `TREE`, so the parser can call itself</span>
-<span class='comment'>// /// recursively, then box up the result state:</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// /// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,MaybeParseResult,Static};</span>
-<span class='comment'>// /// # use parsell::ParseResult::{Done,Continue};</span>
-<span class='comment'>// /// # use parsell::MaybeParseResult::{Commit};</span>
-<span class='comment'>// /// # #[derive(Eq,PartialEq,Clone,Debug)]</span>
-<span class='comment'>// /// struct Tree(Vec&lt;Tree&gt;);</span>
-<span class='comment'>// /// # impl StaticMarker for Tree {}</span>
-<span class='comment'>// /// # #[derive(Copy,Clone,Debug)]</span>
-<span class='comment'>// /// struct TreeParser;</span>
-<span class='comment'>// /// type TreeParserState = Box&lt;for&lt;&#39;b&gt; Boxable&lt;char, Chars&lt;&#39;b&gt;, Output=Result&lt;Tree, String&gt;&gt;&gt;;</span>
-<span class='comment'>// /// impl Parser for TreeParser {}</span>
-<span class='comment'>// /// impl&lt;&#39;a&gt; Uncommitted&lt;&amp;&#39;a str&gt; for TreeParser {</span>
-<span class='comment'>// ///     fn init(&amp;self, data: Chars&lt;&#39;a&gt;) -&gt; Option&lt;ParseResult&lt;Self::State, Self::Output&gt;&gt; {</span>
-<span class='comment'>// ///         fn is_lparen(ch: char) -&gt; bool { ch == &#39;(&#39; }</span>
-<span class='comment'>// ///         fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }</span>
-<span class='comment'>// ///         fn mk_vec() -&gt; Vec&lt;Tree&gt; { Vec::new() }</span>
-<span class='comment'>// ///         fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T,String&gt; { Ok(ok) }</span>
-<span class='comment'>// ///         fn mk_err&lt;T&gt;(_: Option&lt;char&gt;) -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }</span>
-<span class='comment'>// ///         fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Tree { Tree(children) }</span>
-<span class='comment'>// ///         let LPAREN = character(is_lparen);</span>
-<span class='comment'>// ///         let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));</span>
-<span class='comment'>// ///         let parser = LPAREN</span>
-<span class='comment'>// ///             .and_then_try(TreeParser.star(mk_vec))</span>
-<span class='comment'>// ///             .try_and_then_try(RPAREN)</span>
-<span class='comment'>// ///             .try_map3(mk_tree);</span>
-<span class='comment'>// ///         parser.init(data)</span>
-<span class='comment'>// ///     }</span>
-<span class='comment'>// /// }</span>
-<span class='comment'>// /// let TREE = TreeParser;</span>
-<span class='comment'>// /// match TREE.init_str(&quot;((&quot;).unwrap() {</span>
-<span class='comment'>// ///     Continue(parsing) =&gt; match parsing.more_str(&quot;)()))&quot;) {</span>
-<span class='comment'>// ///         Done(result) =&gt; assert_eq!(result, Ok(Tree(vec![Tree(vec![]),Tree(vec![])]))),</span>
-<span class='comment'>// ///          _ =&gt; panic!(&quot;Can&#39;t happen&quot;),</span>
-<span class='comment'>// ///     },</span>
-<span class='comment'>// ///     _ =&gt; panic!(&quot;Can&#39;t happen&quot;),</span>
-<span class='comment'>// /// }</span>
-<span class='comment'>// /// ```</span>
-<span class='comment'>// ///</span>
-<span class='comment'>// /// The reason for making `Boxable&lt;S&gt;` a different trait from `Stateful&lt;S&gt;`</span>
-<span class='comment'>// /// is that it provides weaker safety guarantees. `Stateful&lt;S&gt;` enforces that</span>
-<span class='comment'>// /// clients cannot call `parse` after `done`, but `Boxable&lt;S&gt;` does not.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// Regular languages can be parsed in constant memory, so do not require any heap allocation (other than</span>
+<span class='doccomment'>/// the heap allocation peformed by user code such as creating buffers). Context-free languages require</span>
+<span class='doccomment'>/// allocating unbounded memory. In order to support streaming input, the state of the parser must be</span>
+<span class='doccomment'>/// saved on the heap, and restored when more input arrives.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// In Rust, heap-allocated data is often kept in a `Box&lt;T&gt;`, where `T` is a trait. In the case</span>
+<span class='doccomment'>/// of parsers, the library needs to save and restore a stateful parser, for which the obvious</span>
+<span class='doccomment'>/// type is `Box&lt;Stateful&lt;Ch, Str, Output=T&gt;`. There are two issues with this...</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// Firstly, the lifetimes mentioned in the type of the parser may change over time.</span>
+<span class='doccomment'>/// For example, the program:</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// ```text</span>
+<span class='doccomment'>/// let this: &amp;&#39;a str = ...;</span>
+<span class='doccomment'>/// let that: &amp;&#39;b str = ...;</span>
+<span class='doccomment'>/// let parser = character(char::is_alphanumeric).star(ignore).buffer();</span>
+<span class='doccomment'>/// match parser.init_str(this).unwrap() {</span>
+<span class='doccomment'>///     Continue(stateful) =&gt; {</span>
+<span class='doccomment'>///         let boxed: Box&lt;Stateful&lt;char, Chars&lt;&#39;a&gt;, Output=Cow&lt;&#39;a, str&gt;&gt;&gt; = Box::new(stateful);</span>
+<span class='doccomment'>///         match boxed.more_str(that) {</span>
+<span class='doccomment'>///             Done(result: Cow&lt;&#39;b,str&gt;) =&gt; ...</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// does not typecheck, because the type of `boxed` is fixed as containing parsers for input `&amp;&#39;a str`,</span>
+<span class='doccomment'>/// but it was fed input of type `&amp;&#39;b str`. To fix this, we change the type of the box to be</span>
+<span class='doccomment'>/// polymorphic in the lifetime of the parser:</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// ```text</span>
+<span class='doccomment'>/// let this: &amp;&#39;a str = ...;</span>
+<span class='doccomment'>/// let that: &amp;&#39;b str = ...;</span>
+<span class='doccomment'>/// let parser = character(char::is_alphanumeric).star(ignore).buffer();</span>
+<span class='doccomment'>/// match parser.init_str(this).unwrap() {</span>
+<span class='doccomment'>///     Continue(stateful) =&gt; {</span>
+<span class='doccomment'>///         let boxed: Box&lt;for&lt;&#39;c&gt; Stateful&lt;char, Chars&lt;&#39;c&gt;, Output=Cow&lt;&#39;c, str&gt;&gt;&gt; = Box::new(stateful);</span>
+<span class='doccomment'>///         match boxed.more_str(that) {</span>
+<span class='doccomment'>///             Done(result: Cow&lt;&#39;b,str&gt;) =&gt; ...</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// Secondly, the `Stateful` trait is not</span>
+<span class='doccomment'>/// [object-safe](https://doc.rust-lang.org/book/trait-objects.html#object-safety),</span>
+<span class='doccomment'>/// so cannot be boxed and unboxed safely. In order to address this, there is a trait</span>
+<span class='doccomment'>/// `Boxable&lt;Ch, Str&gt;`, which represents stateful parsers, but is object-safe</span>
+<span class='doccomment'>/// and so can be boxed and unboxed safely.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// The type `Box&lt;Boxable&lt;Ch, Str&gt;&gt;` implements the trait</span>
+<span class='doccomment'>/// `Stateful&lt;Ch, Str&gt;`, so boxes can be used as parsers,</span>
+<span class='doccomment'>/// which allows stateful parsers to heap-allocate their state.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// Boxable parsers are usually used in recursive-descent parsing,</span>
+<span class='doccomment'>/// for context-free grammars that cannot be parsed as a regular language.</span>
+<span class='doccomment'>/// For example, consider a simple type for trees:</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>/// struct Tree(Vec&lt;Tree&gt;);</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// which can be parsed from a well-nested sequence of parentheses, for example</span>
+<span class='doccomment'>/// `(()())` can be parsed as `Tree(vec![Tree(vec![]),Tree(vec![])])`.</span>
+<span class='doccomment'>/// The desired implementation is:</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// ```text</span>
+<span class='doccomment'>/// fn is_lparen(ch: char) -&gt; bool { ch == &#39;(&#39; }</span>
+<span class='doccomment'>/// fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }</span>
+<span class='doccomment'>/// fn mk_vec() -&gt; Result&lt;Vec&lt;Tree&gt;,String&gt; { Ok(Vec::new()) }</span>
+<span class='doccomment'>/// fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T,String&gt; { Ok(ok) }</span>
+<span class='doccomment'>/// fn mk_err&lt;T&gt;(_: Option&lt;char&gt;) -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }</span>
+<span class='doccomment'>/// fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Tree { Tree(children) }</span>
+<span class='doccomment'>/// let LPAREN = character(is_lparen);</span>
+<span class='doccomment'>/// let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));</span>
+<span class='doccomment'>/// let TREE = LPAREN</span>
+<span class='doccomment'>///      .and_then_try(TREE.star(mk_vec))</span>
+<span class='doccomment'>///      .try_and_then_try(RPAREN)</span>
+<span class='doccomment'>///      .try_map3(mk_tree);</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// but this doesn&#39;t work because it gives the definition of `TREE` in terms of itself,</span>
+<span class='doccomment'>/// and Rust doesn&#39;t allow this kind of cycle.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// Instead, the solution is to define a struct `TreeParser`, and then implement `Uncommitted&lt;char, Chars&lt;&#39;a&gt;&gt;`</span>
+<span class='doccomment'>/// for it. The type of the state of a `TreeParser` is a box containing an appropriate</span>
+<span class='doccomment'>/// `BoxableParserState` trait:</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>/// # use std::str::Chars;</span>
+<span class='doccomment'>/// # use parsell::{Boxable};</span>
+<span class='doccomment'>/// # struct Tree(Vec&lt;Tree&gt;);</span>
+<span class='doccomment'>/// type TreeParserState = Box&lt;for&lt;&#39;b&gt; Boxable&lt;char, Chars&lt;&#39;b&gt;, Output=Result&lt;Tree, String&gt;&gt;&gt;;</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// The implementation of `Uncommitted&lt;char, Chars&lt;&#39;b&gt;&gt;` for `TreeParser` is mostly straightfoward:</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>/// # use std::str::Chars;</span>
+<span class='doccomment'>/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,ParseResult,StaticMarker};</span>
+<span class='doccomment'>/// # use parsell::ParseResult::{Done,Continue};</span>
+<span class='doccomment'>/// # #[derive(Eq,PartialEq,Clone,Debug)]</span>
+<span class='doccomment'>/// struct Tree(Vec&lt;Tree&gt;);</span>
+<span class='doccomment'>/// impl StaticMarker for Tree {}</span>
+<span class='doccomment'>/// # type TreeParserState = Box&lt;for&lt;&#39;a&gt; Boxable&lt;char, Chars&lt;&#39;a&gt;, Output=Result&lt;Tree, String&gt;&gt;&gt;;</span>
+<span class='doccomment'>/// # fn is_lparen(ch: char) -&gt; bool { ch == &#39;(&#39; }</span>
+<span class='doccomment'>/// # fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }</span>
+<span class='doccomment'>/// # fn mk_vec() -&gt; Result&lt;Vec&lt;Tree&gt;,String&gt; { Ok(Vec::new()) }</span>
+<span class='doccomment'>/// # fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T,String&gt; { Ok(ok) }</span>
+<span class='doccomment'>/// # fn mk_err&lt;T&gt;(_: Option&lt;char&gt;) -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }</span>
+<span class='doccomment'>/// # fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Tree { Tree(children) }</span>
+<span class='doccomment'>/// # fn mk_box&lt;P&gt;(state: P) -&gt; TreeParserState</span>
+<span class='doccomment'>/// #     where P: &#39;static+for&lt;&#39;a&gt; Boxable&lt;char, Chars&lt;&#39;a&gt;, Output=Result&lt;Tree,String&gt;&gt;</span>
+<span class='doccomment'>/// # {</span>
+<span class='doccomment'>/// #     Box::new(state)</span>
+<span class='doccomment'>/// # }</span>
+<span class='doccomment'>/// # #[derive(Copy,Clone,Debug)]</span>
+<span class='doccomment'>/// struct TreeParser;</span>
+<span class='doccomment'>/// impl Parser for TreeParser {}</span>
+<span class='doccomment'>/// impl&lt;&#39;a&gt; Uncommitted&lt;char, Chars&lt;&#39;a&gt;&gt; for TreeParser {</span>
+<span class='doccomment'>///     type Output = Result&lt;Tree, String&gt;;</span>
+<span class='doccomment'>///     type State = TreeParserState;</span>
+<span class='doccomment'>///     fn init(&amp;self, data: &amp;mut Chars&lt;&#39;a&gt;) -&gt; Option&lt;ParseResult&lt;Self::State, Self::Output&gt;&gt; {</span>
+<span class='doccomment'>///         // ... parser goes here...`</span>
+<span class='doccomment'>/// #       let LPAREN = character(is_lparen);</span>
+<span class='doccomment'>/// #       let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));</span>
+<span class='doccomment'>/// #       let parser = LPAREN</span>
+<span class='doccomment'>/// #           .and_then_try(TreeParser.star(mk_vec))</span>
+<span class='doccomment'>/// #           .try_and_then_try(RPAREN)</span>
+<span class='doccomment'>/// #           .try_map3(mk_tree)</span>
+<span class='doccomment'>/// #           .boxed(mk_box);</span>
+<span class='doccomment'>/// #       parser.init(data)</span>
+<span class='doccomment'>///     }</span>
+<span class='doccomment'>/// }</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// The important thing is that the definiton of `parse` can make use of `TREE`, so the parser can call itself</span>
+<span class='doccomment'>/// recursively, then box up the result state. Boxing up the state makes use of a method `parser.box(mk_box)`</span>
+<span class='doccomment'>/// where `mk_box` is a function that boxes up boxable state:</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>/// # use std::str::Chars;</span>
+<span class='doccomment'>/// # use parsell::{character,CHARACTER,Parser,Uncommitted,UncommittedStr,Committed,Boxable,Stateful,StatefulStr,ParseResult,StaticMarker};</span>
+<span class='doccomment'>/// # use parsell::ParseResult::{Done,Continue};</span>
+<span class='doccomment'>/// # #[derive(Eq,PartialEq,Clone,Debug)]</span>
+<span class='doccomment'>/// # struct Tree(Vec&lt;Tree&gt;);</span>
+<span class='doccomment'>/// # impl StaticMarker for Tree {}</span>
+<span class='doccomment'>/// # type TreeParserState = Box&lt;for&lt;&#39;a&gt; Boxable&lt;char, Chars&lt;&#39;a&gt;, Output=Result&lt;Tree, String&gt;&gt;&gt;;</span>
+<span class='doccomment'>/// fn is_lparen(ch: char) -&gt; bool { ch == &#39;(&#39; }</span>
+<span class='doccomment'>/// fn is_rparen(ch: char) -&gt; bool { ch == &#39;)&#39; }</span>
+<span class='doccomment'>/// fn mk_vec() -&gt; Result&lt;Vec&lt;Tree&gt;,String&gt; { Ok(Vec::new()) }</span>
+<span class='doccomment'>/// fn mk_ok&lt;T&gt;(ok: T) -&gt; Result&lt;T,String&gt; { Ok(ok) }</span>
+<span class='doccomment'>/// fn mk_err&lt;T&gt;(_: Option&lt;char&gt;) -&gt; Result&lt;T,String&gt; { Err(String::from(&quot;Expected a ( or ).&quot;)) }</span>
+<span class='doccomment'>/// fn mk_tree(_: char, children: Vec&lt;Tree&gt;, _: char) -&gt; Tree { Tree(children) }</span>
+<span class='doccomment'>/// fn mk_box&lt;P&gt;(state: P) -&gt; TreeParserState</span>
+<span class='doccomment'>///     where P: &#39;static+for&lt;&#39;a&gt; Boxable&lt;char, Chars&lt;&#39;a&gt;, Output=Result&lt;Tree,String&gt;&gt;</span>
+<span class='doccomment'>/// {</span>
+<span class='doccomment'>///     Box::new(state)</span>
+<span class='doccomment'>/// }</span>
+<span class='doccomment'>/// # #[derive(Copy,Clone,Debug)]</span>
+<span class='doccomment'>/// struct TreeParser;</span>
+<span class='doccomment'>/// impl Parser for TreeParser {}</span>
+<span class='doccomment'>/// impl&lt;&#39;a&gt; Uncommitted&lt;char, Chars&lt;&#39;a&gt;&gt; for TreeParser {</span>
+<span class='doccomment'>///     type Output = Result&lt;Tree, String&gt;;</span>
+<span class='doccomment'>///     type State = TreeParserState;</span>
+<span class='doccomment'>///     fn init(&amp;self, data: &amp;mut Chars&lt;&#39;a&gt;) -&gt; Option&lt;ParseResult&lt;Self::State, Self::Output&gt;&gt; {</span>
+<span class='doccomment'>///         let LPAREN = character(is_lparen);</span>
+<span class='doccomment'>///         let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));</span>
+<span class='doccomment'>///         let parser = LPAREN</span>
+<span class='doccomment'>///             .and_then_try(TreeParser.star(mk_vec))</span>
+<span class='doccomment'>///             .try_and_then_try(RPAREN)</span>
+<span class='doccomment'>///             .try_map3(mk_tree);</span>
+<span class='doccomment'>///         parser.boxed(mk_box).init(data)</span>
+<span class='doccomment'>///     }</span>
+<span class='doccomment'>/// }</span>
+<span class='doccomment'>/// let TREE = TreeParser;</span>
+<span class='doccomment'>/// match TREE.init_str(&quot;((&quot;).unwrap() {</span>
+<span class='doccomment'>///     Continue(parsing) =&gt; match parsing.more_str(&quot;)())&quot;) {</span>
+<span class='doccomment'>///         Done(result) =&gt; assert_eq!(result, Ok(Tree(vec![Tree(vec![]),Tree(vec![])]))),</span>
+<span class='doccomment'>///          _ =&gt; panic!(&quot;Can&#39;t happen&quot;),</span>
+<span class='doccomment'>///     },</span>
+<span class='doccomment'>///     _ =&gt; panic!(&quot;Can&#39;t happen&quot;),</span>
+<span class='doccomment'>/// }</span>
+<span class='doccomment'>/// ```</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// The reason for making `Boxable&lt;S&gt;` a different trait from `Stateful&lt;S&gt;`</span>
+<span class='doccomment'>/// is that it provides weaker safety guarantees. `Stateful&lt;S&gt;` enforces that</span>
+<span class='doccomment'>/// clients cannot call `parse` after `done`, but `Boxable&lt;S&gt;` does not.</span>
 
 <span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> 
     <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
@@ -2940,6 +2936,9 @@
     <span class='kw'>type</span> <span class='ident'>TestStr</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>Peekable</span><span class='op'>&lt;</span><span class='ident'>Drain</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>TestCh</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
     <span class='kw'>type</span> <span class='ident'>TestOutput</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='op'>=</span> ((<span class='ident'>TestCh</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>, <span class='ident'>TestCh</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>), <span class='ident'>TestCh</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>);
     <span class='kw'>type</span> <span class='ident'>TestState</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='ident'>TestCh</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>, <span class='ident'>TestStr</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='ident'>TestOutput</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
+    <span class='kw'>fn</span> <span class='ident'>mk_box</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='ident'>parser</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>TestState</span>
+        <span class='kw'>where</span> <span class='ident'>P</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='ident'>TestCh</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>, <span class='ident'>TestStr</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>, <span class='ident'>Output</span><span class='op'>=</span><span class='ident'>TestOutput</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span>
+    { <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>parser</span>) }
     <span class='kw'>impl</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>Test</span> {}
     <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>TestCh</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>, <span class='ident'>TestStr</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span> <span class='kw'>for</span> <span class='ident'>Test</span> {
         <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>TestOutput</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>;
@@ -2950,12 +2949,7 @@
             <span class='kw'>let</span> <span class='ident'>ONE</span> <span class='op'>=</span> <span class='ident'>character_ref</span>(<span class='ident'>is_foo</span>);
             <span class='kw'>let</span> <span class='ident'>OTHER</span> <span class='op'>=</span> <span class='ident'>CHARACTER</span>.<span class='ident'>map</span>(<span class='ident'>mk_other</span>);
             <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>ONE</span>.<span class='ident'>and_then</span>(<span class='ident'>ONE</span>.<span class='ident'>or_else</span>(<span class='ident'>OTHER</span>)).<span class='ident'>and_then</span>(<span class='ident'>ONE</span>.<span class='ident'>or_else</span>(<span class='ident'>OTHER</span>));
-            <span class='comment'>// This bit should be in the API</span>
-            <span class='kw'>match</span> <span class='ident'>parser</span>.<span class='ident'>init</span>(<span class='ident'>string</span>) {
-                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-                <span class='prelude-val'>Some</span>(<span class='ident'>Done</span>(<span class='ident'>result</span>)) <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Done</span>(<span class='ident'>result</span>)),
-                <span class='prelude-val'>Some</span>(<span class='ident'>Continue</span>(<span class='ident'>state</span>)) <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Continue</span>(<span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>impls</span>::<span class='ident'>BoxableState</span>::<span class='ident'>new</span>(<span class='ident'>state</span>)))),
-            }
+            <span class='ident'>parser</span>.<span class='ident'>boxed</span>(<span class='ident'>mk_box</span>).<span class='ident'>init</span>(<span class='ident'>string</span>)
         }
     }
     <span class='kw'>fn</span> <span class='ident'>is_owned</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>T</span>:?<span class='ident'>Sized</span><span class='op'>+</span><span class='ident'>ToOwned</span><span class='op'>&gt;</span>(<span class='ident'>cow</span>: <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='kw'>match</span> <span class='ident'>cow</span> { <span class='ident'>Cow</span>::<span class='ident'>Owned</span>(_) <span class='op'>=&gt;</span> <span class='boolval'>true</span>, _ <span class='op'>=&gt;</span> <span class='boolval'>false</span> } }
