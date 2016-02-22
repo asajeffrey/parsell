@@ -26,6 +26,7 @@ use self::ParseResult::{Done, Continue};
 use std::borrow::Cow;
 use std::str::Chars;
 use std::iter::Peekable;
+use std::fmt::{Debug, Formatter};
 
 pub mod impls;
 
@@ -226,7 +227,7 @@ pub trait StatefulStr<'a>: Stateful<char, Chars<'a>> {
 impl<'a, P> StatefulStr<'a> for P where P: Stateful<char, Chars<'a>> {}
 
 /// The result of parsing
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone)]
 pub enum ParseResult<State, Output> {
 
     /// The parse is finished.
@@ -235,6 +236,28 @@ pub enum ParseResult<State, Output> {
     /// The parse can continue.
     Continue(State),
 
+}
+
+// Implement Debug for ParseResult<P, S> without requiring P: Debug
+
+impl<P, S> Debug for ParseResult<P, S>
+    where S: Debug,
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        match self {
+            &Done(ref result) => write!(fmt, "Done({:?})", result),
+            &Continue(_) => write!(fmt, "Continue(...)"),
+        }
+    }
+}
+
+impl<P,S> PartialEq for ParseResult<P, S> where S: PartialEq {
+    fn eq(&self, other: &ParseResult<P, S>) -> bool {
+        match (self, other) {
+            (&Done(ref result1), &Done(ref result2)) => (result1 == result2),
+            _ => false,
+        }
+    }
 }
 
 /// A trait for stateless parsers.
