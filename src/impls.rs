@@ -953,6 +953,46 @@ impl<P> BoxableState<P> {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct Boxed<P, F>(P, F);
+
+impl<P, F> Parser for Boxed<P, F> where P: Parser {}
+
+impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Boxed<P, F>
+    where P: Uncommitted<Ch, Str>,
+          F: Function<BoxableState<P::State>>,
+          Str: Iterator<Item = Ch>,
+          F::Output: 'static + Stateful<Ch, Str, Output = P::Output>,
+{
+    type Output = P::Output;
+    type State = F::Output;
+
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Done(result)) => Some(Done(result)),
+            Some(Continue(parsing)) => Some(Continue(self.1.apply(BoxableState::new(parsing)))),
+        }
+    }
+}
+
+impl<P, F, Ch, Str> Committed<Ch, Str> for Boxed<P, F>
+    where P: Committed<Ch, Str>,
+          F: Function<BoxableState<P::State>>,
+          Str: Iterator<Item = Ch>,
+          F::Output: 'static + Stateful<Ch, Str, Output = P::Output>,
+{
+    fn empty(&self) -> Self::Output {
+        self.0.empty()
+    }
+}
+
+impl<P, F> Boxed<P, F> {
+    pub fn new(parser: P, function: F) -> Self {
+        Boxed(parser, function)
+    }
+}
+
 // // ----------- Iterate over parse results -------------
 
 // #[derive(Copy, Clone, Debug)]
