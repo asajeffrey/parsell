@@ -380,6 +380,13 @@ pub trait Parser {
     //     impls::PipeParser::new(self, other)
     // }
 
+    // Box up this parser
+    fn boxed<F>(self, f: F) -> impls::Boxed<Self, F>
+        where Self: Sized
+    {
+        impls::Boxed::new(self, f)
+    }
+
     /// A parser which produces its input.
     ///
     /// This does its best to avoid having to buffer the input. The result of a buffered parser
@@ -1393,6 +1400,9 @@ fn test_boxable() {
     type TestStr<'a> = Peekable<Drain<'a,TestCh<'a>>>;
     type TestOutput<'a> = ((TestCh<'a>, TestCh<'a>), TestCh<'a>);
     type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>>;
+    fn mk_box<P>(parser: P) -> TestState
+        where P: 'static + for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>
+    { Box::new(parser) }
     impl Parser for Test {}
     impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
         type Output = TestOutput<'a>;
@@ -1403,12 +1413,7 @@ fn test_boxable() {
             let ONE = character_ref(is_foo);
             let OTHER = CHARACTER.map(mk_other);
             let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
-            // This bit should be in the API
-            match parser.init(string) {
-                None => None,
-                Some(Done(result)) => Some(Done(result)),
-                Some(Continue(state)) => Some(Continue(Box::new(impls::BoxableState::new(state)))),
-            }
+            parser.boxed(mk_box).init(string)
         }
     }
     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
