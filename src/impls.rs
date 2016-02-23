@@ -225,7 +225,7 @@ impl<P, F, Ch, Str> Stateful<Ch, Str> for Map<P, F>
           F: Function<P::Output>,
           Str: Iterator<Item = Ch>,
 {
-    
+
     type Output = F::Output;
 
     fn done(self) -> F::Output {
@@ -250,7 +250,7 @@ impl<P, F, Ch, Str> Committed<Ch, Str> for Map<P, F>
     fn empty(&self) -> F::Output {
         self.1.apply(self.0.empty())
     }
-    
+
 }
 
 impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Map<P, F>
@@ -261,7 +261,7 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Map<P, F>
 
     type Output = F::Output;
     type State = Map<P::State, F>;
-    
+
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, F::Output>> {
         match self.0.init(string) {
             None => None,
@@ -296,7 +296,7 @@ impl<P, Q, Ch, Str, PStaticOutput> Committed<Ch, Str> for AndThen<P, Q>
     fn empty(&self) -> Self::Output {
         (self.0.empty(), self.1.empty())
     }
-    
+
 }
 
 impl<P, Q, Ch, Str, PStaticOutput> Uncommitted<Ch, Str> for AndThen<P, Q>
@@ -345,7 +345,7 @@ impl<PState, Q, Ch, Str, PStaticOutput> Stateful<Ch, Str> for AndThenState<PStat
           PState::Output: ToStatic<Static = PStaticOutput>,
 
 {
-    
+
     type Output = (PState::Output, Q::Output);
 
     fn done(self) -> Self::Output
@@ -385,7 +385,7 @@ impl<PState, Q, Ch, Str, PStaticOutput> Stateful<Ch, Str> for AndThenState<PStat
             }
         }
     }
-   
+
 }
 
 // ----------- Choice ---------------
@@ -400,11 +400,11 @@ impl<P, Q, Ch, Str> Committed<Ch, Str> for OrElse<P, Q>
           Q: Committed<Ch, Str, Output = P::Output>,
           Str: Iterator<Item = Ch>,
 {
-    
+
     fn empty(&self) -> P::Output {
         self.1.empty()
     }
-    
+
 }
 
 impl<P, Q, Ch, Str> Uncommitted<Ch, Str> for OrElse<P, Q>
@@ -427,7 +427,7 @@ impl<P, Q, Ch, Str> Uncommitted<Ch, Str> for OrElse<P, Q>
             },
         }
     }
-    
+
 }
 
 impl<P, Q> OrElse<P, Q> {
@@ -448,7 +448,7 @@ impl<P, Q, Ch, Str> Stateful<Ch, Str> for OrElseState<P, Q>
           Str: Iterator<Item = Ch>,
 {
     type Output = P::Output;
-    
+
     fn more(self, string: &mut Str) -> ParseResult<Self, P::Output> {
         match self {
             Lhs(lhs) => match lhs.more(string) {
@@ -549,7 +549,7 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Plus<P, F>
 {
     type State = StarState<P, P::State, F::Output>;
     type Output = F::Output;
-        
+
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, F::Output>> {
         match self.0.init(string) {
             None => None,
@@ -608,7 +608,7 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Star<P, F>
 
     type State = StarState<P, P::State, F::Output>;
     type Output = F::Output;
-        
+
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, F::Output>> {
         if string.is_empty() {
             None
@@ -616,7 +616,7 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Star<P, F>
             Some(StarState(self.0, None, self.1.build()).more(string))
         }
     }
-    
+
 }
 
 impl<P, F, Ch, Str> Committed<Ch, Str> for Star<P, F>
@@ -630,7 +630,7 @@ impl<P, F, Ch, Str> Committed<Ch, Str> for Star<P, F>
     fn empty(&self) -> F::Output {
         self.1.build()
     }
-    
+
 }
 
 impl<P, F> Star<P, F> {
@@ -722,11 +722,11 @@ impl<F, Ch, Str> Stateful<Ch, Str> for Emit<F>
     fn more(self, _: &mut Str) -> ParseResult<Self, F::Output> {
         Done(self.0.build())
     }
-    
+
     fn done(self) -> F::Output {
         self.0.build()
     }
-    
+
 }
 
 impl<F, Ch, Str> Uncommitted<Ch, Str> for Emit<F>
@@ -744,7 +744,7 @@ impl<F, Ch, Str> Uncommitted<Ch, Str> for Emit<F>
             Some(Done(self.0.build()))
         }
     }
-    
+
 }
 
 impl<F, Ch, Str> Committed<Ch, Str> for Emit<F>
@@ -782,7 +782,7 @@ impl<StaticCh, Ch, Str> Stateful<Ch, Str> for CharacterState<StaticCh>
         self.0.upcast()
     }
 }
-    
+
 impl<StaticCh> CharacterState<StaticCh> {
     pub fn new(ch: StaticCh) -> Self {
         CharacterState(ch)
@@ -820,14 +820,14 @@ impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for Character<F>
 {
     type Output = Ch;
     type State = CharacterState<StaticCh>;
-    
+
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Ch>> {
         match string.next_if(self.0) {
             None => None,
             Some(ch) => Some(Done(ch)),
         }
     }
-    
+
 }
 
 impl<F> Character<F> {
@@ -867,14 +867,14 @@ impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for CharacterRef<F>
 {
     type Output = Ch;
     type State = CharacterState<StaticCh>;
-    
+
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Ch>> {
         match string.next_if_ref(self.0) {
             None => None,
             Some(ch) => Some(Done(ch)),
         }
     }
-    
+
 }
 
 impl<F> CharacterRef<F> {
@@ -904,7 +904,7 @@ impl<Ch, Str> Stateful<Ch, Str> for AnyCharacter
         None
     }
 }
-    
+
 impl<Ch, Str, StaticCh> Uncommitted<Ch, Str> for AnyCharacter
     where Str: Iterator<Item = Ch>,
           Ch: ToStatic<Static = StaticCh>,
@@ -912,7 +912,7 @@ impl<Ch, Str, StaticCh> Uncommitted<Ch, Str> for AnyCharacter
 {
     type Output = Option<Ch>;
     type State = AnyCharacter;
-    
+
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Option<Ch>>> {
         match string.next() {
             None => None,
@@ -955,7 +955,7 @@ impl<'a, P> Uncommitted<char, Chars<'a>> for Buffered<P>
 {
     type Output = Cow<'a, str>;
     type State = BufferedState<P::State>;
-    
+
     fn init(&self, string: &mut Chars<'a>) -> Option<ParseResult<Self::State, Self::Output>> {
         let string0 = string.as_str();
         match self.0.init(string) {
@@ -984,9 +984,9 @@ pub struct BufferedState<P>(P, String);
 impl<'a, P> Stateful<char, Chars<'a>> for BufferedState<P>
     where P: Stateful<char, Chars<'a>>
 {
-    
+
     type Output = Cow<'a, str>;
-    
+
     fn more(mut self, string: &mut Chars<'a>) -> ParseResult<Self, Self::Output> {
         let string0 = string.as_str();
         match self.0.more(string) {
@@ -1000,11 +1000,11 @@ impl<'a, P> Stateful<char, Chars<'a>> for BufferedState<P>
             },
         }
     }
-    
+
     fn done(self) -> Self::Output {
         Owned(self.1)
     }
-    
+
 }
 
 // ----------- Parsers which are boxable -------------

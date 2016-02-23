@@ -444,6 +444,13 @@ pub trait Parser {
         self.try_and_then_try(other).try_map(impls::First)
     }
 
+    /// Optional parse
+    fn opt(self) -> impls::Opt<Self>
+        where Self: Sized,
+    {
+        impls::Opt::new(self)
+    }
+    
     /// Discard the output
     fn discard(self) -> impls::Map<Self, impls::Discard>
         where Self: Sized,
