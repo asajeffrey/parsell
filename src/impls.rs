@@ -189,6 +189,110 @@ impl<T> Function<T> for Discard
     }
 }
 
+// ----------- Abbreviations ---------------
+
+pub type TryAndThenDef<P, Q> = Map<AndThen<P, Q>, TryZip>;
+pub struct TryAndThen<P, Q> (TryAndThenDef<P, Q>);
+impl<P, Q> TryAndThen<P, Q> {
+    pub fn new(p: P, q: Q) -> Self { TryAndThen(Map(AndThen(p, q), TryZip)) }
+}
+impl<P, Q> Parser for TryAndThen<P, Q>
+    where P: Parser,
+          Q: Parser,
+{}
+impl<P, Q, Ch, Str, S, T, E> Uncommitted<Ch, Str> for TryAndThen<P, Q>
+    where P: 'static + Uncommitted<Ch, Str, Output = Result<S, E>>,
+          Q: 'static + Copy + Committed<Ch, Str, Output = T>,
+          Str: Iterator<Item = Ch>,
+          S: ToStatic, S::Static: Upcast<S>,
+          E: ToStatic, E::Static: Upcast<E>,
+{
+    type Output = <TryAndThenDef<P, Q> as Uncommitted<Ch, Str>>::Output;
+    type State = <TryAndThenDef<P, Q> as Uncommitted<Ch, Str>>::State;
+    fn init(&self, data: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
+        self.0.init(data)
+    }
+}
+impl<P, Q, Ch, Str, S, T, E> Committed<Ch, Str> for TryAndThen<P, Q>
+    where P: 'static + Committed<Ch, Str, Output = Result<S, E>>,
+          Q: 'static + Copy + Committed<Ch, Str, Output = T>,
+          Str: Iterator<Item = Ch>,
+          S: ToStatic, S::Static: Upcast<S>,
+          E: ToStatic, E::Static: Upcast<E>,
+{
+    fn empty(&self) -> Self::Output {
+        self.0.empty()
+    }
+}
+
+pub type AndThenTryDef<P, Q> = Map<AndThen<P, Q>, ZipTry>;
+pub struct AndThenTry<P, Q> (AndThenTryDef<P, Q>);
+impl<P, Q> AndThenTry<P, Q> {
+    pub fn new(p: P, q: Q) -> Self { AndThenTry(Map(AndThen(p, q), ZipTry)) }
+}
+impl<P, Q> Parser for AndThenTry<P, Q>
+    where P: Parser,
+          Q: Parser,
+{}
+impl<P, Q, Ch, Str, S, T, E> Uncommitted<Ch, Str> for AndThenTry<P, Q>
+    where P: 'static + Uncommitted<Ch, Str, Output = S>,
+          Q: 'static + Copy + Committed<Ch, Str, Output = Result<T, E>>,
+          Str: Iterator<Item = Ch>,
+          S: ToStatic, S::Static: Upcast<S>,
+          E: ToStatic, E::Static: Upcast<E>,
+{
+    type Output = <AndThenTryDef<P, Q> as Uncommitted<Ch, Str>>::Output;
+    type State = <AndThenTryDef<P, Q> as Uncommitted<Ch, Str>>::State;
+    fn init(&self, data: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
+        self.0.init(data)
+    }
+}
+impl<P, Q, Ch, Str, S, T, E> Committed<Ch, Str> for AndThenTry<P, Q>
+    where P: 'static + Committed<Ch, Str, Output = S>,
+          Q: 'static + Copy + Committed<Ch, Str, Output = Result<T, E>>,
+          Str: Iterator<Item = Ch>,
+          S: ToStatic, S::Static: Upcast<S>,
+          E: ToStatic, E::Static: Upcast<E>,
+{
+    fn empty(&self) -> Self::Output {
+        self.0.empty()
+    }
+}
+
+pub type TryAndThenTryDef<P, Q> = Map<AndThen<P, Q>, TryZipTry>;
+pub struct TryAndThenTry<P, Q> (TryAndThenTryDef<P, Q>);
+impl<P, Q> TryAndThenTry<P, Q> {
+    pub fn new(p: P, q: Q) -> Self { TryAndThenTry(Map(AndThen(p, q), TryZipTry)) }
+}
+impl<P, Q> Parser for TryAndThenTry<P, Q>
+    where P: Parser,
+          Q: Parser,
+{}
+impl<P, Q, Ch, Str, S, T, E> Uncommitted<Ch, Str> for TryAndThenTry<P, Q>
+    where P: 'static + Uncommitted<Ch, Str, Output = Result<S, E>>,
+          Q: 'static + Copy + Committed<Ch, Str, Output = Result<T, E>>,
+          Str: Iterator<Item = Ch>,
+          S: ToStatic, S::Static: Upcast<S>,
+          E: ToStatic, E::Static: Upcast<E>,
+{
+    type Output = <TryAndThenTryDef<P, Q> as Uncommitted<Ch, Str>>::Output;
+    type State = <TryAndThenTryDef<P, Q> as Uncommitted<Ch, Str>>::State;
+    fn init(&self, data: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
+        self.0.init(data)
+    }
+}
+impl<P, Q, Ch, Str, S, T, E> Committed<Ch, Str> for TryAndThenTry<P, Q>
+    where P: 'static + Committed<Ch, Str, Output = Result<S, E>>,
+          Q: 'static + Copy + Committed<Ch, Str, Output = Result<T, E>>,
+          Str: Iterator<Item = Ch>,
+          S: ToStatic, S::Static: Upcast<S>,
+          E: ToStatic, E::Static: Upcast<E>,
+{
+    fn empty(&self) -> Self::Output {
+        self.0.empty()
+    }
+}
+
 // ----------- Map ---------------
 
 pub struct Map<P, F>(P, F);

@@ -287,27 +287,27 @@ pub trait Parser {
     }
 
     /// Sequencing with a committed parser (bubble any errors from this parser).
-    fn try_and_then<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::TryZip>
+    fn try_and_then<P>(self, other: P) -> impls::TryAndThen<Self, P>
         where Self: Sized,
               P: Parser,
     {
-        self.and_then(other).map(impls::TryZip)
+        impls::TryAndThen::new(self, other)
     }
 
     /// Sequencing with a committed parser (bubble any errors from that parser).
-    fn and_then_try<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::ZipTry>
+    fn and_then_try<P>(self, other: P) -> impls::AndThenTry<Self, P>
         where Self: Sized,
               P: Parser,
     {
-        self.and_then(other).map(impls::ZipTry)
+        impls::AndThenTry::new(self, other)
     }
 
     /// Sequencing with a committed parser (bubble any errors from either parser).
-    fn try_and_then_try<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::TryZipTry>
+    fn try_and_then_try<P>(self, other: P) -> impls::TryAndThenTry<Self, P>
         where Self: Sized,
               P: Parser,
     {
-        self.and_then(other).map(impls::TryZipTry)
+        impls::TryAndThenTry::new(self, other)
     }
 
     /// Iterate one or more times (returns an uncommitted parser).
@@ -413,7 +413,7 @@ pub trait Parser {
     }
 
     /// Sequencing, discard the output of the first parse, bubble errors from the first parser
-    fn try_discard_and_then<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::TryZip>, impls::Try<impls::Second>>
+    fn try_discard_and_then<P>(self, other: P) -> impls::Map<impls::TryAndThen<Self, P>, impls::Try<impls::Second>>
         where Self: Sized,
               P: Parser,
     {
@@ -421,7 +421,7 @@ pub trait Parser {
     }
 
     /// Sequencing, discard the output of the second parse, bubble errors from the second parser
-    fn and_then_try_discard<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::ZipTry>, impls::Try<impls::First>>
+    fn and_then_try_discard<P>(self, other: P) -> impls::Map<impls::AndThenTry<Self, P>, impls::Try<impls::First>>
         where Self: Sized,
               P: Parser,
     {
@@ -429,7 +429,7 @@ pub trait Parser {
     }
 
     /// Sequencing, discard the output of the first parse, bubble errors from either parser
-    fn try_discard_and_then_try<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::TryZipTry>, impls::Try<impls::Second>>
+    fn try_discard_and_then_try<P>(self, other: P) -> impls::Map<impls::TryAndThenTry<Self, P>, impls::Try<impls::Second>>
         where Self: Sized,
               P: Parser,
     {
@@ -437,7 +437,7 @@ pub trait Parser {
     }
 
     /// Sequencing, discard the output of the second parse, bubble errors from either parser
-    fn try_and_then_try_discard<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::TryZipTry>, impls::Try<impls::First>>
+    fn try_and_then_try_discard<P>(self, other: P) -> impls::Map<impls::TryAndThenTry<Self, P>, impls::Try<impls::First>>
         where Self: Sized,
               P: Parser,
     {
