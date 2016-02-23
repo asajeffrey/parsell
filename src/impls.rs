@@ -639,6 +639,72 @@ impl<P, F> Star<P, F> {
     }
 }
 
+// ----------- Optional parse -------------
+
+#[derive(Copy, Clone, Debug)]
+pub struct Opt<P>(P);
+
+impl<P> Parser for Opt<P> where P: Parser {}
+
+impl<P, Ch, Str> Stateful<Ch, Str> for Opt<P>
+    where Str: Iterator<Item = Ch>,
+          P: Stateful<Ch, Str>,
+{
+
+    type Output = Option<P::Output>;
+
+    fn more(self, string: &mut Str) -> ParseResult<Self, Self::Output> {
+        match self.0.more(string) {
+            Done(result) => Done(Some(result)),
+            Continue(parsing) => Continue(Opt(parsing)),
+        }
+    }
+
+    fn done(self) -> Self::Output {
+        Some(self.0.done())
+    }
+
+}
+
+impl<P, Ch, Str> Uncommitted<Ch, Str> for Opt<P>
+    where Str: PeekableIterator<Item = Ch>,
+          P: Uncommitted<Ch, Str>,
+{
+
+    type Output = Option<P::Output>;
+    type State = Opt<P::State>;
+
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
+        match self.0.init(string) {
+            None => if string.is_empty() {
+                None
+            } else {
+                Some(Done(None))
+            },
+            Some(Done(result)) => Some(Done(Some(result))),
+            Some(Continue(parsing)) => Some(Continue(Opt(parsing))),
+        }
+    }
+
+}
+
+impl<P, Ch, Str> Committed<Ch, Str> for Opt<P>
+    where Str: PeekableIterator<Item = Ch>,
+          P: Uncommitted<Ch, Str>,
+{
+
+    fn empty(&self) -> Self::Output {
+        None
+    }
+
+}
+
+impl<P> Opt<P> {
+    pub fn new(parser: P) -> Self {
+        Opt(parser)
+    }
+}
+
 // ----------- A type for parsers which immediately emit a result -------------
 
 #[derive(Copy, Clone, Debug)]
