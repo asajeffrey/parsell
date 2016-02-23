@@ -155,6 +155,40 @@ impl<T> Function<T> for MkSome
     }
 }
 
+// ----------- Deal with pairs ---------------
+
+#[derive(Copy, Clone, Debug)]
+pub struct First;
+impl<S, T> Function<(S, T)> for First
+{
+    type Output = S;
+    fn apply(&self, arg: (S, T)) -> S {
+        arg.0
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Second;
+impl<S, T> Function<(S, T)> for Second
+{
+    type Output = T;
+    fn apply(&self, arg: (S, T)) -> T {
+        arg.1
+    }
+}
+
+// ----------- Deal with units ---------------
+
+#[derive(Copy, Clone, Debug)]
+pub struct Discard;
+impl<T> Function<T> for Discard
+{
+    type Output = ();
+    fn apply(&self, _: T) -> () {
+        ()
+    }
+}
+
 // ----------- Map ---------------
 
 pub struct Map<P, F>(P, F);
