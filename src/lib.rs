@@ -994,7 +994,7 @@ impl<S, T, D, E> Upcast<Result<T,E>> for Result<S,D>
 /// and restored from `Cow<'static,T>` when `T` is static.
 
 pub trait ToStatic {
-    type Static: 'static;
+    type Static: 'static + Upcast<Self>;
     fn to_static(self) -> Self::Static where Self: Sized;
 }
 

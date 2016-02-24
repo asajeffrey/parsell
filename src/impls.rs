@@ -285,12 +285,11 @@ pub struct AndThen<P, Q>(P, Q);
 
 impl<P, Q> Parser for AndThen<P, Q> {}
 
-impl<P, Q, Ch, Str, PStaticOutput> Committed<Ch, Str> for AndThen<P, Q>
+impl<P, Q, Ch, Str> Committed<Ch, Str> for AndThen<P, Q>
     where P: Committed<Ch, Str>,
           Q: 'static + Copy + Committed<Ch, Str>,
           Str: Iterator<Item = Ch>,
-          PStaticOutput: 'static + Upcast<P::Output>,
-          P::Output: ToStatic<Static = PStaticOutput>,
+          P::Output: ToStatic,
 {
 
     fn empty(&self) -> Self::Output {
@@ -299,16 +298,15 @@ impl<P, Q, Ch, Str, PStaticOutput> Committed<Ch, Str> for AndThen<P, Q>
 
 }
 
-impl<P, Q, Ch, Str, PStaticOutput> Uncommitted<Ch, Str> for AndThen<P, Q>
+impl<P, Q, Ch, Str> Uncommitted<Ch, Str> for AndThen<P, Q>
     where P: Uncommitted<Ch, Str>,
           Q: 'static + Copy + Committed<Ch, Str>,
           Str: Iterator<Item = Ch>,
-          PStaticOutput: 'static + Upcast<P::Output>,
-          P::Output: ToStatic<Static = PStaticOutput>,
+          P::Output: ToStatic,
 {
 
     type Output = (P::Output, Q::Output);
-    type State = AndThenState<P::State, Q, PStaticOutput, Q::State>;
+    type State = AndThenState<P::State, Q, <P::Output as ToStatic>::Static, Q::State>;
 
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
         match self.0.init(string) {
@@ -337,13 +335,12 @@ pub enum AndThenState<PState, Q, PStaticOutput, QState> {
     InRhs(PStaticOutput, QState),
 }
 
-impl<PState, Q, Ch, Str, PStaticOutput> Stateful<Ch, Str> for AndThenState<PState, Q, PStaticOutput, Q::State>
+impl<PState, Q, PStaticOutput, Ch, Str> Stateful<Ch, Str> for AndThenState<PState, Q, PStaticOutput, Q::State>
     where PState: Stateful<Ch, Str>,
           Q: Committed<Ch, Str>,
           Str: Iterator<Item = Ch>,
-          PStaticOutput: 'static + Upcast<PState::Output>,
           PState::Output: ToStatic<Static = PStaticOutput>,
-
+          PStaticOutput: 'static + Upcast<PState::Output>,
 {
 
     type Output = (PState::Output, Q::Output);
