@@ -752,26 +752,18 @@ impl<T> Emit<T> {
 // ----------- Character parsers -------------
 
 #[derive(Copy, Clone, Debug)]
-pub struct CharacterState<StaticCh>(StaticCh);
+pub enum CharacterState {}
 
-impl<StaticCh, Ch, Str> Stateful<Ch, Str> for CharacterState<StaticCh>
-    where Str: Iterator<Item = Ch>,
-          StaticCh: Upcast<Ch>,
+impl<Ch, Str> Stateful<Ch, Str> for CharacterState
 {
     type Output = Ch;
 
-    fn more(self, _: &mut Str) -> ParseResult<Self, Ch> {
-        Done(self.0.upcast())
-    }
+    fn more(self, _: &mut Str) -> ParseResult<Self, Ch> { 
+        match self {}
+   }
 
     fn done(self) -> Ch {
-        self.0.upcast()
-    }
-}
-
-impl<StaticCh> CharacterState<StaticCh> {
-    pub fn new(ch: StaticCh) -> Self {
-        CharacterState(ch)
+        match self {}
     }
 }
 
@@ -798,14 +790,13 @@ impl<F> Debug for Character<F>
 
 impl<F> Parser for Character<F> {}
 
-impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for Character<F>
+impl<F, Ch, Str> Uncommitted<Ch, Str> for Character<F>
     where Str: PeekableIterator<Item = Ch>,
           F: Copy + Function<Ch, Output = bool>,
-          Ch: ToStatic<Static = StaticCh> + Copy,
-          StaticCh: 'static + Upcast<Ch>,
+          Ch: Copy,
 {
     type Output = Ch;
-    type State = CharacterState<StaticCh>;
+    type State = CharacterState;
 
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Ch>> {
         match string.next_if(self.0) {
@@ -845,14 +836,12 @@ impl<F> Debug for CharacterRef<F>
 
 impl<F> Parser for CharacterRef<F> {}
 
-impl<F, Ch, Str, StaticCh> Uncommitted<Ch, Str> for CharacterRef<F>
+impl<F, Ch, Str> Uncommitted<Ch, Str> for CharacterRef<F>
     where Str: PeekableIterator<Item = Ch>,
           F: Copy + for<'a> Function<&'a Ch, Output = bool>,
-          Ch: ToStatic<Static = StaticCh>,
-          StaticCh: 'static + Upcast<Ch>,
 {
     type Output = Ch;
-    type State = CharacterState<StaticCh>;
+    type State = CharacterState;
 
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Ch>> {
         match string.next_if_ref(self.0) {
@@ -891,10 +880,8 @@ impl<Ch, Str> Stateful<Ch, Str> for AnyCharacter
     }
 }
 
-impl<Ch, Str, StaticCh> Uncommitted<Ch, Str> for AnyCharacter
+impl<Ch, Str> Uncommitted<Ch, Str> for AnyCharacter
     where Str: Iterator<Item = Ch>,
-          Ch: ToStatic<Static = StaticCh>,
-          StaticCh: 'static + Upcast<Ch>,
 {
     type Output = Option<Ch>;
     type State = AnyCharacter;
@@ -908,10 +895,8 @@ impl<Ch, Str, StaticCh> Uncommitted<Ch, Str> for AnyCharacter
 
 }
 
-impl<Ch, Str, StaticCh> Committed<Ch, Str> for AnyCharacter
+impl<Ch, Str> Committed<Ch, Str> for AnyCharacter
     where Str: Iterator<Item = Ch>,
-          Ch: ToStatic<Static = StaticCh>,
-          StaticCh: 'static + Upcast<Ch>,
 {
 
     fn empty(&self) -> Option<Ch> {
