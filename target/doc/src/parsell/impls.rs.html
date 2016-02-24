@@ -1134,6 +1134,73 @@
 <span id="1091">1091</span>
 <span id="1092">1092</span>
 <span id="1093">1093</span>
+<span id="1094">1094</span>
+<span id="1095">1095</span>
+<span id="1096">1096</span>
+<span id="1097">1097</span>
+<span id="1098">1098</span>
+<span id="1099">1099</span>
+<span id="1100">1100</span>
+<span id="1101">1101</span>
+<span id="1102">1102</span>
+<span id="1103">1103</span>
+<span id="1104">1104</span>
+<span id="1105">1105</span>
+<span id="1106">1106</span>
+<span id="1107">1107</span>
+<span id="1108">1108</span>
+<span id="1109">1109</span>
+<span id="1110">1110</span>
+<span id="1111">1111</span>
+<span id="1112">1112</span>
+<span id="1113">1113</span>
+<span id="1114">1114</span>
+<span id="1115">1115</span>
+<span id="1116">1116</span>
+<span id="1117">1117</span>
+<span id="1118">1118</span>
+<span id="1119">1119</span>
+<span id="1120">1120</span>
+<span id="1121">1121</span>
+<span id="1122">1122</span>
+<span id="1123">1123</span>
+<span id="1124">1124</span>
+<span id="1125">1125</span>
+<span id="1126">1126</span>
+<span id="1127">1127</span>
+<span id="1128">1128</span>
+<span id="1129">1129</span>
+<span id="1130">1130</span>
+<span id="1131">1131</span>
+<span id="1132">1132</span>
+<span id="1133">1133</span>
+<span id="1134">1134</span>
+<span id="1135">1135</span>
+<span id="1136">1136</span>
+<span id="1137">1137</span>
+<span id="1138">1138</span>
+<span id="1139">1139</span>
+<span id="1140">1140</span>
+<span id="1141">1141</span>
+<span id="1142">1142</span>
+<span id="1143">1143</span>
+<span id="1144">1144</span>
+<span id="1145">1145</span>
+<span id="1146">1146</span>
+<span id="1147">1147</span>
+<span id="1148">1148</span>
+<span id="1149">1149</span>
+<span id="1150">1150</span>
+<span id="1151">1151</span>
+<span id="1152">1152</span>
+<span id="1153">1153</span>
+<span id="1154">1154</span>
+<span id="1155">1155</span>
+<span id="1156">1156</span>
+<span id="1157">1157</span>
+<span id="1158">1158</span>
+<span id="1159">1159</span>
+<span id="1160">1160</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Provide implementations of parser traits.</span>
 
@@ -1292,6 +1359,40 @@
     }
 }
 
+<span class='comment'>// ----------- Deal with pairs ---------------</span>
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>First</span>;
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>S</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Function</span><span class='op'>&lt;</span>(<span class='ident'>S</span>, <span class='ident'>T</span>)<span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>First</span>
+{
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>S</span>;
+    <span class='kw'>fn</span> <span class='ident'>apply</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>arg</span>: (<span class='ident'>S</span>, <span class='ident'>T</span>)) <span class='op'>-&gt;</span> <span class='ident'>S</span> {
+        <span class='ident'>arg</span>.<span class='number'>0</span>
+    }
+}
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Second</span>;
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>S</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Function</span><span class='op'>&lt;</span>(<span class='ident'>S</span>, <span class='ident'>T</span>)<span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Second</span>
+{
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>T</span>;
+    <span class='kw'>fn</span> <span class='ident'>apply</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>arg</span>: (<span class='ident'>S</span>, <span class='ident'>T</span>)) <span class='op'>-&gt;</span> <span class='ident'>T</span> {
+        <span class='ident'>arg</span>.<span class='number'>1</span>
+    }
+}
+
+<span class='comment'>// ----------- Deal with units ---------------</span>
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Discard</span>;
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Discard</span>
+{
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> ();
+    <span class='kw'>fn</span> <span class='ident'>apply</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, _: <span class='ident'>T</span>) <span class='op'>-&gt;</span> () {
+        ()
+    }
+}
+
 <span class='comment'>// ----------- Map ---------------</span>
 
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>P</span>, <span class='ident'>F</span>);
@@ -1326,9 +1427,8 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
-    
+
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
 
     <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>F</span>::<span class='ident'>Output</span> {
@@ -1347,24 +1447,22 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
 
     <span class='kw'>fn</span> <span class='ident'>empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>F</span>::<span class='ident'>Output</span> {
         <span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>apply</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>empty</span>())
     }
-    
+
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
 
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
     <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>State</span>, <span class='ident'>F</span><span class='op'>&gt;</span>;
-    
+
     <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>, <span class='ident'>F</span>::<span class='ident'>Output</span><span class='op'>&gt;&gt;</span> {
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>init</span>(<span class='ident'>string</span>) {
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
@@ -1388,30 +1486,26 @@
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span> {}
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>PStaticOutput</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>Q</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
-          <span class='ident'>PStaticOutput</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>P</span>::<span class='ident'>Output</span>: <span class='ident'>ToStatic</span><span class='op'>&lt;</span><span class='ident'>Static</span> <span class='op'>=</span> <span class='ident'>PStaticOutput</span><span class='op'>&gt;</span>,
+          <span class='ident'>P</span>::<span class='ident'>Output</span>: <span class='ident'>ToStatic</span>,
 {
 
     <span class='kw'>fn</span> <span class='ident'>empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span> {
         (<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>empty</span>(), <span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>empty</span>())
     }
-    
+
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>PStaticOutput</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>Q</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
-          <span class='ident'>PStaticOutput</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>P</span>::<span class='ident'>Output</span>: <span class='ident'>ToStatic</span><span class='op'>&lt;</span><span class='ident'>Static</span> <span class='op'>=</span> <span class='ident'>PStaticOutput</span><span class='op'>&gt;</span>,
+          <span class='ident'>P</span>::<span class='ident'>Output</span>: <span class='ident'>ToStatic</span>,
 {
 
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> (<span class='ident'>P</span>::<span class='ident'>Output</span>, <span class='ident'>Q</span>::<span class='ident'>Output</span>);
-    <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>AndThenState</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>State</span>, <span class='ident'>Q</span>, <span class='ident'>PStaticOutput</span>, <span class='ident'>Q</span>::<span class='ident'>State</span><span class='op'>&gt;</span>;
+    <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>AndThenState</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>State</span>, <span class='ident'>Q</span>, <span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span> <span class='kw'>as</span> <span class='ident'>ToStatic</span><span class='op'>&gt;</span>::<span class='ident'>Static</span>, <span class='ident'>Q</span>::<span class='ident'>State</span><span class='op'>&gt;</span>;
 
     <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>, <span class='ident'>Self</span>::<span class='ident'>Output</span><span class='op'>&gt;&gt;</span> {
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>init</span>(<span class='ident'>string</span>) {
@@ -1440,15 +1534,13 @@
     <span class='ident'>InRhs</span>(<span class='ident'>PStaticOutput</span>, <span class='ident'>QState</span>),
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>PState</span>, <span class='ident'>Q</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>PStaticOutput</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AndThenState</span><span class='op'>&lt;</span><span class='ident'>PState</span>, <span class='ident'>Q</span>, <span class='ident'>PStaticOutput</span>, <span class='ident'>Q</span>::<span class='ident'>State</span><span class='op'>&gt;</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>PState</span>, <span class='ident'>Q</span>, <span class='ident'>PStaticOutput</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AndThenState</span><span class='op'>&lt;</span><span class='ident'>PState</span>, <span class='ident'>Q</span>, <span class='ident'>PStaticOutput</span>, <span class='ident'>Q</span>::<span class='ident'>State</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>PState</span>: <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>Q</span>: <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
-          <span class='ident'>PStaticOutput</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='ident'>PState</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
           <span class='ident'>PState</span>::<span class='ident'>Output</span>: <span class='ident'>ToStatic</span><span class='op'>&lt;</span><span class='ident'>Static</span> <span class='op'>=</span> <span class='ident'>PStaticOutput</span><span class='op'>&gt;</span>,
-
+          <span class='ident'>PStaticOutput</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='ident'>PState</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
 {
-    
+
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> (<span class='ident'>PState</span>::<span class='ident'>Output</span>, <span class='ident'>Q</span>::<span class='ident'>Output</span>);
 
     <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span>
@@ -1488,7 +1580,7 @@
             }
         }
     }
-   
+
 }
 
 <span class='comment'>// ----------- Choice ---------------</span>
@@ -1501,19 +1593,17 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>OrElse</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>Q</span>: <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
-    
+
     <span class='kw'>fn</span> <span class='ident'>empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>P</span>::<span class='ident'>Output</span> {
         <span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>empty</span>()
     }
-    
+
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>OrElse</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>Q</span>: <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
 
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span>;
@@ -1530,7 +1620,7 @@
             },
         }
     }
-    
+
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span> <span class='ident'>OrElse</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span> {
@@ -1548,10 +1638,9 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>OrElseState</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Q</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>Q</span>: <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span>;
-    
+
     <span class='kw'>fn</span> <span class='ident'>more</span>(<span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
         <span class='kw'>match</span> <span class='self'>self</span> {
             <span class='ident'>Lhs</span>(<span class='ident'>lhs</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>lhs</span>.<span class='ident'>more</span>(<span class='ident'>string</span>) {
@@ -1583,7 +1672,7 @@
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>PState</span><span class='op'>&gt;</span>,
           <span class='ident'>PState</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
           <span class='ident'>T</span>: <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
+          <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span>,
 {
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>T</span>;
     <span class='kw'>fn</span> <span class='ident'>more</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {
@@ -1646,13 +1735,13 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Plus</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Factory</span>,
-          <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
+          <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span>,
           <span class='ident'>P</span>::<span class='ident'>State</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>::<span class='ident'>Output</span>: <span class='ident'>Consumer</span><span class='op'>&lt;&lt;</span><span class='ident'>P</span> <span class='kw'>as</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;&gt;</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
 {
     <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>StarState</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>P</span>::<span class='ident'>State</span>, <span class='ident'>F</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>;
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
-        
+
     <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>, <span class='ident'>F</span>::<span class='ident'>Output</span><span class='op'>&gt;&gt;</span> {
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>init</span>(<span class='ident'>string</span>) {
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
@@ -1704,14 +1793,14 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Star</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Factory</span>,
-          <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
+          <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span>,
           <span class='ident'>P</span>::<span class='ident'>State</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>::<span class='ident'>Output</span>: <span class='ident'>Consumer</span><span class='op'>&lt;&lt;</span><span class='ident'>P</span> <span class='kw'>as</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;&gt;</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
 {
 
     <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>StarState</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>P</span>::<span class='ident'>State</span>, <span class='ident'>F</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>;
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
-        
+
     <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>, <span class='ident'>F</span>::<span class='ident'>Output</span><span class='op'>&gt;&gt;</span> {
         <span class='kw'>if</span> <span class='ident'>string</span>.<span class='ident'>is_empty</span>() {
             <span class='prelude-val'>None</span>
@@ -1719,13 +1808,13 @@
             <span class='prelude-val'>Some</span>(<span class='ident'>StarState</span>(<span class='self'>self</span>.<span class='number'>0</span>, <span class='prelude-val'>None</span>, <span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>build</span>()).<span class='ident'>more</span>(<span class='ident'>string</span>))
         }
     }
-    
+
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Star</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Factory</span>,
-          <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
+          <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span>,
           <span class='ident'>P</span>::<span class='ident'>State</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>::<span class='ident'>Output</span>: <span class='ident'>Consumer</span><span class='op'>&lt;&lt;</span><span class='ident'>P</span> <span class='kw'>as</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;&gt;</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
 {
@@ -1733,12 +1822,77 @@
     <span class='kw'>fn</span> <span class='ident'>empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>F</span>::<span class='ident'>Output</span> {
         <span class='self'>self</span>.<span class='number'>1</span>.<span class='ident'>build</span>()
     }
-    
+
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Star</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span> {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>parser</span>: <span class='ident'>P</span>, <span class='ident'>factory</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
         <span class='ident'>Star</span>(<span class='ident'>parser</span>, <span class='ident'>factory</span>)
+    }
+}
+
+<span class='comment'>// ----------- Optional parse -------------</span>
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Opt</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='ident'>P</span>);
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>Opt</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Parser</span> {}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Opt</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>
+    <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
+{
+
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>;
+
+    <span class='kw'>fn</span> <span class='ident'>more</span>(<span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>Self</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
+        <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>more</span>(<span class='ident'>string</span>) {
+            <span class='ident'>Done</span>(<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='ident'>Done</span>(<span class='prelude-val'>Some</span>(<span class='ident'>result</span>)),
+            <span class='ident'>Continue</span>(<span class='ident'>parsing</span>) <span class='op'>=&gt;</span> <span class='ident'>Continue</span>(<span class='ident'>Opt</span>(<span class='ident'>parsing</span>)),
+        }
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span> {
+        <span class='prelude-val'>Some</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>done</span>())
+    }
+
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Opt</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>
+    <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span>,
+          <span class='ident'>P</span>: <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
+{
+
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>;
+    <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>Opt</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>State</span><span class='op'>&gt;</span>;
+
+    <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>, <span class='ident'>Self</span>::<span class='ident'>Output</span><span class='op'>&gt;&gt;</span> {
+        <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>init</span>(<span class='ident'>string</span>) {
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>if</span> <span class='ident'>string</span>.<span class='ident'>is_empty</span>() {
+                <span class='prelude-val'>None</span>
+            } <span class='kw'>else</span> {
+                <span class='prelude-val'>Some</span>(<span class='ident'>Done</span>(<span class='prelude-val'>None</span>))
+            },
+            <span class='prelude-val'>Some</span>(<span class='ident'>Done</span>(<span class='ident'>result</span>)) <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Done</span>(<span class='prelude-val'>Some</span>(<span class='ident'>result</span>))),
+            <span class='prelude-val'>Some</span>(<span class='ident'>Continue</span>(<span class='ident'>parsing</span>)) <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Continue</span>(<span class='ident'>Opt</span>(<span class='ident'>parsing</span>))),
+        }
+    }
+
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Opt</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>
+    <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span>,
+          <span class='ident'>P</span>: <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
+{
+
+    <span class='kw'>fn</span> <span class='ident'>empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span> {
+        <span class='prelude-val'>None</span>
+    }
+
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span> <span class='ident'>Opt</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>parser</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
+        <span class='ident'>Opt</span>(<span class='ident'>parser</span>)
     }
 }
 
@@ -1750,8 +1904,7 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>Emit</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> {}
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Emit</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
-          <span class='ident'>F</span>: <span class='ident'>Factory</span>,
+    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Factory</span>,
 {
 
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
@@ -1759,15 +1912,15 @@
     <span class='kw'>fn</span> <span class='ident'>more</span>(<span class='self'>self</span>, _: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>F</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
         <span class='ident'>Done</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>build</span>())
     }
-    
+
     <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>F</span>::<span class='ident'>Output</span> {
         <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>build</span>()
     }
-    
+
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Emit</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
+    <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span>,
           <span class='ident'>F</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Factory</span>,
 {
 
@@ -1781,11 +1934,11 @@
             <span class='prelude-val'>Some</span>(<span class='ident'>Done</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>build</span>()))
         }
     }
-    
+
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Emit</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
+    <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span>,
           <span class='ident'>F</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Factory</span>,
 {
 
@@ -1803,26 +1956,18 @@
 <span class='comment'>// ----------- Character parsers -------------</span>
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>CharacterState</span><span class='op'>&lt;</span><span class='ident'>StaticCh</span><span class='op'>&gt;</span>(<span class='ident'>StaticCh</span>);
+<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>CharacterState</span> {}
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>StaticCh</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterState</span><span class='op'>&lt;</span><span class='ident'>StaticCh</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
-          <span class='ident'>StaticCh</span>: <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='ident'>Ch</span><span class='op'>&gt;</span>,
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterState</span>
 {
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Ch</span>;
 
-    <span class='kw'>fn</span> <span class='ident'>more</span>(<span class='self'>self</span>, _: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>Ch</span><span class='op'>&gt;</span> {
-        <span class='ident'>Done</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>upcast</span>())
-    }
+    <span class='kw'>fn</span> <span class='ident'>more</span>(<span class='self'>self</span>, _: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>Ch</span><span class='op'>&gt;</span> { 
+        <span class='kw'>match</span> <span class='self'>self</span> {}
+   }
 
     <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Ch</span> {
-        <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>upcast</span>()
-    }
-}
-    
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>StaticCh</span><span class='op'>&gt;</span> <span class='ident'>CharacterState</span><span class='op'>&lt;</span><span class='ident'>StaticCh</span><span class='op'>&gt;</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>ch</span>: <span class='ident'>StaticCh</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
-        <span class='ident'>CharacterState</span>(<span class='ident'>ch</span>)
+        <span class='kw'>match</span> <span class='self'>self</span> {}
     }
 }
 
@@ -1849,22 +1994,21 @@
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>Character</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> {}
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>StaticCh</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Character</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Character</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>bool</span><span class='op'>&gt;</span>,
-          <span class='ident'>Ch</span>: <span class='ident'>ToStatic</span><span class='op'>&lt;</span><span class='ident'>Static</span> <span class='op'>=</span> <span class='ident'>StaticCh</span><span class='op'>&gt;</span> <span class='op'>+</span> <span class='ident'>Copy</span>,
-          <span class='ident'>StaticCh</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='ident'>Ch</span><span class='op'>&gt;</span>,
+          <span class='ident'>Ch</span>: <span class='ident'>Copy</span>,
 {
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Ch</span>;
-    <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>CharacterState</span><span class='op'>&lt;</span><span class='ident'>StaticCh</span><span class='op'>&gt;</span>;
-    
+    <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>CharacterState</span>;
+
     <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>, <span class='ident'>Ch</span><span class='op'>&gt;&gt;</span> {
         <span class='kw'>match</span> <span class='ident'>string</span>.<span class='ident'>next_if</span>(<span class='self'>self</span>.<span class='number'>0</span>) {
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
             <span class='prelude-val'>Some</span>(<span class='ident'>ch</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Done</span>(<span class='ident'>ch</span>)),
         }
     }
-    
+
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Character</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> {
@@ -1896,22 +2040,20 @@
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Parser</span> <span class='kw'>for</span> <span class='ident'>CharacterRef</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> {}
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>StaticCh</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterRef</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>CharacterRef</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>PeekableIterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='ident'>Copy</span> <span class='op'>+</span> <span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Function</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Ch</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>bool</span><span class='op'>&gt;</span>,
-          <span class='ident'>Ch</span>: <span class='ident'>ToStatic</span><span class='op'>&lt;</span><span class='ident'>Static</span> <span class='op'>=</span> <span class='ident'>StaticCh</span><span class='op'>&gt;</span>,
-          <span class='ident'>StaticCh</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Ch</span>;
-    <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>CharacterState</span><span class='op'>&lt;</span><span class='ident'>StaticCh</span><span class='op'>&gt;</span>;
-    
+    <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>CharacterState</span>;
+
     <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>, <span class='ident'>Ch</span><span class='op'>&gt;&gt;</span> {
         <span class='kw'>match</span> <span class='ident'>string</span>.<span class='ident'>next_if_ref</span>(<span class='self'>self</span>.<span class='number'>0</span>) {
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
             <span class='prelude-val'>Some</span>(<span class='ident'>ch</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Done</span>(<span class='ident'>ch</span>)),
         }
     }
-    
+
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>CharacterRef</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> {
@@ -1941,15 +2083,13 @@
         <span class='prelude-val'>None</span>
     }
 }
-    
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>StaticCh</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AnyCharacter</span>
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AnyCharacter</span>
     <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
-          <span class='ident'>Ch</span>: <span class='ident'>ToStatic</span><span class='op'>&lt;</span><span class='ident'>Static</span> <span class='op'>=</span> <span class='ident'>StaticCh</span><span class='op'>&gt;</span>,
-          <span class='ident'>StaticCh</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Ch</span><span class='op'>&gt;</span>;
     <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>AnyCharacter</span>;
-    
+
     <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Ch</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
         <span class='kw'>match</span> <span class='ident'>string</span>.<span class='ident'>next</span>() {
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
@@ -1959,10 +2099,8 @@
 
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>StaticCh</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AnyCharacter</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AnyCharacter</span>
     <span class='kw'>where</span> <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
-          <span class='ident'>Ch</span>: <span class='ident'>ToStatic</span><span class='op'>&lt;</span><span class='ident'>Static</span> <span class='op'>=</span> <span class='ident'>StaticCh</span><span class='op'>&gt;</span>,
-          <span class='ident'>StaticCh</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
 
     <span class='kw'>fn</span> <span class='ident'>empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Ch</span><span class='op'>&gt;</span> {
@@ -1992,7 +2130,7 @@
 {
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>str</span><span class='op'>&gt;</span>;
     <span class='kw'>type</span> <span class='ident'>State</span> <span class='op'>=</span> <span class='ident'>BufferedState</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>State</span><span class='op'>&gt;</span>;
-    
+
     <span class='kw'>fn</span> <span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Chars</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>State</span>, <span class='ident'>Self</span>::<span class='ident'>Output</span><span class='op'>&gt;&gt;</span> {
         <span class='kw'>let</span> <span class='ident'>string0</span> <span class='op'>=</span> <span class='ident'>string</span>.<span class='ident'>as_str</span>();
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>init</span>(<span class='ident'>string</span>) {
@@ -2021,9 +2159,9 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>P</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>char</span>, <span class='ident'>Chars</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span> <span class='kw'>for</span> <span class='ident'>BufferedState</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>char</span>, <span class='ident'>Chars</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span>
 {
-    
+
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>str</span><span class='op'>&gt;</span>;
-    
+
     <span class='kw'>fn</span> <span class='ident'>more</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Chars</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>Self</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='ident'>string0</span> <span class='op'>=</span> <span class='ident'>string</span>.<span class='ident'>as_str</span>();
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>more</span>(<span class='ident'>string</span>) {
@@ -2037,11 +2175,11 @@
             },
         }
     }
-    
+
     <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span> {
         <span class='ident'>Owned</span>(<span class='self'>self</span>.<span class='number'>1</span>)
     }
-    
+
 }
 
 <span class='comment'>// ----------- Parsers which are boxable -------------</span>
@@ -2051,7 +2189,6 @@
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>BoxableState</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
 {
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span>;
     <span class='kw'>fn</span> <span class='ident'>more_boxable</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span>(), <span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
@@ -2068,18 +2205,17 @@
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>: ?<span class='ident'>Sized</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Output</span><span class='op'>&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>: ?<span class='ident'>Sized</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>
+    <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
 {
-    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Output</span>;
-    <span class='kw'>fn</span> <span class='ident'>more</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>Output</span><span class='op'>&gt;</span> {
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span>;
+    <span class='kw'>fn</span> <span class='ident'>more</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span> {
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>more_boxable</span>(<span class='ident'>string</span>) {
             <span class='ident'>Done</span>(<span class='ident'>result</span>) <span class='op'>=&gt;</span> <span class='ident'>Done</span>(<span class='ident'>result</span>),
             <span class='ident'>Continue</span>(()) <span class='op'>=&gt;</span> <span class='ident'>Continue</span>(<span class='self'>self</span>),
         }
     }
-    <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Output</span> {
+    <span class='kw'>fn</span> <span class='ident'>done</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>P</span>::<span class='ident'>Output</span> {
         <span class='self'>self</span>.<span class='ident'>done_boxable</span>()
     }
 }
@@ -2098,7 +2234,6 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Boxed</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Uncommitted</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>BoxableState</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>State</span><span class='op'>&gt;&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>::<span class='ident'>Output</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
 {
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span>;
@@ -2116,7 +2251,6 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span>, <span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Boxed</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
     <span class='kw'>where</span> <span class='ident'>P</span>: <span class='ident'>Committed</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>: <span class='ident'>Function</span><span class='op'>&lt;</span><span class='ident'>BoxableState</span><span class='op'>&lt;</span><span class='ident'>P</span>::<span class='ident'>State</span><span class='op'>&gt;&gt;</span>,
-          <span class='ident'>Str</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Ch</span><span class='op'>&gt;</span>,
           <span class='ident'>F</span>::<span class='ident'>Output</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Stateful</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>P</span>::<span class='ident'>Output</span><span class='op'>&gt;</span>,
 {
     <span class='kw'>fn</span> <span class='ident'>empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>::<span class='ident'>Output</span> {

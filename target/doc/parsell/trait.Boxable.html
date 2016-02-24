@@ -46,8 +46,8 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-1238' class='srclink' href='../src/parsell/lib.rs.html#723-729' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Boxable&lt;Ch, Str&gt; <span class='where'>where Str: <a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html' title='core::iter::Iterator'>Iterator</a>&lt;Item=Ch&gt;</span> {
+        </span><a id='src-1332' class='srclink' href='../src/parsell/lib.rs.html#805-810' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Boxable&lt;Ch, Str&gt; {
     type Output;
     fn <a href='#tymethod.more_boxable' class='fnname'>more_boxable</a>(&amp;mut self, string: &amp;mut Str) -&gt; <a class='enum' href='../parsell/enum.ParseResult.html' title='parsell::ParseResult'>ParseResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Output</a>&gt;;
     fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Output</a>;
@@ -197,7 +197,7 @@ clients cannot call <code>parse</code> after <code>done</code>, but <code>Boxabl
         <h3 id='tymethod.more_boxable' class='method stab '><code>fn <a href='#tymethod.more_boxable' class='fnname'>more_boxable</a>(&amp;mut self, string: &amp;mut Str) -&gt; <a class='enum' href='../parsell/enum.ParseResult.html' title='parsell::ParseResult'>ParseResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, Self::<a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Output</a>&gt;</code></h3><h3 id='tymethod.done_boxable' class='method stab '><code>fn <a href='#tymethod.done_boxable' class='fnname'>done_boxable</a>(&amp;mut self) -&gt; Self::<a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Output</a></code></h3></div>
         <h2 id='implementors'>Implementors</h2>
         <ul class='item-list' id='implementors-list'>
-    <li><code>impl&lt;P, Ch, Str&gt; <a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Boxable</a>&lt;Ch, Str&gt; for <a class='struct' href='../parsell/impls/struct.BoxableState.html' title='parsell::impls::BoxableState'>BoxableState</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsell/trait.Stateful.html' title='parsell::Stateful'>Stateful</a>&lt;Ch, Str&gt;, Str: <a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html' title='core::iter::Iterator'>Iterator</a>&lt;Item=Ch&gt;</span></code></li>
+    <li><code>impl&lt;P, Ch, Str&gt; <a class='trait' href='../parsell/trait.Boxable.html' title='parsell::Boxable'>Boxable</a>&lt;Ch, Str&gt; for <a class='struct' href='../parsell/impls/struct.BoxableState.html' title='parsell::impls::BoxableState'>BoxableState</a>&lt;P&gt; <span class='where'>where P: <a class='trait' href='../parsell/trait.Stateful.html' title='parsell::Stateful'>Stateful</a>&lt;Ch, Str&gt;</span></code></li>
 </ul><script type="text/javascript" async
                               src="../implementors/parsell/trait.Boxable.js">
                       </script></section>

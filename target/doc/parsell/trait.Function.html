@@ -46,7 +46,7 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-1247' class='srclink' href='../src/parsell/lib.rs.html#754-757' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-1341' class='srclink' href='../src/parsell/lib.rs.html#835-838' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait Function&lt;S&gt; {
     type Output;
     fn <a href='#tymethod.apply' class='fnname'>apply</a>(&amp;self, arg: S) -&gt; Self::<a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Output</a>;
@@ -86,6 +86,9 @@ at which point the main need for this type will go away.</p>
 <li><code>impl&lt;S, T, E&gt; <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;T, E&gt;)</a>&gt; for <a class='struct' href='../parsell/impls/struct.ZipTry.html' title='parsell::impls::ZipTry'>ZipTry</a></code></li>
 <li><code>impl&lt;S, T, E&gt; <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(<a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;S, E&gt;, <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;T, E&gt;)</a>&gt; for <a class='struct' href='../parsell/impls/struct.TryZipTry.html' title='parsell::impls::TryZipTry'>TryZipTry</a></code></li>
 <li><code>impl&lt;T&gt; <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;T&gt; for <a class='struct' href='../parsell/impls/struct.MkSome.html' title='parsell::impls::MkSome'>MkSome</a></code></li>
+<li><code>impl&lt;S, T&gt; <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, T)</a>&gt; for <a class='struct' href='../parsell/impls/struct.First.html' title='parsell::impls::First'>First</a></code></li>
+<li><code>impl&lt;S, T&gt; <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(S, T)</a>&gt; for <a class='struct' href='../parsell/impls/struct.Second.html' title='parsell::impls::Second'>Second</a></code></li>
+<li><code>impl&lt;T&gt; <a class='trait' href='../parsell/trait.Function.html' title='parsell::Function'>Function</a>&lt;T&gt; for <a class='struct' href='../parsell/impls/struct.Discard.html' title='parsell::impls::Discard'>Discard</a></code></li>
 </ul><script type="text/javascript" async
                               src="../implementors/parsell/trait.Function.js">
                       </script></section>
