@@ -67,7 +67,6 @@ pub mod impls;
 /// ```
 
 pub trait Stateful<Ch, Str> 
-    where Str: Iterator<Item = Ch>,
 {
     
     /// The type of the data being produced by the parser.
@@ -529,7 +528,6 @@ pub trait Parser {
 /// and non-empty.
 
 pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
-    where Str: Iterator<Item = Ch>,
 {
 
     /// Parse an EOF.
@@ -572,7 +570,6 @@ pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
 pub trait Uncommitted<Ch, Str>
-    where Str: Iterator<Item = Ch>,
 {
 
     type Output;
@@ -806,7 +803,6 @@ impl<'a, P> UncommittedStr<'a> for P where P: Uncommitted<char, Chars<'a>> {}
 /// clients cannot call `parse` after `done`, but `Boxable<S>` does not.
 
 pub trait Boxable<Ch, Str> 
-    where Str: Iterator<Item = Ch>,
 {
     type Output;
     fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), Self::Output>;

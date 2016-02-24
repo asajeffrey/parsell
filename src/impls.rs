@@ -223,7 +223,6 @@ impl<P, F> Parser for Map<P, F> {}
 impl<P, F, Ch, Str> Stateful<Ch, Str> for Map<P, F>
     where P: Stateful<Ch, Str>,
           F: Function<P::Output>,
-          Str: Iterator<Item = Ch>,
 {
 
     type Output = F::Output;
@@ -244,7 +243,6 @@ impl<P, F, Ch, Str> Stateful<Ch, Str> for Map<P, F>
 impl<P, F, Ch, Str> Committed<Ch, Str> for Map<P, F>
     where P: Committed<Ch, Str>,
           F: 'static + Copy + Function<P::Output>,
-          Str: Iterator<Item = Ch>,
 {
 
     fn empty(&self) -> F::Output {
@@ -256,7 +254,6 @@ impl<P, F, Ch, Str> Committed<Ch, Str> for Map<P, F>
 impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Map<P, F>
     where P: Uncommitted<Ch, Str>,
           F: 'static + Copy + Function<P::Output>,
-          Str: Iterator<Item = Ch>,
 {
 
     type Output = F::Output;
@@ -288,7 +285,6 @@ impl<P, Q> Parser for AndThen<P, Q> {}
 impl<P, Q, Ch, Str> Committed<Ch, Str> for AndThen<P, Q>
     where P: Committed<Ch, Str>,
           Q: 'static + Copy + Committed<Ch, Str>,
-          Str: Iterator<Item = Ch>,
           P::Output: ToStatic,
 {
 
@@ -301,7 +297,6 @@ impl<P, Q, Ch, Str> Committed<Ch, Str> for AndThen<P, Q>
 impl<P, Q, Ch, Str> Uncommitted<Ch, Str> for AndThen<P, Q>
     where P: Uncommitted<Ch, Str>,
           Q: 'static + Copy + Committed<Ch, Str>,
-          Str: Iterator<Item = Ch>,
           P::Output: ToStatic,
 {
 
@@ -338,7 +333,6 @@ pub enum AndThenState<PState, Q, PStaticOutput, QState> {
 impl<PState, Q, PStaticOutput, Ch, Str> Stateful<Ch, Str> for AndThenState<PState, Q, PStaticOutput, Q::State>
     where PState: Stateful<Ch, Str>,
           Q: Committed<Ch, Str>,
-          Str: Iterator<Item = Ch>,
           PState::Output: ToStatic<Static = PStaticOutput>,
           PStaticOutput: 'static + Upcast<PState::Output>,
 {
@@ -395,7 +389,6 @@ impl<P, Q> Parser for OrElse<P, Q> {}
 impl<P, Q, Ch, Str> Committed<Ch, Str> for OrElse<P, Q>
     where P: Uncommitted<Ch, Str>,
           Q: Committed<Ch, Str, Output = P::Output>,
-          Str: Iterator<Item = Ch>,
 {
 
     fn empty(&self) -> P::Output {
@@ -407,7 +400,6 @@ impl<P, Q, Ch, Str> Committed<Ch, Str> for OrElse<P, Q>
 impl<P, Q, Ch, Str> Uncommitted<Ch, Str> for OrElse<P, Q>
     where P: Uncommitted<Ch, Str>,
           Q: Uncommitted<Ch, Str, Output = P::Output>,
-          Str: Iterator<Item = Ch>,
 {
 
     type Output = P::Output;
@@ -442,7 +434,6 @@ pub enum OrElseState<P, Q> {
 impl<P, Q, Ch, Str> Stateful<Ch, Str> for OrElseState<P, Q>
     where P: Stateful<Ch, Str>,
           Q: Stateful<Ch, Str, Output = P::Output>,
-          Str: Iterator<Item = Ch>,
 {
     type Output = P::Output;
 
@@ -477,7 +468,7 @@ impl<P, PState, T, Ch, Str> Stateful<Ch, Str> for StarState<P, PState, T>
     where P: Copy + Uncommitted<Ch, Str, State = PState>,
           PState: 'static + Stateful<Ch, Str, Output = P::Output>,
           T: Consumer<P::Output>,
-          Str: PeekableIterator<Item = Ch>,
+          Str: PeekableIterator,
 {
     type Output = T;
     fn more(mut self, string: &mut Str) -> ParseResult<Self, T> {
@@ -540,7 +531,7 @@ impl<P, F> Parser for Plus<P, F> {}
 impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Plus<P, F>
     where P: 'static + Copy + Uncommitted<Ch, Str>,
           F: 'static + Factory,
-          Str: PeekableIterator<Item = Ch>,
+          Str: PeekableIterator,
           P::State: 'static + Stateful<Ch, Str>,
           F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
 {
@@ -598,7 +589,7 @@ impl<P, F> Parser for Star<P, F> {}
 impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Star<P, F>
     where P: 'static + Copy + Uncommitted<Ch, Str>,
           F: 'static + Factory,
-          Str: PeekableIterator<Item = Ch>,
+          Str: PeekableIterator,
           P::State: 'static + Stateful<Ch, Str>,
           F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
 {
@@ -619,7 +610,7 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Star<P, F>
 impl<P, F, Ch, Str> Committed<Ch, Str> for Star<P, F>
     where P: 'static + Copy + Uncommitted<Ch, Str>,
           F: 'static + Factory,
-          Str: PeekableIterator<Item = Ch>,
+          Str: PeekableIterator,
           P::State: 'static + Stateful<Ch, Str>,
           F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
 {
@@ -644,8 +635,7 @@ pub struct Opt<P>(P);
 impl<P> Parser for Opt<P> where P: Parser {}
 
 impl<P, Ch, Str> Stateful<Ch, Str> for Opt<P>
-    where Str: Iterator<Item = Ch>,
-          P: Stateful<Ch, Str>,
+    where P: Stateful<Ch, Str>,
 {
 
     type Output = Option<P::Output>;
@@ -664,7 +654,7 @@ impl<P, Ch, Str> Stateful<Ch, Str> for Opt<P>
 }
 
 impl<P, Ch, Str> Uncommitted<Ch, Str> for Opt<P>
-    where Str: PeekableIterator<Item = Ch>,
+    where Str: PeekableIterator,
           P: Uncommitted<Ch, Str>,
 {
 
@@ -686,7 +676,7 @@ impl<P, Ch, Str> Uncommitted<Ch, Str> for Opt<P>
 }
 
 impl<P, Ch, Str> Committed<Ch, Str> for Opt<P>
-    where Str: PeekableIterator<Item = Ch>,
+    where Str: PeekableIterator,
           P: Uncommitted<Ch, Str>,
 {
 
@@ -710,8 +700,7 @@ pub struct Emit<F>(F);
 impl<F> Parser for Emit<F> {}
 
 impl<F, Ch, Str> Stateful<Ch, Str> for Emit<F>
-    where Str: Iterator<Item = Ch>,
-          F: Factory,
+    where F: Factory,
 {
 
     type Output = F::Output;
@@ -727,7 +716,7 @@ impl<F, Ch, Str> Stateful<Ch, Str> for Emit<F>
 }
 
 impl<F, Ch, Str> Uncommitted<Ch, Str> for Emit<F>
-    where Str: PeekableIterator<Item = Ch>,
+    where Str: PeekableIterator,
           F: 'static + Copy + Factory,
 {
 
@@ -745,7 +734,7 @@ impl<F, Ch, Str> Uncommitted<Ch, Str> for Emit<F>
 }
 
 impl<F, Ch, Str> Committed<Ch, Str> for Emit<F>
-    where Str: PeekableIterator<Item = Ch>,
+    where Str: PeekableIterator,
           F: 'static + Copy + Factory,
 {
 
@@ -1011,7 +1000,6 @@ pub struct BoxableState<P>(Option<P>);
 
 impl<P, Ch, Str> Boxable<Ch, Str> for BoxableState<P>
     where P: Stateful<Ch, Str>,
-          Str: Iterator<Item = Ch>,
 {
     type Output = P::Output;
     fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), P::Output> {
@@ -1030,7 +1018,6 @@ impl<P, Ch, Str> Boxable<Ch, Str> for BoxableState<P>
 
 impl<P: ?Sized, Ch, Str, Output> Stateful<Ch, Str> for Box<P>
     where P: Boxable<Ch, Str, Output = Output>,
-          Str: Iterator<Item = Ch>,
 {
     type Output = Output;
     fn more(mut self, string: &mut Str) -> ParseResult<Self, Output> {
@@ -1058,7 +1045,6 @@ impl<P, F> Parser for Boxed<P, F> where P: Parser {}
 impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Boxed<P, F>
     where P: Uncommitted<Ch, Str>,
           F: Function<BoxableState<P::State>>,
-          Str: Iterator<Item = Ch>,
           F::Output: 'static + Stateful<Ch, Str, Output = P::Output>,
 {
     type Output = P::Output;
@@ -1076,7 +1062,6 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Boxed<P, F>
 impl<P, F, Ch, Str> Committed<Ch, Str> for Boxed<P, F>
     where P: Committed<Ch, Str>,
           F: Function<BoxableState<P::State>>,
-          Str: Iterator<Item = Ch>,
           F::Output: 'static + Stateful<Ch, Str, Output = P::Output>,
 {
     fn empty(&self) -> Self::Output {
