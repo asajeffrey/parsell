@@ -26,6 +26,7 @@ use self::ParseResult::{Done, Continue};
 use std::borrow::Cow;
 use std::str::Chars;
 use std::iter::Peekable;
+use std::fmt::{Debug, Formatter};
 
 pub mod impls;
 
@@ -66,7 +67,6 @@ pub mod impls;
 /// ```
 
 pub trait Stateful<Ch, Str> 
-    where Str: Iterator<Item = Ch>,
 {
     
     /// The type of the data being produced by the parser.
@@ -226,7 +226,7 @@ pub trait StatefulStr<'a>: Stateful<char, Chars<'a>> {
 impl<'a, P> StatefulStr<'a> for P where P: Stateful<char, Chars<'a>> {}
 
 /// The result of parsing
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone)]
 pub enum ParseResult<State, Output> {
 
     /// The parse is finished.
@@ -235,6 +235,28 @@ pub enum ParseResult<State, Output> {
     /// The parse can continue.
     Continue(State),
 
+}
+
+// Implement Debug for ParseResult<P, S> without requiring P: Debug
+
+impl<P, S> Debug for ParseResult<P, S>
+    where S: Debug,
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        match self {
+            &Done(ref result) => write!(fmt, "Done({:?})", result),
+            &Continue(_) => write!(fmt, "Continue(...)"),
+        }
+    }
+}
+
+impl<P,S> PartialEq for ParseResult<P, S> where S: PartialEq {
+    fn eq(&self, other: &ParseResult<P, S>) -> bool {
+        match (self, other) {
+            (&Done(ref result1), &Done(ref result2)) => (result1 == result2),
+            _ => false,
+        }
+    }
 }
 
 /// A trait for stateless parsers.
@@ -373,6 +395,68 @@ pub trait Parser {
         self.try_map(impls::Function5::new(f))
     }
 
+    /// Sequencing, discard the output of the first parse
+    fn discard_and_then<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::Second>
+        where Self: Sized,
+              P: Parser,
+    {
+        self.and_then(other).map(impls::Second)
+    }
+
+    /// Sequencing, discard the output of the second parse
+    fn and_then_discard<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::First>
+        where Self: Sized,
+              P: Parser,
+    {
+        self.and_then(other).map(impls::First)
+    }
+
+    /// Sequencing, discard the output of the first parse, bubble errors from the first parser
+    fn try_discard_and_then<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::TryZip>, impls::Try<impls::Second>>
+        where Self: Sized,
+              P: Parser,
+    {
+        self.try_and_then(other).try_map(impls::Second)
+    }
+
+    /// Sequencing, discard the output of the second parse, bubble errors from the second parser
+    fn and_then_try_discard<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::ZipTry>, impls::Try<impls::First>>
+        where Self: Sized,
+              P: Parser,
+    {
+        self.and_then_try(other).try_map(impls::First)
+    }
+
+    /// Sequencing, discard the output of the first parse, bubble errors from either parser
+    fn try_discard_and_then_try<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::TryZipTry>, impls::Try<impls::Second>>
+        where Self: Sized,
+              P: Parser,
+    {
+        self.try_and_then_try(other).try_map(impls::Second)
+    }
+
+    /// Sequencing, discard the output of the second parse, bubble errors from either parser
+    fn try_and_then_try_discard<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::TryZipTry>, impls::Try<impls::First>>
+        where Self: Sized,
+              P: Parser,
+    {
+        self.try_and_then_try(other).try_map(impls::First)
+    }
+
+    /// Optional parse
+    fn opt(self) -> impls::Opt<Self>
+        where Self: Sized,
+    {
+        impls::Opt::new(self)
+    }
+    
+    /// Discard the output
+    fn discard(self) -> impls::Map<Self, impls::Discard>
+        where Self: Sized,
+    {
+        self.map(impls::Discard)
+    }
+    
     // /// Take the results of iterating this parser, and feed it into another parser.
     // fn pipe<P>(self, other: P) -> impls::PipeParser<Self, P>
     //     where Self: Sized
@@ -444,7 +528,6 @@ pub trait Parser {
 /// and non-empty.
 
 pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
-    where Str: Iterator<Item = Ch>,
 {
 
     /// Parse an EOF.
@@ -487,7 +570,6 @@ pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
 pub trait Uncommitted<Ch, Str>
-    where Str: Iterator<Item = Ch>,
 {
 
     type Output;
@@ -721,7 +803,6 @@ impl<'a, P> UncommittedStr<'a> for P where P: Uncommitted<char, Chars<'a>> {}
 /// clients cannot call `parse` after `done`, but `Boxable<S>` does not.
 
 pub trait Boxable<Ch, Str> 
-    where Str: Iterator<Item = Ch>,
 {
     type Output;
     fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), Self::Output>;
@@ -909,7 +990,7 @@ impl<S, T, D, E> Upcast<Result<T,E>> for Result<S,D>
 /// and restored from `Cow<'static,T>` when `T` is static.
 
 pub trait ToStatic {
-    type Static: 'static;
+    type Static: 'static + Upcast<Self>;
     fn to_static(self) -> Self::Static where Self: Sized;
 }
 
@@ -1154,6 +1235,20 @@ fn test_map() {
 }
 
 #[test]
+fn test_discard() {
+    let parser = character(char::is_alphabetic).discard();
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "989".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "989");
+    let mut data = "abcd".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), ());
+    assert_eq!(data.as_str(), "bcd");
+}
+
+#[test]
 #[allow(non_snake_case)]
 fn test_and_then() {
     // uncommitted
@@ -1238,6 +1333,132 @@ fn test_try_and_then_try() {
     assert_eq!(data.as_str(), "");
     let mut data = "abc".chars();
     assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok(('a', 'b')));
+    assert_eq!(data.as_str(), "c");
+    let mut data = "a!!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "!");
+    let mut data = "!ab".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "b");
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_and_then_discard() {
+    fn mk_err<T>(_: Option<char>) -> Result<T, String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T, String> { Ok(ok) }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+    let parser = ALPHANUMERIC.and_then_discard(ALPHANUMERIC);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "abc".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok('a'));
+    assert_eq!(data.as_str(), "c");
+    let mut data = "a!!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok('a'));
+    assert_eq!(data.as_str(), "!");
+    let mut data = "!ab".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "b");
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_discard_and_then() {
+    fn mk_err<T>(_: Option<char>) -> Result<T, String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T, String> { Ok(ok) }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+    let parser = ALPHANUMERIC.discard_and_then(ALPHANUMERIC);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "abc".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok('b'));
+    assert_eq!(data.as_str(), "c");
+    let mut data = "a!!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "!");
+    let mut data = "!ab".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok('a'));
+    assert_eq!(data.as_str(), "b");
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_and_then_try_discard() {
+    fn mk_err<T>(_: Option<char>) -> Result<T, String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T, String> { Ok(ok) }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+    let parser = ALPHANUMERIC.and_then_try_discard(ALPHANUMERIC);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "abc".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok(Ok('a')));
+    assert_eq!(data.as_str(), "c");
+    let mut data = "a!!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "!");
+    let mut data = "!ab".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok(Err(String::from("oh"))));
+    assert_eq!(data.as_str(), "b");
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_try_discard_and_then() {
+    fn mk_err<T>(_: Option<char>) -> Result<T, String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T, String> { Ok(ok) }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+    let parser = ALPHANUMERIC.try_discard_and_then(ALPHANUMERIC);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "abc".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok(Ok('b')));
+    assert_eq!(data.as_str(), "c");
+    let mut data = "a!!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok(Err(String::from("oh"))));
+    assert_eq!(data.as_str(), "!");
+    let mut data = "!ab".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "b");
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_try_and_then_try_discard() {
+    fn mk_err<T>(_: Option<char>) -> Result<T, String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T, String> { Ok(ok) }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+    let parser = ALPHANUMERIC.try_and_then_try_discard(ALPHANUMERIC);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "abc".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok('a'));
+    assert_eq!(data.as_str(), "c");
+    let mut data = "a!!".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "!");
+    let mut data = "!ab".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
+    assert_eq!(data.as_str(), "b");
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_try_discard_and_then_try() {
+    fn mk_err<T>(_: Option<char>) -> Result<T, String> { Err(String::from("oh")) }
+    fn mk_ok<T>(ok: T) -> Result<T, String> { Ok(ok) }
+    let ALPHANUMERIC = character(char::is_alphanumeric).map(mk_ok).or_else(CHARACTER.map(mk_err));
+    let parser = ALPHANUMERIC.try_discard_and_then_try(ALPHANUMERIC);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "abc".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), Ok('b'));
     assert_eq!(data.as_str(), "c");
     let mut data = "a!!".chars();
     assert_eq!(parser.init(&mut data).unwrap().unDone(), Err(String::from("oh")));
