@@ -1001,17 +1001,17 @@ impl<P, Ch, Str> Boxable<Ch, Str> for BoxableState<P>
     }
 }
 
-impl<P: ?Sized, Ch, Str, Output> Stateful<Ch, Str> for Box<P>
-    where P: Boxable<Ch, Str, Output = Output>,
+impl<P: ?Sized, Ch, Str> Stateful<Ch, Str> for Box<P>
+    where P: Boxable<Ch, Str>,
 {
-    type Output = Output;
-    fn more(mut self, string: &mut Str) -> ParseResult<Self, Output> {
+    type Output = P::Output;
+    fn more(mut self, string: &mut Str) -> ParseResult<Self, P::Output> {
         match self.more_boxable(string) {
             Done(result) => Done(result),
             Continue(()) => Continue(self),
         }
     }
-    fn done(mut self) -> Output {
+    fn done(mut self) -> P::Output {
         self.done_boxable()
     }
 }
