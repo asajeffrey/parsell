@@ -464,9 +464,8 @@ impl<P, Q, Ch, Str> Stateful<Ch, Str> for OrElseState<P, Q>
 #[derive(Clone,Debug)]
 pub struct StarState<P, PState, T>(P, Option<PState>, T);
 
-impl<P, PState, T, Ch, Str> Stateful<Ch, Str> for StarState<P, PState, T>
-    where P: Copy + Uncommitted<Ch, Str, State = PState>,
-          PState: 'static + Stateful<Ch, Str, Output = P::Output>,
+impl<P, T, Ch, Str> Stateful<Ch, Str> for StarState<P, P::State, T>
+    where P: Copy + Uncommitted<Ch, Str>,
           T: Consumer<P::Output>,
           Str: PeekableIterator,
 {
@@ -532,8 +531,7 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Plus<P, F>
     where P: 'static + Copy + Uncommitted<Ch, Str>,
           F: 'static + Factory,
           Str: PeekableIterator,
-          P::State: 'static + Stateful<Ch, Str>,
-          F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
+          F::Output: Consumer<P::Output>,
 {
     type State = StarState<P, P::State, F::Output>;
     type Output = F::Output;
@@ -590,8 +588,7 @@ impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Star<P, F>
     where P: 'static + Copy + Uncommitted<Ch, Str>,
           F: 'static + Factory,
           Str: PeekableIterator,
-          P::State: 'static + Stateful<Ch, Str>,
-          F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
+          F::Output: Consumer<P::Output>,
 {
 
     type State = StarState<P, P::State, F::Output>;
@@ -611,8 +608,7 @@ impl<P, F, Ch, Str> Committed<Ch, Str> for Star<P, F>
     where P: 'static + Copy + Uncommitted<Ch, Str>,
           F: 'static + Factory,
           Str: PeekableIterator,
-          P::State: 'static + Stateful<Ch, Str>,
-          F::Output: Consumer<<P as Uncommitted<Ch, Str>>::Output>,
+          F::Output: Consumer<P::Output>,
 {
 
     fn empty(&self) -> F::Output {
