@@ -381,6 +381,20 @@ impl<PState, Q, PStaticOutput, Ch, Str> Stateful<Ch, Str> for AndThenState<PStat
 
 // ----------- Choice ---------------
 
+pub trait StatefulTD<Ch, Str, Output> {
+    fn more_td(self, string: &mut Str) -> ParseResult<Self, Output> where Self: Sized;
+    fn done_td(self) -> Output where Self: Sized;
+}
+
+pub trait UncommittedTD<Ch, Str, Output> {
+    type StateTD: 'static + StatefulTD<Ch, Str, Output>;
+    fn init_td(&self, string: &mut Str) -> Option<ParseResult<Self::StateTD, Output>>;
+}
+
+pub trait CommittedTD<Ch, Str, Output>: UncommittedTD<Ch, Str, Output> {
+    fn empty_td(&self) -> Output;
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct OrElse<P, Q>(P, Q);
 
@@ -388,28 +402,60 @@ impl<P, Q> Parser for OrElse<P, Q> {}
 
 impl<P, Q, Ch, Str> Committed<Ch, Str> for OrElse<P, Q>
     where P: Uncommitted<Ch, Str>,
-          Q: Committed<Ch, Str, Output = P::Output>,
+          Q: CommittedTD<Ch, Str, P::Output>,
 {
 
     fn empty(&self) -> P::Output {
-        self.1.empty()
+        self.1.empty_td()
+    }
+
+}
+
+impl<P, Q, Ch, Str, Output> CommittedTD<Ch, Str, Output> for OrElse<P, Q>
+    where P: UncommittedTD<Ch, Str, Output>,
+          Q: CommittedTD<Ch, Str, Output>,
+{
+
+    fn empty_td(&self) -> Output {
+        self.1.empty_td()
     }
 
 }
 
 impl<P, Q, Ch, Str> Uncommitted<Ch, Str> for OrElse<P, Q>
     where P: Uncommitted<Ch, Str>,
-          Q: Uncommitted<Ch, Str, Output = P::Output>,
+          Q: UncommittedTD<Ch, Str, P::Output>,
 {
 
     type Output = P::Output;
-    type State = OrElseState<P::State, Q::State>;
+    type State = OrElseState<P::State, Q::StateTD>;
 
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
         match self.0.init(string) {
             Some(Done(result)) => Some(Done(result)),
             Some(Continue(lhs)) => Some(Continue(Lhs(lhs))),
-            None => match self.1.init(string) {
+            None => match self.1.init_td(string) {
+                Some(Done(result)) => Some(Done(result)),
+                Some(Continue(rhs)) => Some(Continue(Rhs(rhs))),
+                None => None,
+            },
+        }
+    }
+
+}
+
+impl<P, Q, Ch, Str, Output> UncommittedTD<Ch, Str, Output> for OrElse<P, Q>
+    where P: UncommittedTD<Ch, Str, Output>,
+          Q: UncommittedTD<Ch, Str, Output>,
+{
+
+    type StateTD = OrElseState<P::StateTD, Q::StateTD>;
+
+    fn init_td(&self, string: &mut Str) -> Option<ParseResult<Self::StateTD, Output>> {
+        match self.0.init_td(string) {
+            Some(Done(result)) => Some(Done(result)),
+            Some(Continue(lhs)) => Some(Continue(Lhs(lhs))),
+            None => match self.1.init_td(string) {
                 Some(Done(result)) => Some(Done(result)),
                 Some(Continue(rhs)) => Some(Continue(Rhs(rhs))),
                 None => None,
@@ -433,7 +479,7 @@ pub enum OrElseState<P, Q> {
 
 impl<P, Q, Ch, Str> Stateful<Ch, Str> for OrElseState<P, Q>
     where P: Stateful<Ch, Str>,
-          Q: Stateful<Ch, Str, Output = P::Output>,
+          Q: StatefulTD<Ch, Str, P::Output>,
 {
     type Output = P::Output;
 
@@ -443,7 +489,7 @@ impl<P, Q, Ch, Str> Stateful<Ch, Str> for OrElseState<P, Q>
                 Done(result) => Done(result),
                 Continue(lhs) => Continue(Lhs(lhs)),
             },
-            Rhs(rhs) => match rhs.more(string) {
+            Rhs(rhs) => match rhs.more_td(string) {
                 Done(result) => Done(result),
                 Continue(rhs) => Continue(Rhs(rhs)),
             },
@@ -453,7 +499,34 @@ impl<P, Q, Ch, Str> Stateful<Ch, Str> for OrElseState<P, Q>
     fn done(self) -> Self::Output {
         match self {
             Lhs(lhs) => lhs.done(),
-            Rhs(rhs) => rhs.done(),
+            Rhs(rhs) => rhs.done_td(),
+        }
+    }
+
+}
+
+
+impl<P, Q, Ch, Str, Output> StatefulTD<Ch, Str, Output> for OrElseState<P, Q>
+    where P: StatefulTD<Ch, Str, Output>,
+          Q: StatefulTD<Ch, Str, Output>,
+{
+    fn more_td(self, string: &mut Str) -> ParseResult<Self, Output> {
+        match self {
+            Lhs(lhs) => match lhs.more_td(string) {
+                Done(result) => Done(result),
+                Continue(lhs) => Continue(Lhs(lhs)),
+            },
+            Rhs(rhs) => match rhs.more_td(string) {
+                Done(result) => Done(result),
+                Continue(rhs) => Continue(Rhs(rhs)),
+            },
+        }
+    }
+
+    fn done_td(self) -> Output {
+        match self {
+            Lhs(lhs) => lhs.done_td(),
+            Rhs(rhs) => rhs.done_td(),
         }
     }
 
@@ -876,6 +949,21 @@ impl<Ch, Str> Stateful<Ch, Str> for AnyCharacter
     }
 }
 
+impl<Str> StatefulTD<Str::Item, Str, Option<Str::Item>> for AnyCharacter
+    where Str: Iterator,
+{
+    fn more_td(self, string: &mut Str) -> ParseResult<Self, Option<Str::Item>> {
+        match string.next() {
+            None => Continue(self),
+            Some(ch) => Done(Some(ch)),
+        }
+    }
+
+    fn done_td(self) -> Option<Str::Item> {
+        None
+    }
+}
+
 impl<Ch, Str> Uncommitted<Ch, Str> for AnyCharacter
     where Str: Iterator<Item = Ch>,
 {
@@ -891,11 +979,35 @@ impl<Ch, Str> Uncommitted<Ch, Str> for AnyCharacter
 
 }
 
+impl<Str> UncommittedTD<Str::Item, Str, Option<Str::Item>> for AnyCharacter
+    where Str: Iterator,
+{
+    type StateTD = AnyCharacter;
+
+    fn init_td(&self, string: &mut Str) -> Option<ParseResult<Self::StateTD, Option<Str::Item>>> {
+        match string.next() {
+            None => None,
+            Some(ch) => Some(Done(Some(ch))),
+        }
+    }
+
+}
+
 impl<Ch, Str> Committed<Ch, Str> for AnyCharacter
     where Str: Iterator<Item = Ch>,
 {
 
     fn empty(&self) -> Option<Ch> {
+        None
+    }
+
+}
+
+impl<Str> CommittedTD<Str::Item, Str, Option<Str::Item>> for AnyCharacter
+    where Str: Iterator,
+{
+
+    fn empty_td(&self) -> Option<Str::Item> {
         None
     }
 
