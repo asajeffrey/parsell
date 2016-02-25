@@ -69,8 +69,11 @@ pub mod impls;
 pub trait Stateful<Ch, Str> 
 {
     
+    /// The static type of the data being produced by the parser.
+    type StaticOutput: 'static + Upcast<Self::Output>;
+
     /// The type of the data being produced by the parser.
-    type Output;
+    type Output: ToStatic<Static = Self::StaticOutput>;
 
     /// Provides data to the parser.
     ///
@@ -531,7 +534,7 @@ pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
 {
 
     /// Parse an EOF.
-    fn empty(&self) -> Self::Output;
+    fn empty(&self) -> <Self::State as Stateful<Ch, Str>>::Output;
     
 }
 
@@ -572,11 +575,10 @@ pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
 pub trait Uncommitted<Ch, Str>
 {
 
-    type Output;
-    type State: 'static + Stateful<Ch, Str, Output=Self::Output>;
+    type State: 'static + Stateful<Ch, Str>;
 
     /// Parse a string of data.
-    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>>;
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, <Self::State as Stateful<Ch, Str>>::Output>>;
 
 }
 
@@ -607,7 +609,7 @@ pub trait UncommittedStr<'a>: Uncommitted<char, Chars<'a>> {
     /// }
     /// ```
 
-    fn init_str(&self, string: &'a str) -> Option<ParseResult<Self::State, Self::Output>>
+    fn init_str(&self, string: &'a str) -> Option<ParseResult<Self::State, <Self::State as Stateful<char, Chars<'a>>>::Output>>
         where Self: Sized,
     {
         self.init(&mut string.chars())
@@ -804,7 +806,8 @@ impl<'a, P> UncommittedStr<'a> for P where P: Uncommitted<char, Chars<'a>> {}
 
 pub trait Boxable<Ch, Str> 
 {
-    type Output;
+    type StaticOutput: 'static + Upcast<Self::Output>;
+    type Output: ToStatic<Static = Self::StaticOutput>;
     fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), Self::Output>;
     fn done_boxable(&mut self) -> Self::Output;
 }
@@ -1610,13 +1613,13 @@ fn test_boxable() {
     type TestCh<'a> = Cow<'a,str>;
     type TestStr<'a> = Peekable<Drain<'a,TestCh<'a>>>;
     type TestOutput<'a> = ((TestCh<'a>, TestCh<'a>), TestCh<'a>);
-    type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>>;
+    type TestStaticOutput<'a> = ((TestCh<'static>, TestCh<'static>), TestCh<'static>);
+    type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, StaticOutput=TestStaticOutput<'a>, Output=TestOutput<'a>>>;
     fn mk_box<P>(parser: P) -> TestState
-        where P: 'static + for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>
+        where P: 'static + for<'a> Boxable<TestCh<'a>, TestStr<'a>, StaticOutput=TestStaticOutput<'a>, Output=TestOutput<'a>>
     { Box::new(parser) }
     impl Parser for Test {}
     impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
-        type Output = TestOutput<'a>;
         type State = TestState;
         fn init(&self, string: &mut TestStr<'a>) -> Option<ParseResult<TestState, TestOutput<'a>>> {
             fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
