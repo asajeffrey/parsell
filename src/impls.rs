@@ -1033,87 +1033,104 @@ impl<State, Input> Committed<State, Input, Option<Input::Item>> for AnyCharacter
 
 // }
 
-// // ----------- Parsers which are boxable -------------
+// ----------- Parsers which are boxable -------------
 
-// #[derive(Debug)]
-// pub struct BoxableState<P>(Option<P>);
+#[derive(Debug)]
+pub struct BoxableState<P>(Option<P>);
 
-// impl<P, Ch, Str> Boxable<Ch, Str> for BoxableState<P>
-//     where P: Stateful<Ch, Str>,
-// {
-//     type Output = P::Output;
-//     fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), P::Output> {
-//         match self.0.take().unwrap().more(string) {
-//             Done(result) => Done(result),
-//             Continue(state) => {
-//                 self.0 = Some(state);
-//                 Continue(())
-//             }
-//         }
-//     }
-//     fn done_boxable(&mut self) -> P::Output {
-//         self.0.take().unwrap().done()
-//     }
-// }
+impl<P, Input> Infer<Input> for BoxableState<P>
+    where P: Infer<Input>,
+{
+    type Output = P::Output;
+    type State = Self;
+}
 
-// impl<P: ?Sized, Ch, Str> Stateful<Ch, Str> for Box<P>
-//     where P: Boxable<Ch, Str>,
-// {
-//     type Output = P::Output;
-//     fn more(mut self, string: &mut Str) -> ParseResult<Self, P::Output> {
-//         match self.more_boxable(string) {
-//             Done(result) => Done(result),
-//             Continue(()) => Continue(self),
-//         }
-//     }
-//     fn done(mut self) -> P::Output {
-//         self.done_boxable()
-//     }
-// }
+impl<P, Input, Output> Boxable<Input, Output> for BoxableState<P>
+    where P: Stateful<Input, Output>,
+{
+    fn more_boxable(&mut self, data: &mut Input) -> ParseResult<(), Output> {
+        match self.0.take().unwrap().more(data) {
+            Done(result) => Done(result),
+            Continue(state) => {
+                self.0 = Some(state);
+                Continue(())
+            }
+        }
+    }
+    fn done_boxable(&mut self) -> Output {
+        self.0.take().unwrap().done()
+    }
+}
 
-// impl<P> BoxableState<P> {
-//     pub fn new(parser: P) -> Self {
-//         BoxableState(Some(parser))
-//     }
-// }
+impl<P, Input> Infer<Input> for Box<P>
+    where P: Infer<Input>,
+{
+    type Output = P::Output;
+    type State = Self;
+}
 
-// #[derive(Debug, Copy, Clone)]
-// pub struct Boxed<P, F>(P, F);
+impl<P: ?Sized, Input, Output> Stateful<Input, Output> for Box<P>
+    where P: Boxable<Input, Output>,
+{
+    fn more(mut self, data: &mut Input) -> ParseResult<Self, Output> {
+        match self.more_boxable(data) {
+            Done(result) => Done(result),
+            Continue(()) => Continue(self),
+        }
+    }
+    fn done(mut self) -> Output {
+        self.done_boxable()
+    }
+}
 
-// impl<P, F> Parser for Boxed<P, F> where P: Parser {}
+impl<P> BoxableState<P> {
+    pub fn new(parser: P) -> Self {
+        BoxableState(Some(parser))
+    }
+}
 
-// impl<P, F, Ch, Str> Uncommitted<Ch, Str> for Boxed<P, F>
-//     where P: Uncommitted<Ch, Str>,
-//           F: Function<BoxableState<P::State>>,
-//           F::Output: 'static + Stateful<Ch, Str, Output = P::Output>,
-// {
-//     type Output = P::Output;
-//     type State = F::Output;
+#[derive(Debug, Copy, Clone)]
+pub struct Boxed<P, F>(P, F);
 
-//     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>> {
-//         match self.0.init(string) {
-//             None => None,
-//             Some(Done(result)) => Some(Done(result)),
-//             Some(Continue(parsing)) => Some(Continue(self.1.apply(BoxableState::new(parsing)))),
-//         }
-//     }
-// }
+impl<P, F> Parser for Boxed<P, F> where P: Parser {}
 
-// impl<P, F, Ch, Str> Committed<Ch, Str> for Boxed<P, F>
-//     where P: Committed<Ch, Str>,
-//           F: Function<BoxableState<P::State>>,
-//           F::Output: 'static + Stateful<Ch, Str, Output = P::Output>,
-// {
-//     fn empty(&self) -> Self::Output {
-//         self.0.empty()
-//     }
-// }
+impl<P, F, Input> Infer<Input> for Boxed<P, F>
+    where P: Infer<Input>,
+          F: Function<BoxableState<P::State>>,
+{
+    type Output = P::Output;
+    type State = F::Output;
+}
 
-// impl<P, F> Boxed<P, F> {
-//     pub fn new(parser: P, function: F) -> Self {
-//         Boxed(parser, function)
-//     }
-// }
+impl<P, F, Input, Output> Uncommitted<F::Output, Input, Output> for Boxed<P, F>
+    where P: Infer<Input> + Uncommitted<<P as Infer<Input>>::State, Input, Output>,
+          F: Function<BoxableState<P::State>>,
+          F::Output: Stateful<Input, Output>,
+{
+    fn init(&self, data: &mut Input) -> Option<ParseResult<F::Output, Output>> {
+        match self.0.init(data) {
+            None => None,
+            Some(Done(result)) => Some(Done(result)),
+            Some(Continue(parsing)) => Some(Continue(self.1.apply(BoxableState::new(parsing)))),
+        }
+    }
+}
+
+impl<P, F, Input, Output> Committed<F::Output, Input, Output> for Boxed<P, F>
+    where P: Infer<Input> + Committed<<P as Infer<Input>> ::State, Input, Output>,
+          F: Function<BoxableState<P::State>>,
+          F::Output: Stateful<Input, Output>,
+{
+    fn empty(&self) -> Output {
+        self.0.empty()
+    }
+}
+
+impl<P, F> Boxed<P, F> {
+    pub fn new(parser: P, function: F) -> Self {
+        Boxed(parser, function)
+    }
+}
 
 // // // ----------- Iterate over parse results -------------
 

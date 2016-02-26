@@ -1,145 +1,3 @@
-// use self::ParseResult::{Done, Continue};
-// use self::OrElseState::{Lhs, Rhs};
-
-// // Temporary hackery to experiment with typechecking efficiency
-
-// pub trait Parser {
-//     fn or_else<P>(self, other: P) -> OrElse<Self, P> where Self: Sized { OrElse(self, other) }
-// }
-
-// pub trait HasState {
-//     type State;
-// }
-
-// pub trait Stateful<Input, Output> {
-//     fn more(self, data: &mut Input) -> ParseResult<Self, Output> where Self: Sized;
-// }
-
-// pub trait Stateless<State, Input, Output> {
-//     fn init(&self, data: &mut Input) -> Option<ParseResult<State, Output>>;
-// }
-
-// /// The result of parsing
-// #[derive(Copy, Clone)]
-// pub enum ParseResult<State, Output> {
-
-//     /// The parse is finished.
-//     Done(Output),
-    
-//     /// The parse can continue.
-//     Continue(State),
-
-// }
-
-
-// #[derive(Copy,Clone,Debug)]
-// pub struct AnyCharacter;
-
-// impl Parser for AnyCharacter {
-// }
-
-// impl HasState for AnyCharacter {
-//     type State = AnyCharacter;
-// }
-
-// impl<Input> HasOutput<Input> for AnyCharacter
-//     where Input: Iterator,
-// {
-//     type Output = Option<Input::Item>;
-// }
-
-// impl<Input> Stateful<Input, Option<Input::Item>> for AnyCharacter
-//     where Input: Iterator,
-// {
-//     fn more(self, data: &mut Input) -> ParseResult<Self, Option<Input::Item>> {
-//         match data.next() {
-//             None => Continue(self),
-//             Some(item) => Done(Some(item)),
-//         }
-//     }
-// }
-
-// impl<State, Input> Stateless<State, Input, Option<Input::Item>> for AnyCharacter
-//     where Input: Iterator,
-// {
-//     fn init(&self, data: &mut Input) -> Option<ParseResult<State, Option<Input::Item>>> {
-//         match data.next() {
-//             None => None,
-//             Some(item) => Some(Done(Some(item))),
-//         }
-//     }
-// }
-
-// pub const CHARACTER: AnyCharacter = AnyCharacter;
-
-// // ----------- Choice ---------------
-
-// #[derive(Copy, Clone, Debug)]
-// pub enum OrElseState<P, Q> {
-//     Lhs(P),
-//     Rhs(Q),
-// }
-
-// impl<P, Q, Input> HasOutput<Input> for OrElseState<P, Q>
-//     where P: HasOutput<Input>,
-// {
-//     type Output = P::Output;
-// }
-
-// impl<P, Q, Input, Output> Stateful<Input, Output> for OrElseState<P, Q>
-//     where P: Stateful<Input, Output>,
-//           Q: Stateful<Input, Output>,
-// {
-//     fn more(self, data: &mut Input) -> ParseResult<Self, Output> {
-//         match self {
-//             Lhs(lhs) => match lhs.more(data) {
-//                 Done(result) => Done(result),
-//                 Continue(lhs) => Continue(Lhs(lhs)),
-//             },
-//             Rhs(rhs) => match rhs.more(data) {
-//                 Done(result) => Done(result),
-//                 Continue(rhs) => Continue(Rhs(rhs)),
-//             },
-//         }            
-//     }
-// }
-
-// #[derive(Copy, Clone, Debug)]
-// pub struct OrElse<P, Q>(P, Q);
-
-// impl<P, Q> Parser for OrElse<P, Q> {
-// }
-
-// impl<P, Q> HasState for OrElse<P, Q>
-//     where P: HasState,
-//           Q: HasState,
-// {
-//     type State = OrElseState<P::State, Q::State>;
-// }
-
-// impl<P, Q, Input> HasOutput<Input> for OrElse<P, Q>
-//     where P: HasOutput<Input>,
-// {
-//     type Output = P::Output;
-// }
-
-// impl<P, Q, PState, QState, Input, Output> Stateless<OrElseState<PState, QState>, Input, Output> for OrElse<P, Q>
-//     where P: Stateless<PState, Input, Output>,
-//           Q: Stateless<QState, Input, Output>,
-// {
-//     fn init(&self, data: &mut Input) -> Option<ParseResult<OrElseState<PState, QState>, Output>> {
-//         match self.0.init(data) {
-//             Some(Done(result)) => Some(Done(result)),
-//             Some(Continue(lhs)) => Some(Continue(Lhs(lhs))),
-//             None => match self.1.init_infer(data) {
-//                 Some(Done(result)) => Some(Done(result)),
-//                 Some(Continue(rhs)) => Some(Continue(Rhs(rhs))),
-//                 None => None,
-//             },
-//         }
-//     }
-// }
-
 //! Parsell: an LL(1) streaming parser combinator library for Rust
 //!
 //! The goal of this library is to provide parser combinators that:
@@ -175,38 +33,38 @@ pub mod impls;
 // ----------- Types for parsers ------------
 
 /// A trait for stateful parsers.
-// ///
-// /// Stateful parsers are typically constructed by calling an `init` method of a stateless parser,
-// /// for example:
-// ///
-// /// ```
-// /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful};
-// /// # use parsell::ParseResult::{Continue,Done};
-// /// let stateless = character(char::is_alphanumeric).star(String::new);
-// /// match stateless.init_str("abc").unwrap() {
-// ///    Continue(stateful) => (),
-// ///    _ => panic!("Can't happen"),
-// /// }
-// /// ```
-// ///
-// /// Here, `stateless` is a `Committed<char, Chars<'a>>`, and `stateful` is a `Stateful<char, Chars<'a>>`.
-// ///
-// /// The reason for distinguishing between stateful and stateless parsers is that
-// /// stateless parsers are usually copyable, whereas stateful parsers are usually not
-// /// (they may, for example, have created and partially filled some buffers).
-// /// Copying parsers is quite common, for example:
-// ///
-// /// ```
-// /// # use parsell::{character,CHARACTER,Uncommitted,UncommittedStr,Parser,Committed,Stateful};
-// /// # use parsell::ParseResult::Done;
-// /// fn mk_err(_: Option<char>) -> Result<char,String> { Err(String::from("Expecting a digit")) }
-// /// let DIGIT = character(char::is_numeric).map(Ok).or_else(CHARACTER.map(mk_err));
-// /// let TWO_DIGITS = DIGIT.try_and_then_try(DIGIT);
-// /// match TWO_DIGITS.init_str("123").unwrap() {
-// ///    Done(result) => assert_eq!(result, Ok(('1','2'))),
-// ///    _ => panic!("Can't happen"),
-// /// }
-// /// ```
+///
+/// Stateful parsers are typically constructed by calling an `init` method of a stateless parser,
+/// for example:
+///
+/// ```
+/// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful};
+/// # use parsell::ParseResult::{Continue,Done};
+/// let stateless = character(char::is_alphanumeric).star(String::new);
+/// match stateless.init_str("abc").unwrap() {
+///    Continue(stateful) => (),
+///    _ => panic!("Can't happen"),
+/// }
+/// ```
+///
+/// Here, `stateless` is a `Committed<char, Chars<'a>>`, and `stateful` is a `Stateful<char, Chars<'a>>`.
+///
+/// The reason for distinguishing between stateful and stateless parsers is that
+/// stateless parsers are usually copyable, whereas stateful parsers are usually not
+/// (they may, for example, have created and partially filled some buffers).
+/// Copying parsers is quite common, for example:
+///
+/// ```
+/// # use parsell::{character,CHARACTER,Uncommitted,UncommittedStr,Parser,Committed,Stateful};
+/// # use parsell::ParseResult::Done;
+/// fn mk_err(_: Option<char>) -> Result<char,String> { Err(String::from("Expecting a digit")) }
+/// let DIGIT = character(char::is_numeric).map(Ok).or_else(CHARACTER.map(mk_err));
+/// let TWO_DIGITS = DIGIT.try_and_then_try(DIGIT);
+/// match TWO_DIGITS.init_str("123").unwrap() {
+///    Done(result) => assert_eq!(result, Ok(('1','2'))),
+///    _ => panic!("Can't happen"),
+/// }
+/// ```
 
 pub trait Stateful<Input, Output> 
 {
@@ -219,25 +77,25 @@ pub trait Stateful<Input, Output>
     /// * returns `Continue(parsing)` where `parsing: Self` is the new state of the parser.
     ///
     /// For example:
-    ///
-    // /// ```
-    // /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
-    // /// # use parsell::ParseResult::{Continue,Done};
-    // /// let parser = character(char::is_alphabetic).star(String::new);
-    // /// let data1 = "ab";
-    // /// let data2 = "cd";
-    // /// let data3 = "ef!";
-    // /// match parser.init(&mut data1.chars()).unwrap() {
-    // ///     Continue(stateful) => match stateful.more(&mut data2.chars()) { 
-    // ///         Continue(stateful) => match stateful.more(&mut data3.chars()) { 
-    // ///             Done(result) => assert_eq!(result, "abcdef"),
-    // ///             _ => panic!("can't happen"),
-    // ///         },
-    // ///         _ => panic!("can't happen"),
-    // ///     },
-    // ///     _ => panic!("can't happen"),
-    // /// }
-    // /// ```
+    
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let data1 = "ab";
+    /// let data2 = "cd";
+    /// let data3 = "ef!";
+    /// match parser.init(&mut data1.chars()).unwrap() {
+    ///     Continue(stateful) => match stateful.more(&mut data2.chars()) { 
+    ///         Continue(stateful) => match stateful.more(&mut data3.chars()) { 
+    ///             Done(result) => assert_eq!(result, "abcdef"),
+    ///             _ => panic!("can't happen"),
+    ///         },
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
     ///
     /// Note that `parser.parse(data)` consumes the `parser`, but borrows the `data`
     /// mutably.
@@ -250,21 +108,21 @@ pub trait Stateful<Input, Output>
     /// If `parser: Stateful<Input, Output>`, then `parser.done()` returns a result of type `Output`
     /// for example:
     ///
-    // /// ```
-    // /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
-    // /// # use parsell::ParseResult::{Continue,Done};
-    // /// let parser = character(char::is_alphabetic).star(String::new);
-    // /// let data1 = "ab";
-    // /// let data2 = "cd";
-    // /// let data3 = "ef";
-    // /// match parser.init(&mut data1.chars()).unwrap() {
-    // ///     Continue(stateful) => match stateful.more(&mut data2.chars()) { 
-    // ///         Continue(stateful) => assert_eq!(stateful.last(&mut data3.chars()), "abcdef"),
-    // ///         _ => panic!("can't happen"),
-    // ///     },
-    // ///     _ => panic!("can't happen"),
-    // /// }
-    // /// ```
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// let data1 = "ab";
+    /// let data2 = "cd";
+    /// let data3 = "ef";
+    /// match parser.init(&mut data1.chars()).unwrap() {
+    ///     Continue(stateful) => match stateful.more(&mut data2.chars()) { 
+    ///         Continue(stateful) => assert_eq!(stateful.last(&mut data3.chars()), "abcdef"),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
     ///
     /// Note that `parser.done()` consumes the `parser`. In particular,
     /// the `parser` is no longer available, so the following does not typecheck:
@@ -312,21 +170,21 @@ pub trait StatefulStr<'a, Output>: Stateful<Chars<'a>, Output> {
     ///
     /// For example:
     ///
-    // /// ```
-    // /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful,StatefulStr};
-    // /// # use parsell::ParseResult::{Continue,Done};
-    // /// let parser = character(char::is_alphabetic).star(String::new);
-    // /// match parser.init_str("ab").unwrap() {
-    // ///     Continue(stateful) => match stateful.more_str("cd") { 
-    // ///         Continue(stateful) => match stateful.more_str("ef!") { 
-    // ///             Done(result) => assert_eq!(result, "abcdef"),
-    // ///             _ => panic!("can't happen"),
-    // ///         },
-    // ///         _ => panic!("can't happen"),
-    // ///     },
-    // ///     _ => panic!("can't happen"),
-    // /// }
-    // /// ```
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful,StatefulStr};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// match parser.init_str("ab").unwrap() {
+    ///     Continue(stateful) => match stateful.more_str("cd") { 
+    ///         Continue(stateful) => match stateful.more_str("ef!") { 
+    ///             Done(result) => assert_eq!(result, "abcdef"),
+    ///             _ => panic!("can't happen"),
+    ///         },
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
 
     fn more_str(self, string: &'a str) -> ParseResult<Self, Output>
         where Self: Sized,
@@ -341,18 +199,18 @@ pub trait StatefulStr<'a, Output>: Stateful<Chars<'a>, Output> {
     ///
     /// For example:
     ///
-    // /// ```
-    // /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful,StatefulStr};
-    // /// # use parsell::ParseResult::{Continue,Done};
-    // /// let parser = character(char::is_alphabetic).star(String::new);
-    // /// match parser.init_str("ab").unwrap() {
-    // ///     Continue(parsing) => match parsing.more_str("cd") {
-    // ///         Continue(parsing) => assert_eq!(parsing.last_str("ef"),"abcdef"),
-    // ///         _ => panic!("can't happen"),
-    // ///     },
-    // ///     _ => panic!("can't happen"),
-    // /// }
-    // /// ```
+    /// ```
+    /// # use parsell::{character,Parser,Uncommitted,UncommittedStr,Committed,Stateful,StatefulStr};
+    /// # use parsell::ParseResult::{Continue,Done};
+    /// let parser = character(char::is_alphabetic).star(String::new);
+    /// match parser.init_str("ab").unwrap() {
+    ///     Continue(parsing) => match parsing.more_str("cd") {
+    ///         Continue(parsing) => assert_eq!(parsing.last_str("ef"),"abcdef"),
+    ///         _ => panic!("can't happen"),
+    ///     },
+    ///     _ => panic!("can't happen"),
+    /// }
+    /// ```
 
     fn last_str(self, string: &'a str) -> Output
         where Self: Sized,
@@ -603,12 +461,12 @@ pub trait Parser {
 //     //     impls::PipeParser::new(self, other)
 //     // }
 
-//     // Box up this parser
-//     fn boxed<F>(self, f: F) -> impls::Boxed<Self, F>
-//         where Self: Sized
-//     {
-//         impls::Boxed::new(self, f)
-//     }
+    // Box up this parser
+    fn boxed<F>(self, f: F) -> impls::Boxed<Self, F>
+        where Self: Sized
+    {
+        impls::Boxed::new(self, f)
+    }
 
 //     /// A parser which produces its input.
 //     ///
@@ -1768,23 +1626,25 @@ fn test_star() {
 //     #[derive(Copy, Clone, Debug)]
 //     struct Test;
 //     type TestCh<'a> = Cow<'a,str>;
-//     type TestStr<'a> = Peekable<Drain<'a,TestCh<'a>>>;
+//     type TestInput<'a> = Peekable<Drain<'a,TestCh<'a>>>;
 //     type TestOutput<'a> = ((TestCh<'a>, TestCh<'a>), TestCh<'a>);
-//     type TestState = Box<for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>>;
+//     type TestState = Box<for<'a> Boxable<TestInput<'a>, TestOutput<'a>>>;
 //     fn mk_box<P>(parser: P) -> TestState
-//         where P: 'static + for<'a> Boxable<TestCh<'a>, TestStr<'a>, Output=TestOutput<'a>>
+//         where P: 'static + for<'a> Boxable<TestInput<'a>, TestOutput<'a>>
 //     { Box::new(parser) }
 //     impl Parser for Test {}
-//     impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
+//     impl<'a> Infer<TestInput<'a>> for Test {
 //         type Output = TestOutput<'a>;
 //         type State = TestState;
-//         fn init_infer(&self, string: &mut TestStr<'a>) -> Option<ParseResult<TestState, TestOutput<'a>>> {
+//     }
+//     impl<'a> Uncommitted<TestState, TestInput<'a>, TestOutput<'a>> for Test {
+//         fn init(&self, data: &mut TestInput<'a>) -> Option<ParseResult<TestState, TestOutput<'a>>> {
 //             fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
 //             fn mk_other<'a>(_: Option<TestCh<'a>>) -> TestCh<'a> { Cow::Borrowed("other") }
 //             let ONE = character_ref(is_foo);
 //             let OTHER = CHARACTER.map(mk_other);
 //             let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
-//             parser.boxed(mk_box).init_infer(string)
+//             parser.boxed(mk_box).init(data)
 //         }
 //     }
 //     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
