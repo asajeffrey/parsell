@@ -2,15 +2,8 @@
 // https://github.com/rust-lang/rust/issues/31849
 
 extern crate parsell;
-use parsell::{Parser, CHARACTER};
-use parsell::{HasState, HasOutput, Stateless, Stateful};
-
+use parsell::{Parser, CHARACTER, UncommittedStr};
 use std::str::Chars;
-
-fn must_be_parser<P>(_: P)
-    where P: HasState + for<'a> Stateless<<P as HasState>::State, Chars<'a>, Option<char>>
-{
-}
 
 #[test]
 fn test_typecheck_time() {
@@ -46,5 +39,5 @@ fn test_typecheck_time() {
         .or_else(CHARACTER)
         .or_else(CHARACTER)
         .or_else(CHARACTER);
-    must_be_parser(parser);
+    parser.init_str("Hello, world.");
 }

@@ -20,7 +20,7 @@ It is based on:
 
 ## Example
 
-```rust
+```
 extern crate parsell;
 use parsell::{character,Parser,UncommittedStr,StatefulStr};
 use parsell::ParseResult::{Done,Continue};
