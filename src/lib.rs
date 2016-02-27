@@ -159,9 +159,31 @@ pub trait Stateful<Input, Output>
     
 }
 
+/// A trait for parsers which can infer their output
+
+pub trait InferOutput<Input> {
+    type Output;
+}
+
+/// A trait for stateful parsers that can infer their output
+
+pub trait StatefulInfer<Input>: InferOutput<Input> + Stateful<Input, <Self as InferOutput<Input>>::Output>
+{
+    fn more_infer(self, data: &mut Input) -> ParseResult<Self, Self::Output>
+        where Self: Sized,
+    {
+        self.more(data)
+    }
+}
+
+impl<Input, P> StatefulInfer<Input> for P
+    where P: InferOutput<Input> + Stateful<Input, <P as InferOutput<Input>>::Output>
+{
+}
+
 /// A trait for stateful string parsers.
 
-pub trait StatefulStr<'a, Output>: Stateful<Chars<'a>, Output> {
+pub trait StatefulStr<'a>: StatefulInfer<Chars<'a>> {
 
     /// Provides a string to the parser.
     ///
@@ -186,7 +208,7 @@ pub trait StatefulStr<'a, Output>: Stateful<Chars<'a>, Output> {
     /// }
     /// ```
 
-    fn more_str(self, string: &'a str) -> ParseResult<Self, Output>
+    fn more_str(self, string: &'a str) -> ParseResult<Self, Self::Output>
         where Self: Sized,
     {
         self.more(&mut string.chars())
@@ -212,7 +234,7 @@ pub trait StatefulStr<'a, Output>: Stateful<Chars<'a>, Output> {
     /// }
     /// ```
 
-    fn last_str(self, string: &'a str) -> Output
+    fn last_str(self, string: &'a str) -> Self::Output
         where Self: Sized,
     {
         self.last(&mut string.chars())
@@ -220,7 +242,7 @@ pub trait StatefulStr<'a, Output>: Stateful<Chars<'a>, Output> {
 
 }
 
-impl<'a, Output, P> StatefulStr<'a, Output> for P where P: Stateful<Chars<'a>, Output> {}
+impl<'a, P> StatefulStr<'a> for P where P: StatefulInfer<Chars<'a>> {}
 
 /// The result of parsing
 #[derive(Copy, Clone)]
@@ -524,12 +546,27 @@ pub trait Parser {
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
 /// and non-empty.
 
-pub trait Committed<State, Input, Output>: Uncommitted<State, Input, Output>
+pub trait Committed<Input, Output>: Uncommitted<Input, Output>
 {
 
     /// Parse an EOF.
     fn empty(&self) -> Output;
     
+}
+
+/// A trait for committed parsers that can infer state and output
+
+pub trait CommittedInfer<Input>: InferOutput<Input> + Committed<Input, <Self as InferOutput<Input>>::Output>
+{
+    fn empty_infer(&self) -> Self::Output
+    {
+        self.empty()
+    }
+}
+
+impl<Input, P> CommittedInfer<Input> for P
+    where P: InferOutput<Input> + Committed<Input, <P as InferOutput<Input>>::Output>
+{
 }
 
 /// A trait for uncommitted parsers.
@@ -566,24 +603,20 @@ pub trait Committed<State, Input, Output>: Uncommitted<State, Input, Output>
 /// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
-pub trait Uncommitted<State, Input, Output>
+pub trait Uncommitted<Input, Output>
 {
 
-    /// Parse a string of data.
-    fn init(&self, data: &mut Input) -> Option<ParseResult<State, Output>>;
-
-}
-
-/// A trait for parsers which can infer their output and state
-
-pub trait Infer<Input> {
-    type Output;
+    /// The state of the parser.
     type State;
+    
+    /// Parse a string of data.
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Output>>;
+
 }
 
-/// A trait for uncommitted parsers that know their state
+/// A trait for uncommitted parsers that can infer state and output
 
-pub trait UncommittedInfer<Input>: Infer<Input> + Uncommitted<<Self as Infer<Input>>::State, Input, <Self as Infer<Input>>::Output>
+pub trait UncommittedInfer<Input>: InferOutput<Input> + Uncommitted<Input, <Self as InferOutput<Input>>::Output>
 {
     fn init_infer(&self, data: &mut Input) -> Option<ParseResult<Self::State, Self::Output>>
     {
@@ -592,13 +625,13 @@ pub trait UncommittedInfer<Input>: Infer<Input> + Uncommitted<<Self as Infer<Inp
 }
 
 impl<Input, P> UncommittedInfer<Input> for P
-    where P: Infer<Input> + Uncommitted<<P as Infer<Input>>::State, Input, <P as Infer<Input>>::Output>
+    where P: InferOutput<Input> + Uncommitted<Input, <P as InferOutput<Input>>::Output>,
 {
 }
 
 /// A trait for uncommitted string parsers.
 
-pub trait UncommittedStr<'a>: Infer<Chars<'a>> + Uncommitted<<Self as Infer<Chars<'a>>>::State, Chars<'a>, <Self as Infer<Chars<'a>>>::Output>
+pub trait UncommittedStr<'a>: UncommittedInfer<Chars<'a>>
 {
 
     /// Provides string data to the parser.
@@ -632,7 +665,7 @@ pub trait UncommittedStr<'a>: Infer<Chars<'a>> + Uncommitted<<Self as Infer<Char
 }
 
 impl<'a, P> UncommittedStr<'a> for P
-    where P: Infer<Chars<'a>> + Uncommitted<<P as Infer<Chars<'a>>>::State, Chars<'a>, <P as Infer<Chars<'a>>>::Output>
+    where P: UncommittedInfer<Chars<'a>>
 {
 }
 

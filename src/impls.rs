@@ -2,7 +2,7 @@
 
 use super::{Parser, ParseResult};
 use super::{Stateful, Committed, Uncommitted, Boxable};
-use super::{Infer};
+use super::{InferOutput, StatefulInfer, CommittedInfer, UncommittedInfer};
 use super::{Function, Consumer, Factory, PeekableIterator};
 use super::{Upcast, ToStatic, StaticMarker};
 use super::ParseResult::{Done, Continue};
@@ -237,18 +237,17 @@ impl<P, F> ToStatic for Map<P, F>
     }
 }
 
-impl<P, F, Input> Infer<Input> for Map<P, F>
-    where P: Infer<Input>,
+impl<P, F, Input> InferOutput<Input> for Map<P, F>
+    where P: InferOutput<Input>,
           F: Function<P::Output>,
 {
     type Output = F::Output;
-    type State = Map<P::State, F>;
 }
 
 impl<P, F> Parser for Map<P, F> {}
 
 impl<P, F, Input> Stateful<Input, F::Output> for Map<P, F>
-    where P: Infer<Input> + Stateful<Input, <P as Infer<Input>>::Output>,
+    where P: StatefulInfer<Input>,
           F: Function<P::Output>,
 {
 
@@ -265,8 +264,8 @@ impl<P, F, Input> Stateful<Input, F::Output> for Map<P, F>
 
 }
 
-impl<P, F, State, Input> Committed<Map<State, F>, Input, F::Output> for Map<P, F>
-    where P: Infer<Input> + Committed<State, Input, <P as Infer<Input>>::Output>,
+impl<P, F, Input> Committed<Input, F::Output> for Map<P, F>
+    where P: CommittedInfer<Input>,
           F: Copy + Function<P::Output>,
 {
 
@@ -276,12 +275,14 @@ impl<P, F, State, Input> Committed<Map<State, F>, Input, F::Output> for Map<P, F
 
 }
 
-impl<P, F, State, Input> Uncommitted<Map<State, F>, Input, F::Output> for Map<P, F>
-    where P: Infer<Input> + Uncommitted<State, Input, <P as Infer<Input>>::Output>,
+impl<P, F, Input> Uncommitted<Input, F::Output> for Map<P, F>
+    where P: UncommittedInfer<Input>,
           F: Copy + Function<P::Output>,
 {
 
-    fn init(&self, data: &mut Input) -> Option<ParseResult<Map<State, F>, F::Output>> {
+    type State = Map<P::State, F>;
+
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, F::Output>> {
         match self.0.init(data) {
             None => None,
             Some(Done(result)) => Some(Done(self.1.apply(result))),
@@ -302,19 +303,18 @@ impl<P, F> Map<P, F> {
 #[derive(Copy, Clone, Debug)]
 pub struct AndThen<P, Q>(P, Q);
 
-impl<P, Q, Input> Infer<Input> for AndThen<P, Q>
-    where P: Infer<Input>,
-          Q: Infer<Input>,
+impl<P, Q, Input> InferOutput<Input> for AndThen<P, Q>
+    where P: InferOutput<Input>,
+          Q: InferOutput<Input>,
 {
     type Output = (P::Output, Q::Output);
-    type State = AndThenState<P::State, P::Output, Q, Q::State>;
 }
 
 impl<P, Q> Parser for AndThen<P, Q> {}
 
-impl<P, Q, PState, QState, Input, POutput, QOutput> Committed<AndThenState<PState, POutput, Q, QState>, Input, (POutput, QOutput)> for AndThen<P, Q>
-    where P: Committed<PState, Input, POutput>,
-          Q: Copy + Committed<QState, Input, QOutput>,
+impl<P, Q, Input, POutput, QOutput> Committed<Input, (POutput, QOutput)> for AndThen<P, Q>
+    where P: Committed<Input, POutput>,
+          Q: Copy + Committed<Input, QOutput>,
 {
 
     fn empty(&self) -> (POutput, QOutput) {
@@ -323,12 +323,14 @@ impl<P, Q, PState, QState, Input, POutput, QOutput> Committed<AndThenState<PStat
 
 }
 
-impl<P, Q, PState, QState, Input, POutput, QOutput> Uncommitted<AndThenState<PState, POutput, Q, QState>, Input, (POutput, QOutput)> for AndThen<P, Q>
-    where P: Uncommitted<PState, Input, POutput>,
-          Q: Copy + Committed<QState, Input, QOutput>,
+impl<P, Q, Input, POutput, QOutput> Uncommitted<Input, (POutput, QOutput)> for AndThen<P, Q>
+    where P: Uncommitted<Input, POutput>,
+          Q: Copy + Committed<Input, QOutput>,
 {
 
-    fn init(&self, data: &mut Input) -> Option<ParseResult<AndThenState<PState, POutput, Q, QState>, (POutput, QOutput)>> {
+    type State = AndThenState<P::State, POutput, Q, Q::State>;
+
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, (POutput, QOutput)>> {
         match self.0.init(data) {
             None => None,
             Some(Done(fst)) => match self.1.init(data) {
@@ -385,18 +387,17 @@ impl<PState, POutput, Q, QState> ToStatic for AndThenState<PState, POutput, Q, Q
     }
 }
 
-impl<PState, POutput, Q, QState, Input> Infer<Input> for AndThenState<PState, POutput, Q, QState>
-    where PState: Infer<Input>,
-          QState: Infer<Input>,
+impl<PState, POutput, Q, QState, Input> InferOutput<Input> for AndThenState<PState, POutput, Q, QState>
+    where PState: InferOutput<Input>,
+          QState: InferOutput<Input>,
 {
-    type State = Self;
     type Output = (PState::Output, QState::Output);
 }
 
-impl<PState, POutput1, POutput2, Q, QState, QOutput, Input> Stateful<Input, (POutput2, QOutput)> for AndThenState<PState, POutput1, Q, QState>
+impl<PState, POutput1, POutput2, Q, QOutput, Input> Stateful<Input, (POutput2, QOutput)> for AndThenState<PState, POutput1, Q, Q::State>
     where PState: Stateful<Input, POutput1>,
-          Q: Committed<QState, Input, QOutput>,
-          QState: Stateful<Input, QOutput>,
+          Q: Committed<Input, QOutput>,
+          Q::State: Stateful<Input, QOutput>,
           POutput1: Upcast<POutput2>,
 {
 
@@ -445,19 +446,18 @@ impl<PState, POutput1, POutput2, Q, QState, QOutput, Input> Stateful<Input, (POu
 #[derive(Copy, Clone, Debug)]
 pub struct OrElse<P, Q>(P, Q);
 
-impl<P, Q, Input> Infer<Input> for OrElse<P, Q>
-    where P: Infer<Input>,
-          Q: Infer<Input>,
+impl<P, Q, Input> InferOutput<Input> for OrElse<P, Q>
+    where P: InferOutput<Input>,
+          Q: InferOutput<Input>,
 {
-    type State = OrElseState<P::State, Q::State>;
     type Output = P::Output;
 }
 
 impl<P, Q> Parser for OrElse<P, Q> {}
 
-impl<P, Q, PState, QState, Input, Output> Committed<OrElseState<PState, QState>, Input, Output> for OrElse<P, Q>
-    where P: Uncommitted<PState, Input, Output>,
-          Q: Committed<QState, Input, Output>,
+impl<P, Q, Input, Output> Committed<Input, Output> for OrElse<P, Q>
+    where P: Uncommitted<Input, Output>,
+          Q: Committed<Input, Output>,
 {
 
     fn empty(&self) -> Output {
@@ -466,12 +466,14 @@ impl<P, Q, PState, QState, Input, Output> Committed<OrElseState<PState, QState>,
 
 }
 
-impl<P, Q, PState, QState, Input, Output> Uncommitted<OrElseState<PState, QState>, Input, Output> for OrElse<P, Q>
-    where P: Uncommitted<PState, Input, Output>,
-          Q: Uncommitted<QState, Input, Output>,
+impl<P, Q, Input, Output> Uncommitted<Input, Output> for OrElse<P, Q>
+    where P: Uncommitted<Input, Output>,
+          Q: Uncommitted<Input, Output>,
 {
 
-    fn init(&self, data: &mut Input) -> Option<ParseResult<OrElseState<PState, QState>, Output>> {
+    type State = OrElseState<P::State, Q::State>;
+
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Output>> {
         match self.0.init(data) {
             Some(Done(result)) => Some(Done(result)),
             Some(Continue(lhs)) => Some(Continue(Lhs(lhs))),
@@ -522,10 +524,9 @@ impl<P, Q> ToStatic for OrElseState<P, Q>
     }
 }
 
-impl<P, Q, Input> Infer<Input> for OrElseState<P, Q>
-    where P: Infer<Input>,
+impl<P, Q, Input> InferOutput<Input> for OrElseState<P, Q>
+    where P: InferOutput<Input>,
 {
-    type State = Self;
     type Output = P::Output;
 }
 
@@ -580,15 +581,14 @@ impl<P, PState, Output> ToStatic for StarState<P, PState, Output>
     }
 }
 
-impl<P, PState, Input, Output> Infer<Input> for StarState<P, PState, Output>
+impl<P, PState, Input, Output> InferOutput<Input> for StarState<P, PState, Output>
 {
-    type State = Self;
     type Output = Output;
 }
 
-impl<P, PState, Input, Output> Stateful<Input, Output> for StarState<P, PState, Output>
-    where P: Copy + Infer<Input> + Uncommitted<PState, Input, <P as Infer<Input>>::Output>,
-          PState: Stateful<Input, <P as Infer<Input>>::Output>,
+impl<P, Input, Output> Stateful<Input, Output> for StarState<P, P::State, Output>
+    where P: Copy + UncommittedInfer<Input>,
+          P::State: Stateful<Input, <P as InferOutput<Input>>::Output>,
           Input: PeekableIterator,
           Output: Consumer<P::Output>,
 {
@@ -647,23 +647,24 @@ impl<P, F> Debug for Plus<P, F>
     }
 }
 
-impl<P, F, Input> Infer<Input> for Plus<P, F>
-    where P: Infer<Input>,
+impl<P, F, Input> InferOutput<Input> for Plus<P, F>
+    where P: InferOutput<Input>,
           F: Factory,
 {
-    type State = StarState<P, P::State, F::Output>;
     type Output = F::Output;
 }
 
 impl<P, F> Parser for Plus<P, F> {}
 
-impl<P, F, Input> Uncommitted<StarState<P, P::State, F::Output>, Input, F::Output> for Plus<P, F>
-    where P: Copy + Infer<Input> + Uncommitted<<P as Infer<Input>>::State, Input, <P as Infer<Input>>::Output>,
+impl<P, F, Input> Uncommitted<Input, F::Output> for Plus<P, F>
+    where P: Copy + UncommittedInfer<Input>,
           F: Factory,
           Input: PeekableIterator,
-          P::State: Stateful<Input, <P as Infer<Input>>::Output>,
+          P::State: Stateful<Input, <P as InferOutput<Input>>::Output>,
           F::Output: Consumer<P::Output>,
 {
+    type State = StarState<P, P::State, F::Output>;
+
     fn init(&self, data: &mut Input) -> Option<ParseResult<StarState<P, P::State, F::Output>, F::Output>> {
         match self.0.init(data) {
             None => None,
@@ -710,23 +711,24 @@ impl<P, F> Debug for Star<P, F>
     }
 }
 
-impl<P, F, Input> Infer<Input> for Star<P, F>
-    where P: Infer<Input>,
+impl<P, F, Input> InferOutput<Input> for Star<P, F>
+    where P: InferOutput<Input>,
           F: Factory,
 {
-    type State = StarState<P, P::State, F::Output>;
     type Output = F::Output;
 }
 
 impl<P, F> Parser for Star<P, F> {}
 
-impl<P, F, Input> Uncommitted<StarState<P, P::State, F::Output>, Input, F::Output> for Star<P, F>
-    where P: Copy + Infer<Input> + Uncommitted<<P as Infer<Input>>::State, Input, <P as Infer<Input>>::Output>,
+impl<P, F, Input> Uncommitted<Input, F::Output> for Star<P, F>
+    where P: Copy + UncommittedInfer<Input>,
           F: Factory,
           Input: PeekableIterator,
-          P::State: Stateful<Input, <P as Infer<Input>>::Output>,
+          P::State: Stateful<Input, <P as InferOutput<Input>>::Output>,
           F::Output: Consumer<P::Output>,
 {
+    type State = StarState<P, P::State, F::Output>;
+
     fn init(&self, data: &mut Input) -> Option<ParseResult<StarState<P, P::State, F::Output>, F::Output>> {
         if data.is_empty() {
             None
@@ -764,10 +766,9 @@ impl<P> ToStatic for Opt<P>
     }
 }
 
-impl<P, Input> Infer<Input> for Opt<P>
-    where P: Infer<Input>,
+impl<P, Input> InferOutput<Input> for Opt<P>
+    where P: InferOutput<Input>,
 {
-    type State = Opt<P::State>;
     type Output = Option<P::Output>;
 }
 
@@ -788,12 +789,13 @@ impl<P, Input, Output> Stateful<Input, Option<Output>> for Opt<P>
     }
 }
 
-impl<P, PState, Input, Output> Uncommitted<Opt<PState>, Input, Option<Output>> for Opt<P>
-    where P: Uncommitted<PState, Input, Output>,
+impl<P, Input, Output> Uncommitted<Input, Option<Output>> for Opt<P>
+    where P: Uncommitted<Input, Output>,
           Input: PeekableIterator,
 {
+    type State = Opt<P::State>;
 
-    fn init(&self, data: &mut Input) -> Option<ParseResult<Opt<PState>, Option<Output>>> {
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Option<Output>>> {
         match self.0.init(data) {
             None => if data.is_empty() {
                 None
@@ -807,8 +809,8 @@ impl<P, PState, Input, Output> Uncommitted<Opt<PState>, Input, Option<Output>> f
 
 }
 
-impl<P, PState, Input, Output> Committed<Opt<PState>, Input, Option<Output>> for Opt<P>
-    where P: Committed<PState, Input, Output>,
+impl<P, Input, Output> Committed<Input, Option<Output>> for Opt<P>
+    where P: Committed<Input, Output>,
           Input: PeekableIterator,
 {
 
@@ -848,21 +850,21 @@ impl<Input, Output> Stateful<Input, Output> for Impossible
 #[derive(Copy, Clone, Debug)]
 pub struct Emit<F>(F);
 
-impl<F, Input> Infer<Input> for Emit<F>
+impl<F, Input> InferOutput<Input> for Emit<F>
     where F: Factory,
 {
-    type State = Impossible;
     type Output = F::Output;
 }
 
 impl<F> Parser for Emit<F> {}
 
-impl<F, Input> Uncommitted<Emit<F>, Input, F::Output> for Emit<F>
+impl<F, Input> Uncommitted<Input, F::Output> for Emit<F>
     where Input: PeekableIterator,
           F: Copy + Factory,
 {
+    type State = Impossible;
 
-    fn init(&self, data: &mut Input) -> Option<ParseResult<Self, F::Output>> {
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, F::Output>> {
         if data.is_empty() {
             None
         } else {
@@ -872,7 +874,7 @@ impl<F, Input> Uncommitted<Emit<F>, Input, F::Output> for Emit<F>
 
 }
 
-impl<F, Input> Committed<Emit<F>, Input, F::Output> for Emit<F>
+impl<F, Input> Committed<Input, F::Output> for Emit<F>
     where Input: PeekableIterator,
           F: Copy + Factory,
 {
@@ -910,22 +912,22 @@ impl<F> Debug for Character<F>
     }
 }
 
-impl<F, Input> Infer<Input> for Character<F>
+impl<F, Input> InferOutput<Input> for Character<F>
     where Input: Iterator,
 {
-    type State = Impossible;
     type Output = Input::Item;
 }
 
 impl<F> Parser for Character<F> {}
 
-impl<F, State, Input> Uncommitted<State, Input, Input::Item> for Character<F>
+impl<F, Input> Uncommitted<Input, Input::Item> for Character<F>
     where Input: PeekableIterator,
           F: Copy + Function<Input::Item, Output = bool>,
           Input::Item: Copy,
 {
+    type State = Impossible;
 
-    fn init(&self, data: &mut Input) -> Option<ParseResult<State, Input::Item>> {
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Input::Item>> {
         match data.next_if(self.0) {
             None => None,
             Some(ch) => Some(Done(ch)),
@@ -961,21 +963,21 @@ impl<F> Debug for CharacterRef<F>
     }
 }
 
-impl<F, Input> Infer<Input> for CharacterRef<F>
+impl<F, Input> InferOutput<Input> for CharacterRef<F>
     where Input: Iterator,
 {
-    type State = Impossible;
     type Output = Input::Item;
 }
 
 impl<F> Parser for CharacterRef<F> {}
 
-impl<F, State, Input> Uncommitted<State, Input, Input::Item> for CharacterRef<F>
+impl<F, Input> Uncommitted<Input, Input::Item> for CharacterRef<F>
     where Input: PeekableIterator,
           F: Copy + for<'a> Function<&'a Input::Item, Output = bool>,
 {
+    type State = Impossible;
 
-    fn init(&self, data: &mut Input) -> Option<ParseResult<State, Input::Item>> {
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Input::Item>> {
         match data.next_if_ref(self.0) {
             None => None,
             Some(ch) => Some(Done(ch)),
@@ -995,10 +997,9 @@ pub struct AnyCharacter;
 
 impl Parser for AnyCharacter {}
 
-impl<Input> Infer<Input> for AnyCharacter
+impl<Input> InferOutput<Input> for AnyCharacter
     where Input: Iterator,
 {
-    type State = Impossible;
     type Output = Option<Input::Item>;
 }
 
@@ -1018,10 +1019,12 @@ impl<Input> Stateful<Input, Option<Input::Item>> for AnyCharacter
 }
 
 
-impl<State, Input> Uncommitted<State, Input, Option<Input::Item>> for AnyCharacter
+impl<Input> Uncommitted<Input, Option<Input::Item>> for AnyCharacter
     where Input: Iterator,
 {
-    fn init(&self, data: &mut Input) -> Option<ParseResult<State, Option<Input::Item>>> {
+    type State = Impossible;
+
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Option<Input::Item>>> {
         match data.next() {
             None => None,
             Some(item) => Some(Done(Some(item))),
@@ -1029,7 +1032,7 @@ impl<State, Input> Uncommitted<State, Input, Option<Input::Item>> for AnyCharact
     }
 }
 
-impl<State, Input> Committed<State, Input, Option<Input::Item>> for AnyCharacter
+impl<Input> Committed<Input, Option<Input::Item>> for AnyCharacter
     where Input: Iterator,
 {
     fn empty(&self) -> Option<Input::Item> {
@@ -1037,103 +1040,104 @@ impl<State, Input> Committed<State, Input, Option<Input::Item>> for AnyCharacter
     }
 }
 
-// impl<Ch, Str> Uncommitted<Ch, Str> for AnyCharacter
-//     where Str: Iterator<Item = Ch>,
-// {
-//     type Output = Option<Ch>;
-//     type State = AnyCharacter;
+// ----------- Buffering -------------
 
-//     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Option<Ch>>> {
-//         match string.next() {
-//             None => None,
-//             Some(ch) => Some(Done(Some(ch))),
-//         }
-//     }
+// If p is a Uncommitted<Chars<'a>, Output>, then
+// m.buffer() is a Uncommitted<Chars<'a>, Cow<'a, str>>.
+//
+// It does as little buffering as it can, but it does allocate as buffer for the case
+// where the boundary marker of the input is misaligned with that of the parser.
+// For example, m is matching string literals, and the input is '"abc' followed by 'def"'
+// we have to buffer up '"abc'.
 
-// }
+// TODO(ajeffrey): make this code generic.
 
-// impl<Ch, Str> Committed<Ch, Str> for AnyCharacter
-//     where Str: Iterator<Item = Ch>,
-// {
+#[derive(Copy, Clone, Debug)]
+pub struct Buffered<P>(P);
 
-//     fn empty(&self) -> Option<Ch> {
-//         None
-//     }
+impl<'a, P> InferOutput<Chars<'a>> for Buffered<P>
+    where P: InferOutput<Chars<'a>>
+{
+    type Output = Cow<'a, str>;
+}
 
-// }
+impl<P> Parser for Buffered<P> where P: Parser {}
 
-// // ----------- Buffering -------------
+impl<'a, P> Uncommitted<Chars<'a>, Cow<'a, str>> for Buffered<P>
+    where P: UncommittedInfer<Chars<'a>>
+{
+    type State = BufferedState<P::State>;
 
-// // If p is a Uncommitted<char, Chars<'a>>, then
-// // m.buffer() is a Uncommitted<char, Chars<'a>> with Output (char, Cow<'a,str>).
-// // It does as little buffering as it can, but it does allocate as buffer for the case
-// // where the boundary marker of the input is misaligned with that of the parser.
-// // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
-// // we have to buffer up '"abc'.
+    fn init(&self, data: &mut Chars<'a>) -> Option<ParseResult<Self::State, Cow<'a, str>>> {
+        let string = data.as_str();
+        match self.0.init(data) {
+            Some(Done(_)) => Some(Done(Borrowed(&string[..(string.len() - data.as_str().len())]))),
+            Some(Continue(state)) => Some(Continue(BufferedState(state, String::from(string)))),
+            None => None,
+        }
+    }
+}
 
-// // TODO(ajeffrey): make this code generic.
+impl<'a, P> Committed<Chars<'a>, Cow<'a, str>> for Buffered<P>
+    where P: CommittedInfer<Chars<'a>>
+{
+    fn empty(&self) -> Cow<'a, str> { Borrowed("") }
+}
 
-// #[derive(Copy, Clone, Debug)]
-// pub struct Buffered<P>(P);
+impl<P> Buffered<P> {
+    pub fn new(parser: P) -> Self {
+        Buffered(parser)
+    }
+}
 
-// impl<P> Parser for Buffered<P> where P: Parser {}
+#[derive(Clone,Debug)]
+pub struct BufferedState<P>(P, String);
 
-// impl<'a, P> Uncommitted<char, Chars<'a>> for Buffered<P>
-//     where P: Uncommitted<char, Chars<'a>>,
-// {
-//     type Output = Cow<'a, str>;
-//     type State = BufferedState<P::State>;
+impl<P1, P2> Upcast<BufferedState<P2>> for BufferedState<P1>
+    where P1: Upcast<P2>
+{
+    fn upcast(self) -> BufferedState<P2> {
+        BufferedState(self.0.upcast(), self.1)
+    }
+}
 
-//     fn init(&self, string: &mut Chars<'a>) -> Option<ParseResult<Self::State, Self::Output>> {
-//         let string0 = string.as_str();
-//         match self.0.init(string) {
-//             Some(Done(_)) => Some(Done(Borrowed(&string0[..(string0.len() - string.as_str().len())]))),
-//             Some(Continue(state)) => Some(Continue(BufferedState(state, String::from(string0)))),
-//             None => None,
-//         }
-//     }
-// }
+impl<P> ToStatic for BufferedState<P>
+    where P: ToStatic,
+{
+    type Static = BufferedState<P::Static>;
+    fn to_static(self) -> Self::Static {
+        BufferedState(self.0.to_static(), self.1)
+    }
+}
+    
+impl<'a, P> InferOutput<Chars<'a>> for BufferedState<P>
+{
+    type Output = Cow<'a, str>;
+}
 
-// impl<'a, P> Committed<char, Chars<'a>> for Buffered<P>
-//     where P: Committed<char, Chars<'a>>,
-// {
-//     fn empty(&self) -> Cow<'a, str> { Borrowed("") }
-// }
+impl<'a, P> Stateful<Chars<'a>, Cow<'a, str>> for BufferedState<P>
+    where P: StatefulInfer<Chars<'a>>
+{
 
-// impl<P> Buffered<P> {
-//     pub fn new(parser: P) -> Self {
-//         Buffered(parser)
-//     }
-// }
+    fn more(mut self, data: &mut Chars<'a>) -> ParseResult<Self, Cow<'a, str>> {
+        let string = data.as_str();
+        match self.0.more(data) {
+            Done(_) => {
+                self.1.push_str(&string[..(string.len() - data.as_str().len())]);
+                Done(Owned(self.1))
+            },
+            Continue(state) => {
+                self.1.push_str(string);
+                Continue(BufferedState(state, self.1))
+            },
+        }
+    }
 
-// #[derive(Clone,Debug)]
-// pub struct BufferedState<P>(P, String);
+    fn done(self) -> Cow<'a, str> {
+        Owned(self.1)
+    }
 
-// impl<'a, P> Stateful<char, Chars<'a>> for BufferedState<P>
-//     where P: Stateful<char, Chars<'a>>
-// {
-
-//     type Output = Cow<'a, str>;
-
-//     fn more(mut self, string: &mut Chars<'a>) -> ParseResult<Self, Self::Output> {
-//         let string0 = string.as_str();
-//         match self.0.more(string) {
-//             Done(_) => {
-//                 self.1.push_str(&string0[..(string0.len() - string.as_str().len())]);
-//                 Done(Owned(self.1))
-//             },
-//             Continue(state) => {
-//                 self.1.push_str(string0);
-//                 Continue(BufferedState(state, self.1))
-//             },
-//         }
-//     }
-
-//     fn done(self) -> Self::Output {
-//         Owned(self.1)
-//     }
-
-// }
+}
 
 // ----------- Parsers which are boxable -------------
 
@@ -1157,11 +1161,10 @@ impl<P> ToStatic for BoxableState<P>
     }
 }
 
-impl<P, Input> Infer<Input> for BoxableState<P>
-    where P: Infer<Input>,
+impl<P, Input> InferOutput<Input> for BoxableState<P>
+    where P: InferOutput<Input>,
 {
     type Output = P::Output;
-    type State = Self;
 }
 
 impl<P, Input, Output> Boxable<Input, Output> for BoxableState<P>
@@ -1181,11 +1184,10 @@ impl<P, Input, Output> Boxable<Input, Output> for BoxableState<P>
     }
 }
 
-impl<P, Input> Infer<Input> for Box<P>
-    where P: Infer<Input>,
+impl<P, Input> InferOutput<Input> for Box<P>
+    where P: InferOutput<Input>,
 {
     type Output = P::Output;
-    type State = Self;
 }
 
 impl<P: ?Sized, Input, Output> Stateful<Input, Output> for Box<P>
@@ -1213,19 +1215,19 @@ pub struct Boxed<P, F>(P, F);
 
 impl<P, F> Parser for Boxed<P, F> where P: Parser {}
 
-impl<P, F, Input> Infer<Input> for Boxed<P, F>
-    where P: Infer<Input>,
-          F: Function<BoxableState<P::State>>,
+impl<P, F, Input> InferOutput<Input> for Boxed<P, F>
+    where P: InferOutput<Input>,
 {
     type Output = P::Output;
-    type State = F::Output;
 }
 
-impl<P, F, Input, Output> Uncommitted<F::Output, Input, Output> for Boxed<P, F>
-    where P: Infer<Input> + Uncommitted<<P as Infer<Input>>::State, Input, Output>,
+impl<P, F, Input, Output> Uncommitted<Input, Output> for Boxed<P, F>
+    where P: Uncommitted<Input, Output>,
           F: Function<BoxableState<P::State>>,
           F::Output: Stateful<Input, Output>,
 {
+    type State = F::Output;
+
     fn init(&self, data: &mut Input) -> Option<ParseResult<F::Output, Output>> {
         match self.0.init(data) {
             None => None,
@@ -1235,8 +1237,8 @@ impl<P, F, Input, Output> Uncommitted<F::Output, Input, Output> for Boxed<P, F>
     }
 }
 
-impl<P, F, Input, Output> Committed<F::Output, Input, Output> for Boxed<P, F>
-    where P: Infer<Input> + Committed<<P as Infer<Input>> ::State, Input, Output>,
+impl<P, F, Input, Output> Committed<Input, Output> for Boxed<P, F>
+    where P: Committed<Input, Output>,
           F: Function<BoxableState<P::State>>,
           F::Output: Stateful<Input, Output>,
 {

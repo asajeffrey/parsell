@@ -3,7 +3,6 @@
 
 extern crate parsell;
 use parsell::{Parser, CHARACTER, UncommittedStr};
-use std::str::Chars;
 
 #[test]
 fn test_typecheck_time() {
