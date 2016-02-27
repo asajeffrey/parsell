@@ -4,7 +4,7 @@ use super::{Parser, ParseResult};
 use super::{Stateful, Committed, Uncommitted, Boxable};
 use super::{Infer};
 use super::{Function, Consumer, Factory, PeekableIterator};
-// use super::{Upcast, ToStatic};
+use super::{Upcast, ToStatic};
 use super::ParseResult::{Done, Continue};
 
 use self::OrElseState::{Lhs, Rhs};
@@ -345,29 +345,30 @@ impl<PState, POutput, Q, QState, Input> Infer<Input> for AndThenState<PState, PO
     type Output = (PState::Output, QState::Output);
 }
 
-impl<PState, POutput, Q, QState, QOutput, Input> Stateful<Input, (POutput, QOutput)> for AndThenState<PState, POutput, Q, QState>
-    where PState: Stateful<Input, POutput>,
+impl<PState, POutput1, POutput2, Q, QState, QOutput, Input> Stateful<Input, (POutput2, QOutput)> for AndThenState<PState, POutput1, Q, QState>
+    where PState: Stateful<Input, POutput1>,
           Q: Committed<QState, Input, QOutput>,
           QState: Stateful<Input, QOutput>,
+          POutput1: Upcast<POutput2>,
 {
 
-    fn done(self) -> (POutput, QOutput)
+    fn done(self) -> (POutput2, QOutput)
     {
         match self {
-            InLhs(fst, snd) => (fst.done(), snd.empty()),
-            InBetween(fst, snd) => (fst, snd.empty()),
-            InRhs(fst, snd) => (fst, snd.done()),
+            InLhs(fst, snd) => (fst.done().upcast(), snd.empty()),
+            InBetween(fst, snd) => (fst.upcast(), snd.empty()),
+            InRhs(fst, snd) => (fst.upcast(), snd.done()),
         }
     }
 
-    fn more(self, data: &mut Input) -> ParseResult<Self, (POutput, QOutput)>
+    fn more(self, data: &mut Input) -> ParseResult<Self, (POutput2, QOutput)>
     {
         match self {
             InLhs(fst, snd) => {
                 match fst.more(data) {
                     Done(fst) => match snd.init(data) {
                         None => Continue(InBetween(fst, snd)),
-                        Some(Done(snd)) => Done((fst, snd)),
+                        Some(Done(snd)) => Done((fst.upcast(), snd)),
                         Some(Continue(snd)) => Continue(InRhs(fst, snd)),
                     },
                     Continue(fst) => Continue(InLhs(fst, snd)),
@@ -376,13 +377,13 @@ impl<PState, POutput, Q, QState, QOutput, Input> Stateful<Input, (POutput, QOutp
             InBetween(fst, snd) => {
                 match snd.init(data) {
                     None => Continue(InBetween(fst, snd)),
-                    Some(Done(snd)) => Done((fst, snd)),
+                    Some(Done(snd)) => Done((fst.upcast(), snd)),
                     Some(Continue(snd)) => Continue(InRhs(fst, snd)),
                 }
             }
             InRhs(fst, snd) => {
                 match snd.more(data) {
-                    Done(snd) => Done((fst, snd)),
+                    Done(snd) => Done((fst.upcast(), snd)),
                     Continue(snd) => Continue(InRhs(fst, snd)),
                 }
             }

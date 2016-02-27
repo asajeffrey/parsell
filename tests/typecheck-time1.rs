@@ -25,5 +25,14 @@ fn test_typecheck_time() {
         .and_then(CHARACTER)
         .and_then(CHARACTER)
         .and_then(CHARACTER)
+        .and_then(CHARACTER)
+        .and_then(CHARACTER)
+        .and_then(CHARACTER)
+        .and_then(CHARACTER)
+        .and_then(CHARACTER)
+        .and_then(CHARACTER)
+        .and_then(CHARACTER)
+        .and_then(CHARACTER)
+        .and_then(CHARACTER)
         .init_str("hello, world");
 }

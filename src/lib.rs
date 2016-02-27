@@ -156,7 +156,7 @@ pub trait Stateful<Input, Output>
             Done(result) => result,
         }
     }
-
+    
 }
 
 /// A trait for stateful string parsers.
@@ -970,105 +970,105 @@ impl<C, T, E> Consumer<Result<T, E>> for Result<C, E> where C: Consumer<T>
     }
 }
 
-// /// A trait for subtyping
+/// A trait for subtyping
 
-// pub trait Upcast<T:?Sized> {
-//     fn upcast(self) -> T where Self: Sized;
-// }
+pub trait Upcast<T:?Sized> {
+    fn upcast(self) -> T where Self: Sized;
+}
 
-// impl<'a, T: ?Sized> Upcast<Cow<'a, T>> for Cow<'static, T>
-//     where T: ToOwned,
-// {
-//     fn upcast(self) -> Cow<'a, T> { self }
-// }
+impl<'a, T: ?Sized> Upcast<Cow<'a, T>> for Cow<'static, T>
+    where T: ToOwned,
+{
+    fn upcast(self) -> Cow<'a, T> { self }
+}
 
-// impl<S1, S2, T1, T2> Upcast<(T1, T2)> for (S1,S2)
-//     where S1: Upcast<T1>,
-//           S2: Upcast<T2>,
-// {
-//     fn upcast(self) -> (T1, T2) { (self.0.upcast(), self.1.upcast()) }
-// }
+impl<S1, S2, T1, T2> Upcast<(T1, T2)> for (S1,S2)
+    where S1: Upcast<T1>,
+          S2: Upcast<T2>,
+{
+    fn upcast(self) -> (T1, T2) { (self.0.upcast(), self.1.upcast()) }
+}
 
-// impl<S, T> Upcast<Option<T>> for Option<S>
-//     where S: Upcast<T>,
-// {
-//     fn upcast(self) -> Option<T> { self.map(Upcast::upcast) }
-// }
+impl<S, T> Upcast<Option<T>> for Option<S>
+    where S: Upcast<T>,
+{
+    fn upcast(self) -> Option<T> { self.map(Upcast::upcast) }
+}
 
-// impl<S, T, D, E> Upcast<Result<T,E>> for Result<S,D>
-//     where S: Upcast<T>,
-//           D: Upcast<E>,
-// {
-//     fn upcast(self) -> Result<T,E> { self.map(Upcast::upcast).map_err(Upcast::upcast) }
-// }
+impl<S, T, D, E> Upcast<Result<T,E>> for Result<S,D>
+    where S: Upcast<T>,
+          D: Upcast<E>,
+{
+    fn upcast(self) -> Result<T,E> { self.map(Upcast::upcast).map_err(Upcast::upcast) }
+}
 
-// /// A trait for data which can be saved to and restored from long-lived state.
-// ///
-// /// The canonical example of this trait is `Cow<'a,T>` which can be saved to
-// /// and restored from `Cow<'static,T>` when `T` is static.
+/// A trait for data which can be saved to and restored from long-lived state.
+///
+/// The canonical example of this trait is `Cow<'a,T>` which can be saved to
+/// and restored from `Cow<'static,T>` when `T` is static.
 
-// pub trait ToStatic {
-//     type Static: 'static + Upcast<Self>;
-//     fn to_static(self) -> Self::Static where Self: Sized;
-// }
+pub trait ToStatic {
+    type Static: 'static + Upcast<Self>;
+    fn to_static(self) -> Self::Static where Self: Sized;
+}
 
-// impl<'a, T: ?Sized> ToStatic for Cow<'a, T>
-//     where T: 'static + ToOwned
-// {
-//     type Static = Cow<'static, T>;
-//     fn to_static(self) -> Self::Static { Cow::Owned(self.into_owned()) }
-// }
+impl<'a, T: ?Sized> ToStatic for Cow<'a, T>
+    where T: 'static + ToOwned
+{
+    type Static = Cow<'static, T>;
+    fn to_static(self) -> Self::Static { Cow::Owned(self.into_owned()) }
+}
 
-// impl<T, U> ToStatic for (T, U)
-//     where T: ToStatic,
-//           U: ToStatic
-// {
-//     type Static = (T::Static, U::Static);
-//     fn to_static(self) -> Self::Static { (self.0.to_static(), self.1.to_static()) }
-// }
+impl<T, U> ToStatic for (T, U)
+    where T: ToStatic,
+          U: ToStatic
+{
+    type Static = (T::Static, U::Static);
+    fn to_static(self) -> Self::Static { (self.0.to_static(), self.1.to_static()) }
+}
 
-// impl<T> ToStatic for Option<T>
-//     where T: ToStatic
-// {
-//     type Static = Option<T::Static>;
-//     fn to_static(self) -> Self::Static { self.map(ToStatic::to_static) }
-// }
+impl<T> ToStatic for Option<T>
+    where T: ToStatic
+{
+    type Static = Option<T::Static>;
+    fn to_static(self) -> Self::Static { self.map(ToStatic::to_static) }
+}
 
-// impl<T,E> ToStatic for Result<T,E> where T: ToStatic, E: ToStatic {
-//     type Static = Result<T::Static,E::Static>;
-//     fn to_static(self) -> Self::Static { self.map(ToStatic::to_static).map_err(ToStatic::to_static) }
-// }
+impl<T,E> ToStatic for Result<T,E> where T: ToStatic, E: ToStatic {
+    type Static = Result<T::Static,E::Static>;
+    fn to_static(self) -> Self::Static { self.map(ToStatic::to_static).map_err(ToStatic::to_static) }
+}
 
-// /// A marker trait for static data.
-// ///
-// /// This trait is a quick way to implment `ToStatic` as a no-op.
+/// A marker trait for static data.
+///
+/// This trait is a quick way to implment `ToStatic` as a no-op.
 
-// pub trait StaticMarker {}
+pub trait StaticMarker {}
 
-// impl<T> Upcast<T> for T where T: StaticMarker {
-//     fn upcast(self) -> T { self }
-// }
+impl<T> Upcast<T> for T where T: StaticMarker {
+    fn upcast(self) -> T { self }
+}
 
-// impl<T> ToStatic for T where T: 'static + StaticMarker {
-//     type Static = T;
-//     fn to_static(self) -> T { self }
-// }
+impl<T> ToStatic for T where T: 'static + StaticMarker {
+    type Static = T;
+    fn to_static(self) -> T { self }
+}
 
-// impl StaticMarker for usize {}
-// impl StaticMarker for u8 {}
-// impl StaticMarker for u16 {}
-// impl StaticMarker for u32 {}
-// impl StaticMarker for u64 {}
-// impl StaticMarker for isize {}
-// impl StaticMarker for i8 {}
-// impl StaticMarker for i16 {}
-// impl StaticMarker for i32 {}
-// impl StaticMarker for i64 {}
-// impl StaticMarker for () {}
-// impl StaticMarker for bool {}
-// impl StaticMarker for char {}
-// impl StaticMarker for String {}
-// impl<T> StaticMarker for Vec<T> where T: 'static {}
+impl StaticMarker for usize {}
+impl StaticMarker for u8 {}
+impl StaticMarker for u16 {}
+impl StaticMarker for u32 {}
+impl StaticMarker for u64 {}
+impl StaticMarker for isize {}
+impl StaticMarker for i8 {}
+impl StaticMarker for i16 {}
+impl StaticMarker for i32 {}
+impl StaticMarker for i64 {}
+impl StaticMarker for () {}
+impl StaticMarker for bool {}
+impl StaticMarker for char {}
+impl StaticMarker for String {}
+impl<T> StaticMarker for Vec<T> where T: 'static {}
 
 /// A trait for peekable iterators
 
@@ -1551,6 +1551,24 @@ fn test_star() {
     let mut data2 = "c!".chars();
     assert_eq!(parser.init_infer(&mut data1).unwrap().unContinue().more(&mut data2).unDone(), "abc");
     assert_eq!(data.as_str(), "!");
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_cast() {
+    use std::vec::Drain;
+    use std::borrow::Cow::Borrowed;
+    type TestState = Box<for<'a> Boxable<Drain<'a, Cow<'a,str>>, (Option<Cow<'a,str>>, Option<Cow<'a,str>>)>>;
+    fn go<'b>(foo: &'static str, bar: &'b str) {
+        let parser = CHARACTER.and_then(CHARACTER);
+        let mut data1 = vec![Borrowed(foo)];
+        let mut data2 = vec![Borrowed(bar)];
+        let state = parser.init_infer(&mut data1.drain(..)).unwrap().unContinue();
+        let boxed: TestState = Box::new(impls::BoxableState::new(state));
+        let result = boxed.more(&mut data2.drain(..)).unDone();
+        assert_eq!(result, (Some(Borrowed(foo)), Some(Borrowed(bar))));
+    }
+    go("foo", "bar");
 }
 
 // #[test]
