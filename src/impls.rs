@@ -4,7 +4,7 @@ use super::{Parser, ParseResult};
 use super::{Stateful, Committed, Uncommitted, Boxable};
 use super::{Infer};
 use super::{Function, Consumer, Factory, PeekableIterator};
-use super::{Upcast, ToStatic};
+use super::{Upcast, ToStatic, StaticMarker};
 use super::ParseResult::{Done, Continue};
 
 use self::OrElseState::{Lhs, Rhs};
@@ -219,6 +219,24 @@ impl<P, F> Debug for Map<P, F>
     }
 }
 
+impl<P1, P2, F> Upcast<Map<P2, F>> for Map<P1, F>
+    where P1: Upcast<P2>
+{
+    fn upcast(self) -> Map<P2, F> {
+        Map(self.0.upcast(), self.1)
+    }
+}
+
+impl<P, F> ToStatic for Map<P, F>
+    where P: ToStatic,
+          F: 'static,
+{
+    type Static = Map<P::Static, F>;
+    fn to_static(self) -> Self::Static {
+        Map(self.0.to_static(), self.1)
+    }
+}
+
 impl<P, F, Input> Infer<Input> for Map<P, F>
     where P: Infer<Input>,
           F: Function<P::Output>,
@@ -337,6 +355,36 @@ pub enum AndThenState<PState, POutput, Q, QState> {
     InRhs(POutput, QState),
 }
 
+impl<PState1, PState2, POutput1, POutput2, Q, QState1, QState2> Upcast<AndThenState<PState2, POutput2, Q, QState2>> for AndThenState<PState1, POutput1, Q, QState1>
+    where PState1: Upcast<PState2>,
+          POutput1: Upcast<POutput2>,
+          QState1: Upcast<QState2>,
+{
+    fn upcast(self) -> AndThenState<PState2, POutput2, Q, QState2> {
+        match self {
+            InLhs(fst, snd) => InLhs(fst.upcast(), snd),
+            InBetween(fst, snd) => InBetween(fst.upcast(), snd),
+            InRhs(fst, snd) => InRhs(fst.upcast(), snd.upcast()),
+        }
+    }
+}
+
+impl<PState, POutput, Q, QState> ToStatic for AndThenState<PState, POutput, Q, QState>
+    where PState: ToStatic,
+          POutput: ToStatic,
+          Q: 'static,
+          QState: ToStatic,
+{
+    type Static = AndThenState<PState::Static, POutput::Static, Q, QState::Static>;
+    fn to_static(self) -> Self::Static {
+        match self {
+            InLhs(fst, snd) => InLhs(fst.to_static(), snd),
+            InBetween(fst, snd) => InBetween(fst.to_static(), snd),
+            InRhs(fst, snd) => InRhs(fst.to_static(), snd.to_static()),
+        }
+    }
+}
+
 impl<PState, POutput, Q, QState, Input> Infer<Input> for AndThenState<PState, POutput, Q, QState>
     where PState: Infer<Input>,
           QState: Infer<Input>,
@@ -449,6 +497,31 @@ pub enum OrElseState<P, Q> {
     Rhs(Q),
 }
 
+impl<P1, P2, Q1, Q2> Upcast<OrElseState<P2, Q2>> for OrElseState<P1, Q1>
+    where P1: Upcast<P2>,
+          Q1: Upcast<Q2>,
+{
+    fn upcast(self) -> OrElseState<P2, Q2> {
+        match self {
+            Lhs(lhs) => Lhs(lhs.upcast()),
+            Rhs(rhs) => Rhs(rhs.upcast()),
+        }
+    }
+}
+
+impl<P, Q> ToStatic for OrElseState<P, Q>
+    where P: ToStatic,
+          Q: ToStatic,
+{
+    type Static = OrElseState<P::Static, Q::Static>;
+    fn to_static(self) -> Self::Static {
+        match self {
+            Lhs(lhs) => Lhs(lhs.to_static()),
+            Rhs(rhs) => Rhs(rhs.to_static()),
+        }
+    }
+}
+
 impl<P, Q, Input> Infer<Input> for OrElseState<P, Q>
     where P: Infer<Input>,
 {
@@ -486,6 +559,26 @@ impl<P, Q, Input, Output> Stateful<Input, Output> for OrElseState<P, Q>
 
 #[derive(Clone,Debug)]
 pub struct StarState<P, PState, Output>(P, Option<PState>, Output);
+
+impl<P, PState1, PState2, Output1, Output2> Upcast<StarState<P, PState2, Output2>> for StarState<P, PState1, Output1>
+    where PState1: Upcast<PState2>,
+          Output1: Upcast<Output2>,
+{
+    fn upcast(self) -> StarState<P, PState2, Output2> {
+        StarState(self.0, self.1.upcast(), self.2.upcast())
+    }
+}
+
+impl<P, PState, Output> ToStatic for StarState<P, PState, Output>
+    where P: 'static,
+          PState: ToStatic,
+          Output: ToStatic,
+{
+    type Static = StarState<P, PState::Static, Output::Static>;
+    fn to_static(self) -> Self::Static {
+        StarState(self.0, self.1.to_static(), self.2.to_static())
+    }
+}
 
 impl<P, PState, Input, Output> Infer<Input> for StarState<P, PState, Output>
 {
@@ -654,6 +747,23 @@ impl<P, F> Star<P, F> {
 #[derive(Copy, Clone, Debug)]
 pub struct Opt<P>(P);
 
+impl<P1, P2> Upcast<Opt<P2>> for Opt<P1>
+    where P1: Upcast<P2>,
+{
+    fn upcast(self) -> Opt<P2> {
+        Opt(self.0.upcast())
+    }
+}
+
+impl<P> ToStatic for Opt<P>
+    where P: ToStatic,
+{
+    type Static = Opt<P::Static>;
+    fn to_static(self) -> Self::Static {
+        Opt(self.0.to_static())
+    }
+}
+
 impl<P, Input> Infer<Input> for Opt<P>
     where P: Infer<Input>,
 {
@@ -714,6 +824,25 @@ impl<P> Opt<P> {
     }
 }
 
+// ----------- A type for parsers which don't exist -------------
+
+#[derive(Copy, Clone, Debug)]
+pub enum Impossible {}
+
+impl StaticMarker for Impossible {}
+
+impl<Input, Output> Stateful<Input, Output> for Impossible
+{
+    fn more(self, _: &mut Input) -> ParseResult<Self, Output> { 
+        match self {}
+    }
+
+    fn done(self) -> Output {
+        match self {}
+    }
+}
+
+
 // ----------- A type for parsers which immediately emit a result -------------
 
 #[derive(Copy, Clone, Debug)]
@@ -722,25 +851,11 @@ pub struct Emit<F>(F);
 impl<F, Input> Infer<Input> for Emit<F>
     where F: Factory,
 {
-    type State = Self;
+    type State = Impossible;
     type Output = F::Output;
 }
 
 impl<F> Parser for Emit<F> {}
-
-impl<F, Input> Stateful<Input, F::Output> for Emit<F>
-    where F: Factory,
-{
-
-    fn more(self, _: &mut Input) -> ParseResult<Self, F::Output> {
-        Done(self.0.build())
-    }
-
-    fn done(self) -> F::Output {
-        self.0.build()
-    }
-
-}
 
 impl<F, Input> Uncommitted<Emit<F>, Input, F::Output> for Emit<F>
     where Input: PeekableIterator,
@@ -774,20 +889,6 @@ impl<T> Emit<T> {
 
 // ----------- Character parsers -------------
 
-#[derive(Copy, Clone, Debug)]
-pub enum CharacterState {}
-
-impl<Input, Output> Stateful<Input, Output> for CharacterState
-{
-    fn more(self, _: &mut Input) -> ParseResult<Self, Output> { 
-        match self {}
-    }
-
-    fn done(self) -> Output {
-        match self {}
-    }
-}
-
 pub struct Character<F>(F);
 
 // A work around for functions implmenting copy but not clone
@@ -812,7 +913,7 @@ impl<F> Debug for Character<F>
 impl<F, Input> Infer<Input> for Character<F>
     where Input: Iterator,
 {
-    type State = CharacterState;
+    type State = Impossible;
     type Output = Input::Item;
 }
 
@@ -863,7 +964,7 @@ impl<F> Debug for CharacterRef<F>
 impl<F, Input> Infer<Input> for CharacterRef<F>
     where Input: Iterator,
 {
-    type State = CharacterState;
+    type State = Impossible;
     type Output = Input::Item;
 }
 
@@ -897,7 +998,7 @@ impl Parser for AnyCharacter {}
 impl<Input> Infer<Input> for AnyCharacter
     where Input: Iterator,
 {
-    type State = CharacterState;
+    type State = Impossible;
     type Output = Option<Input::Item>;
 }
 
@@ -1038,6 +1139,23 @@ impl<State, Input> Committed<State, Input, Option<Input::Item>> for AnyCharacter
 
 #[derive(Debug)]
 pub struct BoxableState<P>(Option<P>);
+
+impl<P1, P2> Upcast<BoxableState<P2>> for BoxableState<P1>
+    where P1: Upcast<P2>,
+{
+    fn upcast(self) -> BoxableState<P2> {
+        BoxableState(self.0.upcast())
+    }
+}
+
+impl<P> ToStatic for BoxableState<P>
+    where P: ToStatic,
+{
+    type Static = BoxableState<P::Static>;
+    fn to_static(self) -> Self::Static {
+        BoxableState(self.0.to_static())
+    }
+}
 
 impl<P, Input> Infer<Input> for BoxableState<P>
     where P: Infer<Input>,

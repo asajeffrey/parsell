@@ -1559,11 +1559,11 @@ fn test_cast() {
     use std::vec::Drain;
     use std::borrow::Cow::Borrowed;
     type TestState = Box<for<'a> Boxable<Drain<'a, Cow<'a,str>>, (Option<Cow<'a,str>>, Option<Cow<'a,str>>)>>;
-    fn go<'b>(foo: &'static str, bar: &'b str) {
+    fn go<'a,'b>(foo: &'a str, bar: &'b str) {
         let parser = CHARACTER.and_then(CHARACTER);
         let mut data1 = vec![Borrowed(foo)];
         let mut data2 = vec![Borrowed(bar)];
-        let state = parser.init_infer(&mut data1.drain(..)).unwrap().unContinue();
+        let state = parser.init_infer(&mut data1.drain(..)).unwrap().unContinue().to_static();
         let boxed: TestState = Box::new(impls::BoxableState::new(state));
         let result = boxed.more(&mut data2.drain(..)).unDone();
         assert_eq!(result, (Some(Borrowed(foo)), Some(Borrowed(bar))));
