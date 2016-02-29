@@ -738,6 +738,18 @@ impl<P, F, Input> Uncommitted<Input, F::Output> for Star<P, F>
     }
 }
 
+impl<P, F, Input> Committed<Input, F::Output> for Star<P, F>
+    where P: Copy + UncommittedInfer<Input>,
+          F: Factory,
+          Input: PeekableIterator,
+          P::State: Stateful<Input, <P as InferOutput<Input>>::Output>,
+          F::Output: Consumer<P::Output>,
+{
+    fn empty(&self) -> F::Output {
+        self.1.build()
+    }
+}
+
 impl<P, F> Star<P, F> {
     pub fn new(parser: P, factory: F) -> Self {
         Star(parser, factory)
