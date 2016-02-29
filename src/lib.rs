@@ -1620,20 +1620,20 @@ fn test_buffer() {
     let mut data = "".chars();
     assert!(parser.init_infer(&mut data).is_none());
     assert_eq!(data.as_str(), "");
-    // let mut data = "!?".chars();
-    // assert!(parser.init_infer(&mut data).is_none());
-    // assert_eq!(data.as_str(), "!?");
-    // let mut data = "abc!".chars();
-    // if let Borrowed(result) = parser.init_infer(&mut data).unwrap().unDone() {
-    //     assert_eq!(result, "abc");
-    // } else { panic!("cow") }
-    // assert_eq!(data.as_str(), "!");
-    // let mut data1 = "abc".chars();
-    // let mut data2 = "def!".chars();
-    // if let Owned(result) = parser.init_infer(&mut data1).unwrap().unContinue().more(&mut data2).unDone() {
-    //     assert_eq!(result, "abcdef");
-    // } else { panic!("cow") }
-    // assert_eq!(data.as_str(), "!");
+    let mut data = "!?".chars();
+    assert!(parser.init_infer(&mut data).is_none());
+    assert_eq!(data.as_str(), "!?");
+    let mut data = "abc!".chars();
+    if let Borrowed(result) = parser.init_infer(&mut data).unwrap().unDone() {
+        assert_eq!(result, "abc");
+    } else { panic!("cow") }
+    assert_eq!(data.as_str(), "!");
+    let mut data1 = "abc".chars();
+    let mut data2 = "def!".chars();
+    if let Owned(result) = parser.init_infer(&mut data1).unwrap().unContinue().more(&mut data2).unDone() {
+        assert_eq!(result, "abcdef");
+    } else { panic!("cow") }
+    assert_eq!(data2.as_str(), "!");
 }
 
 // #[test]

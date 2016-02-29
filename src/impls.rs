@@ -843,16 +843,26 @@ impl<P> Opt<P> {
 #[derive(Copy, Clone, Debug)]
 pub enum Impossible {}
 
-impl StaticMarker for Impossible {}
+#[derive(Copy, Clone, Debug)]
+pub struct ImpossibleState<P> (Impossible, P);
 
-impl<Input, Output> Stateful<Input, Output> for Impossible
+impl StaticMarker for Impossible {}
+impl<P> StaticMarker for ImpossibleState<P> where P: 'static {}
+
+impl<P, Input> InferOutput<Input> for ImpossibleState<P>
+    where P: InferOutput<Input>
+{
+    type Output = P::Output;
+}
+
+impl<P, Input, Output> Stateful<Input, Output> for ImpossibleState<P>
 {
     fn more(self, _: &mut Input) -> ParseResult<Self, Output> { 
-        match self {}
+        match self.0 {}
     }
 
     fn done(self) -> Output {
-        match self {}
+        match self.0 {}
     }
 }
 
@@ -874,7 +884,7 @@ impl<F, Input> Uncommitted<Input, F::Output> for Emit<F>
     where Input: PeekableIterator,
           F: Copy + Factory,
 {
-    type State = Impossible;
+    type State = ImpossibleState<Self>;
 
     fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, F::Output>> {
         if data.is_empty() {
@@ -937,7 +947,7 @@ impl<F, Input> Uncommitted<Input, Input::Item> for Character<F>
           F: Copy + Function<Input::Item, Output = bool>,
           Input::Item: Copy,
 {
-    type State = Impossible;
+    type State = ImpossibleState<Self>;
 
     fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Input::Item>> {
         match data.next_if(self.0) {
@@ -987,7 +997,7 @@ impl<F, Input> Uncommitted<Input, Input::Item> for CharacterRef<F>
     where Input: PeekableIterator,
           F: Copy + for<'a> Function<&'a Input::Item, Output = bool>,
 {
-    type State = Impossible;
+    type State = ImpossibleState<Self>;
 
     fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Input::Item>> {
         match data.next_if_ref(self.0) {
@@ -1034,7 +1044,7 @@ impl<Input> Stateful<Input, Option<Input::Item>> for AnyCharacter
 impl<Input> Uncommitted<Input, Option<Input::Item>> for AnyCharacter
     where Input: Iterator,
 {
-    type State = Impossible;
+    type State = ImpossibleState<Self>;
 
     fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Option<Input::Item>>> {
         match data.next() {
