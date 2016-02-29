@@ -484,10 +484,10 @@ pub trait Parser {
 //     // }
 
     // Box up this parser
-    fn boxed<F>(self, f: F) -> impls::Boxed<Self, F>
+    fn boxed<F>(self, function: F) -> impls::Boxed<Self, F>
         where Self: Sized
     {
-        impls::Boxed::new(self, f)
+        impls::Boxed::new(self, function)
     }
 
 //     /// A parser which produces its input.
@@ -1591,15 +1591,20 @@ fn test_star() {
 fn test_cast() {
     use std::vec::Drain;
     use std::borrow::Cow::Borrowed;
+    use impls::{AndThenState, AnyCharacter, Impossible, BoxableState};
     type TestState = Box<for<'a> Boxable<Drain<'a, Cow<'a,str>>, (Option<Cow<'a,str>>, Option<Cow<'a,str>>)>>;
+    fn mk_box<P>(parser: P) -> TestState
+        where P: 'static + for<'a> Boxable<Drain<'a, Cow<'a,str>>, (Option<Cow<'a,str>>, Option<Cow<'a,str>>)>,
+    {
+        Box::new(parser)
+    }
     fn go<'a,'b>(foo: &'a str, bar: &'b str) {
-        let parser = CHARACTER.and_then(CHARACTER);
         let mut data1 = vec![Borrowed(foo)];
         let mut data2 = vec![Borrowed(bar)];
-        let state = parser.init_infer(&mut data1.drain(..)).unwrap().unContinue().to_static();
-        let boxed: TestState = Box::new(impls::BoxableState::new(state));
-        let result = boxed.more(&mut data2.drain(..)).unDone();
-        assert_eq!(result, (Some(Borrowed(foo)), Some(Borrowed(bar))));
+        let parser = CHARACTER.and_then(CHARACTER).boxed(mk_box);
+        let state: TestState = parser.init_infer(&mut data1.drain(..)).unwrap().unContinue();
+        let result = state.more(&mut data2.drain(..)).unDone();
+        assert_eq!(result, (Some(Borrowed("foo")), Some(Borrowed("bar"))));
     }
     go("foo", "bar");
 }

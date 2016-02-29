@@ -1223,24 +1223,24 @@ impl<P, F, Input> InferOutput<Input> for Boxed<P, F>
 
 impl<P, F, Input, Output> Uncommitted<Input, Output> for Boxed<P, F>
     where P: Uncommitted<Input, Output>,
-          F: Function<BoxableState<P::State>>,
-          F::Output: Stateful<Input, Output>,
+          P::State: ToStatic,
+          F: Function<BoxableState<<P::State as ToStatic>::Static>>,
 {
     type State = F::Output;
 
-    fn init(&self, data: &mut Input) -> Option<ParseResult<F::Output, Output>> {
+    fn init(&self, data: &mut Input) -> Option<ParseResult<Self::State, Output>> {
         match self.0.init(data) {
             None => None,
             Some(Done(result)) => Some(Done(result)),
-            Some(Continue(parsing)) => Some(Continue(self.1.apply(BoxableState::new(parsing)))),
+            Some(Continue(parsing)) => Some(Continue(self.1.apply(BoxableState::new(parsing.to_static())))),
         }
     }
 }
 
 impl<P, F, Input, Output> Committed<Input, Output> for Boxed<P, F>
     where P: Committed<Input, Output>,
-          F: Function<BoxableState<P::State>>,
-          F::Output: Stateful<Input, Output>,
+          P::State: ToStatic,
+          F: Function<BoxableState<<P::State as ToStatic>::Static>>,
 {
     fn empty(&self) -> Output {
         self.0.empty()
