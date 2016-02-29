@@ -1636,44 +1636,44 @@ fn test_buffer() {
     assert_eq!(data2.as_str(), "!");
 }
 
-// #[test]
-// #[allow(non_snake_case)]
-// fn test_cow() {
-//     fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
-//     fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
-//     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
-//     let ONE = character_ref(is_foo);
-//     let OTHER = CHARACTER.map(mk_other);
-//     let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
-//     let mut data = vec![Cow::Borrowed("foo"), Cow::Borrowed("bar"), Cow::Borrowed("foo")];
-//     let ((fst, snd), thd) = parser.init_infer(&mut data.drain(..).peekable()).unwrap().unDone();
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "other");
-//     assert_eq!(thd, "foo");
-//     assert!(!is_owned(fst));
-//     assert!(!is_owned(snd));
-//     assert!(!is_owned(thd));
-//     let mut data1 = vec![Cow::Borrowed("foo")];
-//     let mut data2 = vec![Cow::Borrowed("bar"), Cow::Borrowed("foo")];
-//     let ((fst, snd), thd) = parser.init_infer(&mut data1.drain(..).peekable()).unwrap().unContinue()
-//         .more(&mut data2.drain(..).peekable()).unDone();
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "other");
-//     assert_eq!(thd, "foo");
-//     assert!(is_owned(fst));
-//     assert!(!is_owned(snd));
-//     assert!(!is_owned(thd));
-//     let mut data1 = vec![Cow::Borrowed("foo"), Cow::Borrowed("bar")];
-//     let mut data2 = vec![Cow::Borrowed("foo")];
-//     let ((fst, snd), thd) = parser.init_infer(&mut data1.drain(..).peekable()).unwrap().unContinue()
-//         .more(&mut data2.drain(..).peekable()).unDone();
-//     assert_eq!(fst, "foo");
-//     assert_eq!(snd, "other");
-//     assert_eq!(thd, "foo");
-//     assert!(is_owned(fst));
-//     assert!(is_owned(snd));
-//     assert!(!is_owned(thd));
-// }
+#[test]
+#[allow(non_snake_case)]
+fn test_cow() {
+    fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
+    fn mk_other<'a>(_: Option<Cow<'a,str>>) -> Cow<'a,str> { Cow::Borrowed("other") }
+    fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
+    let ONE = character_ref(is_foo);
+    let OTHER = CHARACTER.map(mk_other);
+    let parser = ONE.and_then(ONE.or_else(OTHER)).and_then(ONE.or_else(OTHER));
+    let mut data = vec![Cow::Borrowed("foo"), Cow::Borrowed("bar"), Cow::Borrowed("foo")];
+    let ((fst, snd), thd) = parser.init_infer(&mut data.drain(..).peekable()).unwrap().unDone();
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(!is_owned(fst));
+    assert!(!is_owned(snd));
+    assert!(!is_owned(thd));
+    let mut data1 = vec![Cow::Borrowed("foo")];
+    let mut data2 = vec![Cow::Borrowed("bar"), Cow::Borrowed("foo")];
+    let ((fst, snd), thd) = parser.init_infer(&mut data1.drain(..).peekable()).unwrap().unContinue().to_static()
+        .more(&mut data2.drain(..).peekable()).unDone();
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(is_owned(fst));
+    assert!(!is_owned(snd));
+    assert!(!is_owned(thd));
+    let mut data1 = vec![Cow::Borrowed("foo"), Cow::Borrowed("bar")];
+    let mut data2 = vec![Cow::Borrowed("foo")];
+    let ((fst, snd), thd) = parser.init_infer(&mut data1.drain(..).peekable()).unwrap().unContinue().to_static()
+        .more(&mut data2.drain(..).peekable()).unDone();
+    assert_eq!(fst, "foo");
+    assert_eq!(snd, "other");
+    assert_eq!(thd, "foo");
+    assert!(is_owned(fst));
+    assert!(is_owned(snd));
+    assert!(!is_owned(thd));
+}
 
 // #[test]
 // #[allow(non_snake_case)]
