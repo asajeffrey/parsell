@@ -91,7 +91,7 @@ pub trait StatefulTD<Ch, Str, Output> {
     /// For example:
     ///
     /// ```
-    /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful,StatefulTD};
+    /// # use parsell::{character,Parser,Uncommitted,UncommittedTD,Committed,Stateful,StatefulTD};
     /// # use parsell::ParseResult::{Continue,Done};
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let data1 = "ab";
@@ -121,7 +121,7 @@ pub trait StatefulTD<Ch, Str, Output> {
     /// for example:
     ///
     /// ```
-    /// # use parsell::{character,Parser,Uncommitted,Committed,Stateful,StatefulTD};
+    /// # use parsell::{character,Parser,Uncommitted,UncommittedTD,Committed,Stateful,StatefulTD};
     /// # use parsell::ParseResult::{Continue,Done};
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// let data1 = "ab";
@@ -488,7 +488,7 @@ pub trait Parser {
     /// contiguously. For example:
     ///
     /// ```
-    /// # use parsell::{character,Parser,Uncommitted,Stateful,StatefulTD};
+    /// # use parsell::{character,Parser,Uncommitted,UncommittedTD,Stateful,StatefulTD};
     /// # use parsell::ParseResult::{Done,Continue};
     /// # use std::borrow::Cow::{Borrowed,Owned};
     /// fn ignore() {}
@@ -536,13 +536,20 @@ pub trait Parser {
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain)
 /// and non-empty.
 
-pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
+pub trait CommittedTD<Ch, Str, Output>: UncommittedTD<Ch, Str, Output>
 {
 
     /// Parse an EOF.
-    fn empty(&self) -> Self::Output;
+    fn empty(&self) -> Output;
     
 }
+
+
+pub trait Committed<Ch, Str>: HasOutput<Ch, Str> + CommittedTD<Ch, Str, <Self as HasOutput<Ch, Str>>::Output>
+{
+}
+
+impl<P, Ch, Str> Committed<Ch, Str> for P where P: HasOutput<Ch, Str> + CommittedTD<Ch, Str, <P as HasOutput<Ch, Str>>::Output> {}
 
 /// A trait for uncommitted parsers.
 ///
@@ -578,16 +585,21 @@ pub trait Committed<Ch, Str>: Uncommitted<Ch, Str>
 /// Semantically, a parser with input *S* and output *T* is a partial function *S\+ → T*
 /// whose domain is prefix-closed (that is, if *s·t* is in the domain, then *s* is in the domain).
 
-pub trait Uncommitted<Ch, Str>
+pub trait UncommittedTD<Ch, Str, Output>
 {
 
-    type Output;
     type State; // : 'static + Stateful<Ch, Str, Output=Self::Output>;
 
     /// Parse a string of data.
-    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Self::Output>>;
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Output>>;
 
 }
+
+pub trait Uncommitted<Ch, Str>: HasOutput<Ch, Str> + UncommittedTD<Ch, Str, <Self as HasOutput<Ch, Str>>::Output>
+{
+}
+
+impl<P, Ch, Str> Uncommitted<Ch, Str> for P where P: HasOutput<Ch, Str> + UncommittedTD<Ch, Str, <P as HasOutput<Ch, Str>>::Output> {}
 
 /// A trait for uncommitted string parsers.
 
@@ -1664,8 +1676,10 @@ fn test_boxable() {
         where P: 'static + for<'a> BoxableTD<TestCh<'a>, TestStr<'a>, TestOutput<'a>>
     { Box::new(parser) }
     impl Parser for Test {}
-    impl<'a> Uncommitted<TestCh<'a>, TestStr<'a>> for Test {
+    impl<'a> HasOutput<TestCh<'a>, TestStr<'a>> for Test {
         type Output = TestOutput<'a>;
+    }
+    impl<'a> UncommittedTD<TestCh<'a>, TestStr<'a>, TestOutput<'a>> for Test {
         type State = TestState;
         fn init(&self, string: &mut TestStr<'a>) -> Option<ParseResult<TestState, TestOutput<'a>>> {
             fn is_foo<'a>(string: &Cow<'a,str>) -> bool { string == "foo" }
