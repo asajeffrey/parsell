@@ -287,10 +287,10 @@ pub struct AndThen<P, Q>(P, Q);
 
 impl<P, Q> Parser for AndThen<P, Q> {}
 
-impl<P, Q, Ch, Str, POutput, QOutput> Committed<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
+impl<P, Q, Ch, Str, POutput, PStaticOutput, QOutput> Committed<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
     where P: Committed<Ch, Str, POutput>,
           Q: 'static + Copy + Committed<Ch, Str, QOutput>,
-          POutput: ToStatic + Downcast<<POutput as ToStatic>::Static>,
+          POutput: ToStatic<Static = PStaticOutput> + Downcast<PStaticOutput>,
 {
 
     fn empty(&self) -> (POutput, QOutput) {
@@ -299,13 +299,13 @@ impl<P, Q, Ch, Str, POutput, QOutput> Committed<Ch, Str, (POutput, QOutput)> for
 
 }
 
-impl<P, Q, Ch, Str, POutput, QOutput> Uncommitted<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
+impl<P, Q, Ch, Str, POutput, PStaticOutput, QOutput> Uncommitted<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
     where P: Uncommitted<Ch, Str, POutput>,
           Q: 'static + Copy + Committed<Ch, Str, QOutput>,
-          POutput: ToStatic + Downcast<<POutput as ToStatic>::Static>,
+          POutput: ToStatic<Static = PStaticOutput> + Downcast<PStaticOutput>,
 {
 
-    type State = AndThenState<P::State, Q, POutput::Static, Q::State>;
+    type State = AndThenState<P::State, Q, PStaticOutput, Q::State>;
 
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, (POutput, QOutput)>> {
         match self.0.init(string) {
@@ -343,10 +343,10 @@ pub enum AndThenState<PState, Q, PStaticOutput, QState> {
     InRhs(PStaticOutput, QState),
 }
 
-impl<PState, Q, PStaticOutput, Ch, Str, POutput, QOutput> Stateful<Ch, Str, (POutput, QOutput)> for AndThenState<PState, Q, PStaticOutput, Q::State>
+impl<PState, Q, PStaticOutput, QState, Ch, Str, POutput, QOutput> Stateful<Ch, Str, (POutput, QOutput)> for AndThenState<PState, Q, PStaticOutput, QState>
     where PState: Stateful<Ch, Str, POutput>,
-          Q: Committed<Ch, Str, QOutput>,
-          Q::State: Stateful<Ch, Str, QOutput>,
+          Q: Committed<Ch, Str, QOutput, State = QState>,
+          QState: Stateful<Ch, Str, QOutput>,
           POutput: Downcast<PStaticOutput>,
           PStaticOutput: 'static + Upcast<POutput>,
 {
@@ -391,9 +391,9 @@ impl<PState, Q, PStaticOutput, Ch, Str, POutput, QOutput> Stateful<Ch, Str, (POu
 
 }
 
-impl<PState, Q, PStaticOutput, Ch, Str> HasOutput<Ch, Str> for AndThenState<PState, Q, PStaticOutput, Q::State>
+impl<PState, Q, PStaticOutput, QState, Ch, Str> HasOutput<Ch, Str> for AndThenState<PState, Q, PStaticOutput, QState>
     where PState: HasOutput<Ch, Str>,
-          Q: CommittedInfer<Ch, Str>,
+          Q: HasOutput<Ch, Str>,
 {
 
     type Output = (PState::Output, Q::Output);
