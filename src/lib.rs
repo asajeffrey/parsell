@@ -1098,7 +1098,7 @@ impl<S, T, D, E> Downcast<Result<T,E>> for Result<S,D>
 /// and restored from `Cow<'static,T>` when `T` is static.
 
 pub trait ToStatic {
-    type Static: 'static + Upcast<Self>;
+    type Static;
 }
 
 impl<'a, T: ?Sized> ToStatic for Cow<'a, T>
