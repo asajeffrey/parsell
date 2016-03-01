@@ -41,21 +41,9 @@ pub trait HasOutput<Ch, Str> {
 
 }
 
-/// A trait for stateful parsers which can infer their output type from their input types.
-
-pub trait StatefulInfer<Ch, Str>: HasOutput<Ch, Str>
-    + Stateful<Ch, Str, <Self as HasOutput<Ch, Str>>::Output>
-{
-}
-
-impl<P, Ch, Str> StatefulInfer<Ch, Str> for P
-    where P: HasOutput<Ch, Str> + Stateful<Ch, Str, <P as HasOutput<Ch, Str>>::Output>
-{
-}
-
 /// A trait for stateful parsers.
 ///
-/// StatefulInfer parsers are typically constructed by calling an `init` method of a stateless parser,
+/// Stateful parsers are typically constructed by calling an `init` method of a stateless parser,
 /// for example:
 ///
 /// ```
@@ -68,7 +56,7 @@ impl<P, Ch, Str> StatefulInfer<Ch, Str> for P
 /// }
 /// ```
 ///
-/// Here, `stateless` is a `CommittedInfer<char, Chars<'a>>`, and `stateful` is a `StatefulInfer<char, Chars<'a>>`.
+/// Here, `stateless` is a `Committed<char, Chars<'a>, String>`, and `stateful` is a `Stateful<char, Chars<'a>, String>`.
 ///
 /// The reason for distinguishing between stateful and stateless parsers is that
 /// stateless parsers are usually copyable, whereas stateful parsers are usually not
@@ -91,9 +79,9 @@ pub trait Stateful<Ch, Str, Output> {
 
     /// Provides data to the parser.
     ///
-    /// If `parser: StatefulInfer<Ch, Str>` and `data: Str`, then `parser.parse(&mut data)` either:
+    /// If `parser: Stateful<Ch, Str, Output>` and `data: Str`, then `parser.parse(&mut data)` either:
     ///
-    /// * returns `Done(result)` where and `result: Self::Output` is the parsed output, or
+    /// * returns `Done(result)` where and `result: Output` is the parsed output, or
     /// * returns `Continue(parsing)` where `parsing: Self` is the new state of the parser.
     ///
     /// For example:
@@ -125,7 +113,7 @@ pub trait Stateful<Ch, Str, Output> {
 
     /// Tells the parser that it will not receive any more data.
     ///
-    /// If `parser: StatefulInfer<Ch, Str, Output=T>`, then `parser.done()` returns a result of type `T`
+    /// If `parser: Stateful<Ch, Str, Output>`, then `parser.done()` returns a result of type `Output`
     /// for example:
     ///
     /// ```
@@ -177,6 +165,18 @@ pub trait Stateful<Ch, Str, Output> {
         }
     }
 
+}
+
+/// A trait for stateful parsers which can infer their output type from their input types.
+
+pub trait StatefulInfer<Ch, Str>: HasOutput<Ch, Str>
+    + Stateful<Ch, Str, <Self as HasOutput<Ch, Str>>::Output>
+{
+}
+
+impl<P, Ch, Str> StatefulInfer<Ch, Str> for P
+    where P: HasOutput<Ch, Str> + Stateful<Ch, Str, <P as HasOutput<Ch, Str>>::Output>
+{
 }
 
 /// A trait for stateful string parsers.
@@ -240,7 +240,10 @@ pub trait StatefulStr<'a>: StatefulInfer<char, Chars<'a>> {
 
 }
 
-impl<'a, P> StatefulStr<'a> for P where P: StatefulInfer<char, Chars<'a>> {}
+impl<'a, P> StatefulStr<'a> for P
+    where P: StatefulInfer<char, Chars<'a>>
+{
+}
 
 /// The result of parsing
 #[derive(Copy, Clone)]
@@ -535,11 +538,11 @@ pub trait Parser {
 /// for example:
 ///
 /// ```
-/// # use parsell::{character,Parser,UncommittedInfer};
+/// # use parsell::{character,Parser};
 /// let parser = character(char::is_alphanumeric).star(String::new);
 /// ```
 ///
-/// Here, `parser` is a `CommittedInfer<char, Chars<'a>, Output=String>`.
+/// Here, `parser` is a `Committed<char, Chars<'a>, String>`.
 ///
 /// The reason for distinguishing between committed and uncommitted parsers
 /// is that the library is designed for LL(1) grammars, that only use one token
@@ -559,12 +562,17 @@ pub trait Committed<Ch, Str, Output>: Uncommitted<Ch, Str, Output>
     
 }
 
+/// A trait for committed parsers which can infer their output type from their input types.
 
-pub trait CommittedInfer<Ch, Str>: HasOutput<Ch, Str> + Committed<Ch, Str, <Self as HasOutput<Ch, Str>>::Output>
+pub trait CommittedInfer<Ch, Str>: HasOutput<Ch, Str>
+    + Committed<Ch, Str, <Self as HasOutput<Ch, Str>>::Output>
 {
 }
 
-impl<P, Ch, Str> CommittedInfer<Ch, Str> for P where P: HasOutput<Ch, Str> + Committed<Ch, Str, <P as HasOutput<Ch, Str>>::Output> {}
+impl<P, Ch, Str> CommittedInfer<Ch, Str> for P
+    where P: HasOutput<Ch, Str> + Committed<Ch, Str, <P as HasOutput<Ch, Str>>::Output>
+{
+}
 
 /// A trait for uncommitted parsers.
 ///
@@ -610,11 +618,17 @@ pub trait Uncommitted<Ch, Str, Output>
 
 }
 
-pub trait UncommittedInfer<Ch, Str>: HasOutput<Ch, Str> + Uncommitted<Ch, Str, <Self as HasOutput<Ch, Str>>::Output>
+/// A trait for uncommitted parsers which can infer their output type from their input types.
+
+pub trait UncommittedInfer<Ch, Str>: HasOutput<Ch, Str>
+    + Uncommitted<Ch, Str, <Self as HasOutput<Ch, Str>>::Output>
 {
 }
 
-impl<P, Ch, Str> UncommittedInfer<Ch, Str> for P where P: HasOutput<Ch, Str> + Uncommitted<Ch, Str, <P as HasOutput<Ch, Str>>::Output> {}
+impl<P, Ch, Str> UncommittedInfer<Ch, Str> for P
+    where P: HasOutput<Ch, Str> + Uncommitted<Ch, Str, <P as HasOutput<Ch, Str>>::Output>
+{
+}
 
 /// A trait for uncommitted string parsers.
 
@@ -662,7 +676,7 @@ impl<'a, P> UncommittedStr<'a> for P where P: UncommittedInfer<char, Chars<'a>> 
 ///
 /// In Rust, heap-allocated data is often kept in a `Box<T>`, where `T` is a trait. In the case
 /// of parsers, the library needs to save and restore a stateful parser, for which the obvious
-/// type is `Box<StatefulInfer<Ch, Str, Output=T>`. There are two issues with this...
+/// type is `Box<Stateful<Ch, Str, Output>`. There are two issues with this...
 ///
 /// Firstly, the lifetimes mentioned in the type of the parser may change over time.
 /// For example, the program:
@@ -673,7 +687,7 @@ impl<'a, P> UncommittedStr<'a> for P where P: UncommittedInfer<char, Chars<'a>> 
 /// let parser = character(char::is_alphanumeric).star(ignore).buffer();
 /// match parser.init_str(this).unwrap() {
 ///     Continue(stateful) => {
-///         let boxed: Box<StatefulInfer<char, Chars<'a>, Output=Cow<'a, str>>> = Box::new(stateful);
+///         let boxed: Box<Stateful<char, Chars<'a>, Cow<'a, str>>> = Box::new(stateful);
 ///         match boxed.more_str(that) {
 ///             Done(result: Cow<'b,str>) => ...
 /// ```
@@ -688,19 +702,19 @@ impl<'a, P> UncommittedStr<'a> for P where P: UncommittedInfer<char, Chars<'a>> 
 /// let parser = character(char::is_alphanumeric).star(ignore).buffer();
 /// match parser.init_str(this).unwrap() {
 ///     Continue(stateful) => {
-///         let boxed: Box<for<'c> StatefulInfer<char, Chars<'c>, Output=Cow<'c, str>>> = Box::new(stateful);
+///         let boxed: Box<for<'c> Stateful<char, Chars<'c>, Cow<'c, str>>> = Box::new(stateful);
 ///         match boxed.more_str(that) {
 ///             Done(result: Cow<'b,str>) => ...
 /// ```
 ///
-/// Secondly, the `StatefulInfer` trait is not
+/// Secondly, the `Stateful` trait is not
 /// [object-safe](https://doc.rust-lang.org/book/trait-objects.html#object-safety),
 /// so cannot be boxed and unboxed safely. In order to address this, there is a trait
-/// `Boxable<Ch, Str>`, which represents stateful parsers, but is object-safe
+/// `Boxable<Ch, Str, Output>`, which represents stateful parsers, but is object-safe
 /// and so can be boxed and unboxed safely.
 ///
-/// The type `Box<Boxable<Ch, Str>>` implements the trait
-/// `StatefulInfer<Ch, Str>`, so boxes can be used as parsers,
+/// The type `Box<Boxable<Ch, Str, Output>>` implements the trait
+/// `Stateful<Ch, Str, Output>`, so boxes can be used as parsers,
 /// which allows stateful parsers to heap-allocate their state.
 ///
 /// Boxable parsers are usually used in recursive-descent parsing,
@@ -746,95 +760,94 @@ impl<'a, P> UncommittedStr<'a> for P where P: UncommittedInfer<char, Chars<'a>> 
 ///
 /// The implementation of `UncommittedInfer<char, Chars<'b>>` for `TreeParser` is mostly straightfoward:
 ///
-// /// ```
-// /// # use std::str::Chars;
-// /// # use parsell::{character,CHARACTER,Parser,UncommittedInfer,CommittedInfer,BoxableTD,StatefulInfer,ParseResult,StaticMarker,HasOutput};
-// /// # use parsell::ParseResult::{Done,Continue};
-// /// # #[derive(Eq,PartialEq,Clone,Debug)]
-// /// struct Tree(Vec<Tree>);
-// /// impl StaticMarker for Tree {}
-// /// # type TreeParserState = Box<for<'a> BoxableTD<char, Chars<'a>, Result<Tree, String>>>;
-// /// # impl<'a> HasOutput<char, Chars<'a>> for TreeParserState { type Output = Result<Tree, String>; }
-// /// # fn is_lparen(ch: char) -> bool { ch == '(' }
-// /// # fn is_rparen(ch: char) -> bool { ch == ')' }
-// /// # fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
-// /// # fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
-// /// # fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
-// /// # fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Tree { Tree(children) }
-// /// # fn mk_box<P>(state: P) -> TreeParserState
-// /// #     where P: 'static+for<'a> BoxableTD<char, Chars<'a>, Result<Tree,String>>
-// /// # {
-// /// #     Box::new(state)
-// /// # }
-// /// # #[derive(Copy,Clone,Debug)]
-// /// struct TreeParser;
-// /// impl Parser for TreeParser {}
-// /// impl<'a> UncommittedInfer<char, Chars<'a>> for TreeParser {
-// ///     type Output = Result<Tree, String>;
-// ///     type State = TreeParserState;
-// ///     fn init(&self, data: &mut Chars<'a>) -> Option<ParseResult<Self::State, Self::Output>> {
-// ///         // ... parser goes here...`
-// /// #       let LPAREN = character(is_lparen);
-// /// #       let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
-// /// #       let parser = LPAREN
-// /// #           .and_then_try(TreeParser.star(mk_vec))
-// /// #           .try_and_then_try(RPAREN)
-// /// #           .try_map3(mk_tree)
-// /// #           .boxed(mk_box);
-// /// #       parser.init(data)
-// ///     }
-// /// }
-// /// ```
+/// ```
+/// # use std::str::Chars;
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,Committed,Boxable,Stateful,InState,ParseResult,StaticMarker,HasOutput};
+/// # use parsell::ParseResult::{Done,Continue};
+/// # #[derive(Eq,PartialEq,Clone,Debug)]
+/// struct Tree(Vec<Tree>);
+/// impl StaticMarker for Tree {}
+/// type TreeParserState = InState<TreeParser, Box<for<'a> Boxable<char, Chars<'a>, Result<Tree, String>>>>;
+/// # fn is_lparen(ch: char) -> bool { ch == '(' }
+/// # fn is_rparen(ch: char) -> bool { ch == ')' }
+/// # fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
+/// # fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+/// # fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+/// # fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Tree { Tree(children) }
+/// # fn mk_box<P>(state: P) -> TreeParserState
+/// #     where P: 'static+for<'a> Boxable<char, Chars<'a>, Result<Tree,String>>
+/// # {
+/// #     TreeParser.in_state(Box::new(state))
+/// # }
+/// # #[derive(Copy,Clone,Debug)]
+/// struct TreeParser;
+/// impl Parser for TreeParser {}
+/// impl<'a> HasOutput<char, Chars<'a>> for TreeParser { type Output = Result<Tree, String>; }
+/// impl<'a> Uncommitted<char, Chars<'a>, Result<Tree, String>> for TreeParser {
+///     type State = TreeParserState;
+///     fn init(&self, data: &mut Chars<'a>) -> Option<ParseResult<TreeParserState, Result<Tree, String>>> {
+///         // ... parser goes here...`
+/// #       let LPAREN = character(is_lparen);
+/// #       let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
+/// #       let parser = LPAREN
+/// #           .and_then_try(TreeParser.star(mk_vec))
+/// #           .try_and_then_try(RPAREN)
+/// #           .try_map3(mk_tree)
+/// #           .boxed(mk_box);
+/// #       parser.init(data)
+///     }
+/// }
+/// ```
 ///
 /// The important thing is that the definiton of `parse` can make use of `TREE`, so the parser can call itself
-/// recursively, then box up the result state. Boxing up the state makes use of a method `parser.box(mk_box)`
+/// recursively, then box up the result state. Boxing up the state makes use of a method `parser.boxed(mk_box)`
 /// where `mk_box` is a function that boxes up boxable state:
 ///
-// /// ```
-// /// # use std::str::Chars;
-// /// # use parsell::{character,CHARACTER,Parser,UncommittedInfer,UncommittedStr,CommittedInfer,BoxableTD,StatefulInfer,StatefulStr,ParseResult,StaticMarker,HasOutput};
-// /// # use parsell::ParseResult::{Done,Continue};
-// /// # #[derive(Eq,PartialEq,Clone,Debug)]
-// /// # struct Tree(Vec<Tree>);
-// /// # impl StaticMarker for Tree {}
-// /// # type TreeParserState = Box<for<'a> BoxableTD<char, Chars<'a>, Result<Tree, String>>>;
-// /// # impl<'a> HasOutput<char, Chars<'a>> for TreeParserState { type Output = Result<Tree, String>; }
-// /// fn is_lparen(ch: char) -> bool { ch == '(' }
-// /// fn is_rparen(ch: char) -> bool { ch == ')' }
-// /// fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
-// /// fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
-// /// fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
-// /// fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Tree { Tree(children) }
-// /// fn mk_box<P>(state: P) -> TreeParserState
-// ///     where P: 'static+for<'a> BoxableTD<char, Chars<'a>, Result<Tree,String>>
-// /// {
-// ///     Box::new(state)
-// /// }
-// /// # #[derive(Copy,Clone,Debug)]
-// /// struct TreeParser;
-// /// impl Parser for TreeParser {}
-// /// impl<'a> UncommittedInfer<char, Chars<'a>> for TreeParser {
-// ///     type Output = Result<Tree, String>;
-// ///     type State = TreeParserState;
-// ///     fn init(&self, data: &mut Chars<'a>) -> Option<ParseResult<Self::State, Self::Output>> {
-// ///         let LPAREN = character(is_lparen);
-// ///         let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
-// ///         let parser = LPAREN
-// ///             .and_then_try(TreeParser.star(mk_vec))
-// ///             .try_and_then_try(RPAREN)
-// ///             .try_map3(mk_tree);
-// ///         parser.boxed(mk_box).init(data)
-// ///     }
-// /// }
-// /// let TREE = TreeParser;
-// /// match TREE.init_str("((").unwrap() {
-// ///     Continue(parsing) => match parsing.more_str(")())") {
-// ///         Done(result) => assert_eq!(result, Ok(Tree(vec![Tree(vec![]),Tree(vec![])]))),
-// ///          _ => panic!("Can't happen"),
-// ///     },
-// ///     _ => panic!("Can't happen"),
-// /// }
-// /// ```
+/// ```
+/// # use std::str::Chars;
+/// # use parsell::{character,CHARACTER,Parser,Uncommitted,UncommittedStr,Committed,Boxable,Stateful,StatefulStr,InState,ParseResult,StaticMarker,HasOutput};
+/// # use parsell::ParseResult::{Done,Continue};
+/// # #[derive(Eq,PartialEq,Clone,Debug)]
+/// # struct Tree(Vec<Tree>);
+/// # impl StaticMarker for Tree {}
+/// type TreeParserState = InState<TreeParser, Box<for<'a> Boxable<char, Chars<'a>, Result<Tree, String>>>>;
+/// fn is_lparen(ch: char) -> bool { ch == '(' }
+/// fn is_rparen(ch: char) -> bool { ch == ')' }
+/// fn mk_vec() -> Result<Vec<Tree>,String> { Ok(Vec::new()) }
+/// fn mk_ok<T>(ok: T) -> Result<T,String> { Ok(ok) }
+/// fn mk_err<T>(_: Option<char>) -> Result<T,String> { Err(String::from("Expected a ( or ).")) }
+/// fn mk_tree(_: char, children: Vec<Tree>, _: char) -> Tree { Tree(children) }
+/// fn mk_box<P>(state: P) -> TreeParserState
+///     where P: 'static+for<'a> Boxable<char, Chars<'a>, Result<Tree,String>>
+/// {
+///     TreeParser.in_state(Box::new(state))
+/// }
+/// # #[derive(Copy,Clone,Debug)]
+/// struct TreeParser;
+/// impl Parser for TreeParser {}
+/// impl<'a> HasOutput<char, Chars<'a>> for TreeParser { type Output = Result<Tree, String>; }
+/// impl<'a> Uncommitted<char, Chars<'a>, Result<Tree, String>> for TreeParser {
+///     type State = TreeParserState;
+///     fn init(&self, data: &mut Chars<'a>) -> Option<ParseResult<TreeParserState, Result<Tree, String>>> {
+///         let LPAREN = character(is_lparen);
+///         let RPAREN = character(is_rparen).map(mk_ok).or_else(CHARACTER.map(mk_err));
+///         let parser = LPAREN
+///             .and_then_try(TreeParser.star(mk_vec))
+///             .try_and_then_try(RPAREN)
+///             .try_map3(mk_tree)
+///             .boxed(mk_box);
+///         parser.init(data)
+///     }
+/// }
+/// let TREE = TreeParser;
+/// match TREE.init_str("((").unwrap() {
+///     Continue(parsing) => match parsing.more_str(")())") {
+///         Done(result) => assert_eq!(result, Ok(Tree(vec![Tree(vec![]),Tree(vec![])]))),
+///          _ => panic!("Can't happen"),
+///     },
+///     _ => panic!("Can't happen"),
+/// }
+/// ```
 ///
 /// The reason for making `Boxable<S>` a different trait from `StatefulInfer<S>`
 /// is that it provides weaker safety guarantees. `StatefulInfer<S>` enforces that
@@ -845,6 +858,10 @@ pub trait Boxable<Ch, Str, Output>
     fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), Output>;
     fn done_boxable(&mut self) -> Output;
 }
+
+/// A parser that knows its current state.
+///
+/// This is produced by `parser.in_state(state)`.
 
 pub struct InState<P,PState>(P,PState);
 
