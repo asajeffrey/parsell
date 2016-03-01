@@ -46,10 +46,9 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-1436' class='srclink' href='../src/parsell/lib.rs.html#992-995' title='goto source code'>[src]</a></span></h1>
+        </span><a id='src-1612' class='srclink' href='../src/parsell/lib.rs.html#1100-1102' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait ToStatic {
     type Static: 'static + <a class='trait' href='../parsell/trait.Upcast.html' title='parsell::Upcast'>Upcast</a>&lt;Self&gt;;
-    fn <a href='#tymethod.to_static' class='fnname'>to_static</a>(self) -&gt; Self::<a class='trait' href='../parsell/trait.ToStatic.html' title='parsell::ToStatic'>Static</a> <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span>;
 }</pre><div class='docblock'><p>A trait for data which can be saved to and restored from long-lived state.</p>
 
 <p>The canonical example of this trait is <code>Cow&lt;&#39;a,T&gt;</code> which can be saved to
@@ -58,9 +57,6 @@ and restored from <code>Cow&lt;&#39;static,T&gt;</code> when <code>T</code> is s
             <h2 id='associated-types'>Associated Types</h2>
             <div class='methods'>
         <h3 id='associatedtype.Static' class='method stab '><code>type Static: 'static + <a class='trait' href='../parsell/trait.Upcast.html' title='parsell::Upcast'>Upcast</a>&lt;Self&gt;</code></h3></div>
-            <h2 id='required-methods'>Required Methods</h2>
-            <div class='methods'>
-        <h3 id='tymethod.to_static' class='method stab '><code>fn <a href='#tymethod.to_static' class='fnname'>to_static</a>(self) -&gt; Self::<a class='trait' href='../parsell/trait.ToStatic.html' title='parsell::ToStatic'>Static</a> <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span></code></h3></div>
         <h2 id='implementors'>Implementors</h2>
         <ul class='item-list' id='implementors-list'>
     <li><code>impl&lt;'a, T: ?<a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a>&gt; <a class='trait' href='../parsell/trait.ToStatic.html' title='parsell::ToStatic'>ToStatic</a> for <a class='enum' href='https://doc.rust-lang.org/nightly/collections/borrow/enum.Cow.html' title='collections::borrow::Cow'>Cow</a>&lt;'a, T&gt; <span class='where'>where T: 'static + <a class='trait' href='https://doc.rust-lang.org/nightly/collections/borrow/trait.ToOwned.html' title='collections::borrow::ToOwned'>ToOwned</a></span></code></li>

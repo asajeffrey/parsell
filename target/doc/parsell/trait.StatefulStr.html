@@ -46,8 +46,8 @@
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-1162' class='srclink' href='../src/parsell/lib.rs.html#167-224' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait StatefulStr&lt;'a&gt;: <a class='trait' href='../parsell/trait.Stateful.html' title='parsell::Stateful'>Stateful</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>, <a class='struct' href='https://doc.rust-lang.org/nightly/core/str/struct.Chars.html' title='core::str::Chars'>Chars</a>&lt;'a&gt;&gt; {
+        </span><a id='src-1266' class='srclink' href='../src/parsell/lib.rs.html#184-241' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait StatefulStr&lt;'a&gt;: <a class='trait' href='../parsell/trait.StatefulInfer.html' title='parsell::StatefulInfer'>StatefulInfer</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.char.html'>char</a>, <a class='struct' href='https://doc.rust-lang.org/nightly/core/str/struct.Chars.html' title='core::str::Chars'>Chars</a>&lt;'a&gt;&gt; {
     fn <a href='#method.more_str' class='fnname'>more_str</a>(self, string: &amp;'a <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>) -&gt; <a class='enum' href='../parsell/enum.ParseResult.html' title='parsell::ParseResult'>ParseResult</a>&lt;Self, Self::<a class='trait' href='../parsell/trait.StatefulStr.html' title='parsell::StatefulStr'>Output</a>&gt; <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span> { ... }
     fn <a href='#method.last_str' class='fnname'>last_str</a>(self, string: &amp;'a <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>) -&gt; Self::<a class='trait' href='../parsell/trait.StatefulStr.html' title='parsell::StatefulStr'>Output</a> <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span> { ... }
 }</pre><div class='docblock'><p>A trait for stateful string parsers.</p>
@@ -56,7 +56,7 @@
             <div class='methods'>
         <h3 id='method.more_str' class='method stab '><code>fn <a href='#method.more_str' class='fnname'>more_str</a>(self, string: &amp;'a <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>) -&gt; <a class='enum' href='../parsell/enum.ParseResult.html' title='parsell::ParseResult'>ParseResult</a>&lt;Self, Self::<a class='trait' href='../parsell/trait.StatefulStr.html' title='parsell::StatefulStr'>Output</a>&gt; <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span></code></h3><div class='docblock'><p>Provides a string to the parser.</p>
 
-<p>If <code>parser: Stateful&lt;char, Chars&lt;&#39;a&gt;&gt;</code> and <code>data: &amp;&#39;a str</code>, then <code>parser.more_str(data)</code>
+<p>If <code>parser: StatefulInfer&lt;char, Chars&lt;&#39;a&gt;&gt;</code> and <code>data: &amp;&#39;a str</code>, then <code>parser.more_str(data)</code>
 is short-hand for <code>parser.more(&amp;mut data.chars())</code>.</p>
 
 <p>For example:</p>
@@ -74,7 +74,7 @@ is short-hand for <code>parser.more(&amp;mut data.chars())</code>.</p>
 }</pre>
 </div><h3 id='method.last_str' class='method stab '><code>fn <a href='#method.last_str' class='fnname'>last_str</a>(self, string: &amp;'a <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>) -&gt; Self::<a class='trait' href='../parsell/trait.StatefulStr.html' title='parsell::StatefulStr'>Output</a> <span class='where'>where Self: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html' title='core::marker::Sized'>Sized</a></span></code></h3><div class='docblock'><p>Provides the last string to the parser.</p>
 
-<p>If <code>parser: Stateful&lt;char, Chars&lt;&#39;a&gt;&gt;</code> and <code>data: &amp;&#39;a str</code>, then <code>parser.last_str(data)</code>
+<p>If <code>parser: StatefulInfer&lt;char, Chars&lt;&#39;a&gt;&gt;</code> and <code>data: &amp;&#39;a str</code>, then <code>parser.last_str(data)</code>
 is short-hand for <code>parser.last(&amp;mut data.chars())</code>.</p>
 
 <p>For example:</p>
