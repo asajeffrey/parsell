@@ -1,7 +1,7 @@
 //! Provide implementations of parser traits.
 
 use super::{Parser, ParseResult};
-use super::{HasOutput, Stateful, StatefulTD, Committed, CommittedTD, Uncommitted, UncommittedTD, Boxable, BoxableTD};
+use super::{HasOutput, StatefulInfer, Stateful, CommittedInfer, Committed, UncommittedInfer, Uncommitted, Boxable};
 use super::{Function, Consumer, Factory, PeekableIterator};
 use super::{Upcast, Downcast, ToStatic};
 use super::ParseResult::{Done, Continue};
@@ -220,8 +220,8 @@ impl<P, F> Debug for Map<P, F>
 
 impl<P, F> Parser for Map<P, F> {}
 
-impl<P, F, Ch, Str, Output> StatefulTD<Ch, Str, Output> for Map<P, F>
-    where P: Stateful<Ch, Str>,
+impl<P, F, Ch, Str, Output> Stateful<Ch, Str, Output> for Map<P, F>
+    where P: StatefulInfer<Ch, Str>,
           F: Function<P::Output, Output = Output>,
 {
 
@@ -247,8 +247,8 @@ impl<P, F, Ch, Str> HasOutput<Ch, Str> for Map<P, F>
 
 }
 
-impl<P, F, Ch, Str, Output> CommittedTD<Ch, Str, Output> for Map<P, F>
-    where P: Committed<Ch, Str>,
+impl<P, F, Ch, Str, Output> Committed<Ch, Str, Output> for Map<P, F>
+    where P: CommittedInfer<Ch, Str>,
           F: 'static + Copy + Function<P::Output, Output = Output>,
 {
 
@@ -258,8 +258,8 @@ impl<P, F, Ch, Str, Output> CommittedTD<Ch, Str, Output> for Map<P, F>
 
 }
 
-impl<P, F, Ch, Str, Output> UncommittedTD<Ch, Str, Output> for Map<P, F>
-    where P: Uncommitted<Ch, Str>,
+impl<P, F, Ch, Str, Output> Uncommitted<Ch, Str, Output> for Map<P, F>
+    where P: UncommittedInfer<Ch, Str>,
           F: 'static + Copy + Function<P::Output, Output = Output>,
 {
     type State = Map<P::State, F>;
@@ -287,9 +287,9 @@ pub struct AndThen<P, Q>(P, Q);
 
 impl<P, Q> Parser for AndThen<P, Q> {}
 
-impl<P, Q, Ch, Str, POutput, QOutput> CommittedTD<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
-    where P: CommittedTD<Ch, Str, POutput>,
-          Q: 'static + Copy + CommittedTD<Ch, Str, QOutput>,
+impl<P, Q, Ch, Str, POutput, QOutput> Committed<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
+    where P: Committed<Ch, Str, POutput>,
+          Q: 'static + Copy + Committed<Ch, Str, QOutput>,
           POutput: ToStatic + Downcast<<POutput as ToStatic>::Static>,
 {
 
@@ -299,9 +299,9 @@ impl<P, Q, Ch, Str, POutput, QOutput> CommittedTD<Ch, Str, (POutput, QOutput)> f
 
 }
 
-impl<P, Q, Ch, Str, POutput, QOutput> UncommittedTD<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
-    where P: UncommittedTD<Ch, Str, POutput>,
-          Q: 'static + Copy + CommittedTD<Ch, Str, QOutput>,
+impl<P, Q, Ch, Str, POutput, QOutput> Uncommitted<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
+    where P: Uncommitted<Ch, Str, POutput>,
+          Q: 'static + Copy + Committed<Ch, Str, QOutput>,
           POutput: ToStatic + Downcast<<POutput as ToStatic>::Static>,
 {
 
@@ -343,10 +343,10 @@ pub enum AndThenState<PState, Q, PStaticOutput, QState> {
     InRhs(PStaticOutput, QState),
 }
 
-impl<PState, Q, PStaticOutput, Ch, Str, POutput, QOutput> StatefulTD<Ch, Str, (POutput, QOutput)> for AndThenState<PState, Q, PStaticOutput, Q::State>
-    where PState: StatefulTD<Ch, Str, POutput>,
-          Q: CommittedTD<Ch, Str, QOutput>,
-          Q::State: StatefulTD<Ch, Str, QOutput>,
+impl<PState, Q, PStaticOutput, Ch, Str, POutput, QOutput> Stateful<Ch, Str, (POutput, QOutput)> for AndThenState<PState, Q, PStaticOutput, Q::State>
+    where PState: Stateful<Ch, Str, POutput>,
+          Q: Committed<Ch, Str, QOutput>,
+          Q::State: Stateful<Ch, Str, QOutput>,
           POutput: Downcast<PStaticOutput>,
           PStaticOutput: 'static + Upcast<POutput>,
 {
@@ -393,7 +393,7 @@ impl<PState, Q, PStaticOutput, Ch, Str, POutput, QOutput> StatefulTD<Ch, Str, (P
 
 impl<PState, Q, PStaticOutput, Ch, Str> HasOutput<Ch, Str> for AndThenState<PState, Q, PStaticOutput, Q::State>
     where PState: HasOutput<Ch, Str>,
-          Q: Committed<Ch, Str>,
+          Q: CommittedInfer<Ch, Str>,
 {
 
     type Output = (PState::Output, Q::Output);
@@ -407,9 +407,9 @@ pub struct OrElse<P, Q>(P, Q);
 
 impl<P, Q> Parser for OrElse<P, Q> {}
 
-impl<P, Q, Ch, Str, Output> CommittedTD<Ch, Str, Output> for OrElse<P, Q>
-    where P: UncommittedTD<Ch, Str, Output>,
-          Q: CommittedTD<Ch, Str, Output>,
+impl<P, Q, Ch, Str, Output> Committed<Ch, Str, Output> for OrElse<P, Q>
+    where P: Uncommitted<Ch, Str, Output>,
+          Q: Committed<Ch, Str, Output>,
 {
 
     fn empty(&self) -> Output {
@@ -418,9 +418,9 @@ impl<P, Q, Ch, Str, Output> CommittedTD<Ch, Str, Output> for OrElse<P, Q>
 
 }
 
-impl<P, Q, Ch, Str, Output> UncommittedTD<Ch, Str, Output> for OrElse<P, Q>
-    where P: UncommittedTD<Ch, Str, Output>,
-          Q: UncommittedTD<Ch, Str, Output>,
+impl<P, Q, Ch, Str, Output> Uncommitted<Ch, Str, Output> for OrElse<P, Q>
+    where P: Uncommitted<Ch, Str, Output>,
+          Q: Uncommitted<Ch, Str, Output>,
 {
 
     type State = OrElseState<P::State, Q::State>;
@@ -459,9 +459,9 @@ pub enum OrElseState<P, Q> {
     Rhs(Q),
 }
 
-impl<P, Q, Ch, Str, Output> StatefulTD<Ch, Str, Output> for OrElseState<P, Q>
-    where P: StatefulTD<Ch, Str, Output>,
-          Q: StatefulTD<Ch, Str, Output>,
+impl<P, Q, Ch, Str, Output> Stateful<Ch, Str, Output> for OrElseState<P, Q>
+    where P: Stateful<Ch, Str, Output>,
+          Q: Stateful<Ch, Str, Output>,
 {
     fn more(self, string: &mut Str) -> ParseResult<Self, Output> {
         match self {
@@ -496,9 +496,9 @@ impl<P, Q, Ch, Str> HasOutput<Ch, Str> for OrElseState<P, Q>
 #[derive(Clone,Debug)]
 pub struct StarState<P, PState, T>(P, Option<PState>, T);
 
-impl<P, PState, T, Ch, Str> StatefulTD<Ch, Str, T> for StarState<P, PState, T>
-    where P: Copy + Uncommitted<Ch, Str, State = PState>,
-          PState: StatefulTD<Ch, Str, P::Output>,
+impl<P, PState, T, Ch, Str> Stateful<Ch, Str, T> for StarState<P, PState, T>
+    where P: Copy + UncommittedInfer<Ch, Str, State = PState>,
+          PState: Stateful<Ch, Str, P::Output>,
           T: Consumer<P::Output>,
           Str: PeekableIterator,
 {
@@ -564,11 +564,11 @@ impl<P, F> Debug for Plus<P, F>
 
 impl<P, F> Parser for Plus<P, F> {}
 
-impl<P, F, Ch, Str> UncommittedTD<Ch, Str, F::Output> for Plus<P, F>
-    where P: 'static + Copy + Uncommitted<Ch, Str>,
+impl<P, F, Ch, Str> Uncommitted<Ch, Str, F::Output> for Plus<P, F>
+    where P: 'static + Copy + UncommittedInfer<Ch, Str>,
           F: 'static + Factory,
           Str: PeekableIterator,
-          P::State: StatefulTD<Ch, Str, <P as HasOutput<Ch, Str>>::Output>,
+          P::State: Stateful<Ch, Str, <P as HasOutput<Ch, Str>>::Output>,
           F::Output: Consumer<P::Output>,
 {
     type State = StarState<P, P::State, F::Output>;
@@ -635,11 +635,11 @@ impl<P, F, Ch, Str> HasOutput<Ch, Str> for Star<P, F>
 
 }
 
-impl<P, F, Ch, Str> UncommittedTD<Ch, Str, F::Output> for Star<P, F>
-    where P: 'static + Copy + Uncommitted<Ch, Str>,
+impl<P, F, Ch, Str> Uncommitted<Ch, Str, F::Output> for Star<P, F>
+    where P: 'static + Copy + UncommittedInfer<Ch, Str>,
           F: 'static + Factory,
           Str: PeekableIterator,
-          P::State: StatefulTD<Ch, Str, <P as HasOutput<Ch, Str>>::Output>,
+          P::State: Stateful<Ch, Str, <P as HasOutput<Ch, Str>>::Output>,
           F::Output: Consumer<P::Output>,
 {
 
@@ -655,11 +655,11 @@ impl<P, F, Ch, Str> UncommittedTD<Ch, Str, F::Output> for Star<P, F>
 
 }
 
-impl<P, F, Ch, Str> CommittedTD<Ch, Str, F::Output> for Star<P, F>
-    where P: 'static + Copy + Uncommitted<Ch, Str>,
+impl<P, F, Ch, Str> Committed<Ch, Str, F::Output> for Star<P, F>
+    where P: 'static + Copy + UncommittedInfer<Ch, Str>,
           F: 'static + Factory,
           Str: PeekableIterator,
-          P::State: StatefulTD<Ch, Str, <P as HasOutput<Ch, Str>>::Output>,
+          P::State: Stateful<Ch, Str, <P as HasOutput<Ch, Str>>::Output>,
           F::Output: Consumer<P::Output>,
 {
 
@@ -682,8 +682,8 @@ pub struct Opt<P>(P);
 
 impl<P> Parser for Opt<P> where P: Parser {}
 
-impl<P, Ch, Str, Output> StatefulTD<Ch, Str, Option<Output>> for Opt<P>
-    where P: StatefulTD<Ch, Str, Output>,
+impl<P, Ch, Str, Output> Stateful<Ch, Str, Option<Output>> for Opt<P>
+    where P: Stateful<Ch, Str, Output>,
 {
 
     fn more(self, string: &mut Str) -> ParseResult<Self, Option<Output>> {
@@ -707,9 +707,9 @@ impl<P, Ch, Str> HasOutput<Ch, Str> for Opt<P>
 
 }
 
-impl<P, Ch, Str, Output> UncommittedTD<Ch, Str, Option<Output>> for Opt<P>
+impl<P, Ch, Str, Output> Uncommitted<Ch, Str, Option<Output>> for Opt<P>
     where Str: PeekableIterator,
-          P: UncommittedTD<Ch, Str, Output>,
+          P: Uncommitted<Ch, Str, Output>,
 {
 
     type State = Opt<P::State>;
@@ -728,9 +728,9 @@ impl<P, Ch, Str, Output> UncommittedTD<Ch, Str, Option<Output>> for Opt<P>
 
 }
 
-impl<P, Ch, Str, Output> CommittedTD<Ch, Str, Option<Output>> for Opt<P>
+impl<P, Ch, Str, Output> Committed<Ch, Str, Option<Output>> for Opt<P>
     where Str: PeekableIterator,
-          P: UncommittedTD<Ch, Str, Output>,
+          P: Uncommitted<Ch, Str, Output>,
 {
 
     fn empty(&self) -> Option<Output>{
@@ -752,7 +752,7 @@ pub struct Emit<F>(F);
 
 impl<F> Parser for Emit<F> {}
 
-impl<F, Ch, Str> StatefulTD<Ch, Str, F::Output> for Emit<F>
+impl<F, Ch, Str> Stateful<Ch, Str, F::Output> for Emit<F>
     where F: Factory,
 {
 
@@ -774,7 +774,7 @@ impl<F, Ch, Str> HasOutput<Ch, Str> for Emit<F>
 
 }
 
-impl<F, Ch, Str> UncommittedTD<Ch, Str, F::Output> for Emit<F>
+impl<F, Ch, Str> Uncommitted<Ch, Str, F::Output> for Emit<F>
     where Str: PeekableIterator,
           F: 'static + Copy + Factory,
 {
@@ -791,7 +791,7 @@ impl<F, Ch, Str> UncommittedTD<Ch, Str, F::Output> for Emit<F>
 
 }
 
-impl<F, Ch, Str> CommittedTD<Ch, Str, F::Output> for Emit<F>
+impl<F, Ch, Str> Committed<Ch, Str, F::Output> for Emit<F>
     where Str: PeekableIterator,
           F: 'static + Copy + Factory,
 {
@@ -812,7 +812,7 @@ impl<T> Emit<T> {
 #[derive(Copy, Clone, Debug)]
 pub enum CharacterState {}
 
-impl<Ch, Str> StatefulTD<Ch, Str, Ch> for CharacterState
+impl<Ch, Str> Stateful<Ch, Str, Ch> for CharacterState
 {
     fn more(self, _: &mut Str) -> ParseResult<Self, Ch> { 
         match self {}
@@ -856,7 +856,7 @@ impl<F, Ch, Str> HasOutput<Ch, Str> for Character<F>
     type Output = Ch;
 }
 
-impl<F, Ch, Str> UncommittedTD<Ch, Str, Ch> for Character<F>
+impl<F, Ch, Str> Uncommitted<Ch, Str, Ch> for Character<F>
     where Str: PeekableIterator<Item = Ch>,
           F: Copy + Function<Ch, Output = bool>,
           Ch: Copy,
@@ -906,7 +906,7 @@ impl<F, Ch, Str> HasOutput<Ch, Str> for CharacterRef<F>
     type Output = Ch;
 }
 
-impl<F, Ch, Str> UncommittedTD<Ch, Str, Ch> for CharacterRef<F>
+impl<F, Ch, Str> Uncommitted<Ch, Str, Ch> for CharacterRef<F>
     where Str: PeekableIterator<Item = Ch>,
           F: Copy + for<'a> Function<&'a Ch, Output = bool>,
 {
@@ -932,7 +932,7 @@ pub struct AnyCharacter;
 
 impl Parser for AnyCharacter {}
 
-impl<Ch, Str> StatefulTD<Ch, Str, Option<Ch>> for AnyCharacter
+impl<Ch, Str> Stateful<Ch, Str, Option<Ch>> for AnyCharacter
     where Str: Iterator<Item = Ch>,
 {
     fn more(self, string: &mut Str) -> ParseResult<Self, Option<Ch>> {
@@ -953,7 +953,7 @@ impl<Ch, Str> HasOutput<Ch, Str> for AnyCharacter
     type Output = Option<Ch>;
 }
 
-impl<Ch, Str> UncommittedTD<Ch, Str, Option<Ch>> for AnyCharacter
+impl<Ch, Str> Uncommitted<Ch, Str, Option<Ch>> for AnyCharacter
     where Str: Iterator<Item = Ch>,
 {
     type State = AnyCharacter;
@@ -967,7 +967,7 @@ impl<Ch, Str> UncommittedTD<Ch, Str, Option<Ch>> for AnyCharacter
 
 }
 
-impl<Ch, Str> CommittedTD<Ch, Str, Option<Ch>> for AnyCharacter
+impl<Ch, Str> Committed<Ch, Str, Option<Ch>> for AnyCharacter
     where Str: Iterator<Item = Ch>,
 {
 
@@ -979,8 +979,8 @@ impl<Ch, Str> CommittedTD<Ch, Str, Option<Ch>> for AnyCharacter
 
 // ----------- Buffering -------------
 
-// If p is a Uncommitted<char, Chars<'a>>, then
-// m.buffer() is a Uncommitted<char, Chars<'a>> with Output (char, Cow<'a,str>).
+// If p is a UncommittedInfer<char, Chars<'a>>, then
+// m.buffer() is a UncommittedInfer<char, Chars<'a>> with Output (char, Cow<'a,str>).
 // It does as little buffering as it can, but it does allocate as buffer for the case
 // where the boundary marker of the input is misaligned with that of the parser.
 // For example, m is matching string literals, and the input is '"abc' followed by 'def"'
@@ -998,8 +998,8 @@ impl<'a, P> HasOutput<char, Chars<'a>> for Buffered<P>
     type Output = Cow<'a, str>;
 }
 
-impl<'a, P> UncommittedTD<char, Chars<'a>, Cow<'a, str>> for Buffered<P>
-    where P: Uncommitted<char, Chars<'a>>,
+impl<'a, P> Uncommitted<char, Chars<'a>, Cow<'a, str>> for Buffered<P>
+    where P: UncommittedInfer<char, Chars<'a>>,
 {
     type State = BufferedState<P::State>;
 
@@ -1013,8 +1013,8 @@ impl<'a, P> UncommittedTD<char, Chars<'a>, Cow<'a, str>> for Buffered<P>
     }
 }
 
-impl<'a, P> CommittedTD<char, Chars<'a>, Cow<'a, str>> for Buffered<P>
-    where P: Committed<char, Chars<'a>>,
+impl<'a, P> Committed<char, Chars<'a>, Cow<'a, str>> for Buffered<P>
+    where P: CommittedInfer<char, Chars<'a>>,
 {
     fn empty(&self) -> Cow<'a, str> { Borrowed("") }
 }
@@ -1028,8 +1028,8 @@ impl<P> Buffered<P> {
 #[derive(Clone,Debug)]
 pub struct BufferedState<P>(P, String);
 
-impl<'a, P> StatefulTD<char, Chars<'a>, Cow<'a, str>> for BufferedState<P>
-    where P: Stateful<char, Chars<'a>>
+impl<'a, P> Stateful<char, Chars<'a>, Cow<'a, str>> for BufferedState<P>
+    where P: StatefulInfer<char, Chars<'a>>
 {
 
     fn more(mut self, string: &mut Chars<'a>) -> ParseResult<Self, Cow<'a, str>> {
@@ -1065,8 +1065,8 @@ impl<'a, P> HasOutput<char, Chars<'a>> for BufferedState<P>
 #[derive(Debug)]
 pub struct BoxableState<P>(Option<P>);
 
-impl<P, Ch, Str, Output> BoxableTD<Ch, Str, Output> for BoxableState<P>
-    where P: StatefulTD<Ch, Str, Output>,
+impl<P, Ch, Str, Output> Boxable<Ch, Str, Output> for BoxableState<P>
+    where P: Stateful<Ch, Str, Output>,
 {
     fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), Output> {
         match self.0.take().unwrap().more(string) {
@@ -1088,8 +1088,8 @@ impl<P, Ch, Str> HasOutput<Ch, Str> for BoxableState<P>
     type Output = P::Output;
 }
 
-impl<P: ?Sized, Ch, Str, Output> StatefulTD<Ch, Str, Output> for Box<P>
-    where P: BoxableTD<Ch, Str, Output>,
+impl<P: ?Sized, Ch, Str, Output> Stateful<Ch, Str, Output> for Box<P>
+    where P: Boxable<Ch, Str, Output>,
 {
     fn more(mut self, string: &mut Str) -> ParseResult<Self, Output> {
         match self.more_boxable(string) {
@@ -1100,12 +1100,6 @@ impl<P: ?Sized, Ch, Str, Output> StatefulTD<Ch, Str, Output> for Box<P>
     fn done(mut self) -> Output {
         self.done_boxable()
     }
-}
-
-impl<P: ?Sized, Ch, Str> HasOutput<Ch, Str> for Box<P>
-    where P: HasOutput<Ch, Str>,
-{
-    type Output = P::Output;
 }
 
 impl<P> BoxableState<P> {
@@ -1125,10 +1119,10 @@ impl<P, F, Ch, Str> HasOutput<Ch, Str> for Boxed<P, F>
     type Output = P::Output;
 }
 
-impl<P, F, Ch, Str, Output> UncommittedTD<Ch, Str, Output> for Boxed<P, F>
-    where P: UncommittedTD<Ch, Str, Output>,
+impl<P, F, Ch, Str, Output> Uncommitted<Ch, Str, Output> for Boxed<P, F>
+    where P: Uncommitted<Ch, Str, Output>,
           F: Function<BoxableState<P::State>>,
-          F::Output: 'static + StatefulTD<Ch, Str, Output>,
+          F::Output: 'static + Stateful<Ch, Str, Output>,
 {
     type State = F::Output;
 
@@ -1141,10 +1135,10 @@ impl<P, F, Ch, Str, Output> UncommittedTD<Ch, Str, Output> for Boxed<P, F>
     }
 }
 
-impl<P, F, Ch, Str, Output> CommittedTD<Ch, Str, Output> for Boxed<P, F>
-    where P: CommittedTD<Ch, Str, Output>,
+impl<P, F, Ch, Str, Output> Committed<Ch, Str, Output> for Boxed<P, F>
+    where P: Committed<Ch, Str, Output>,
           F: Function<BoxableState<P::State>>,
-          F::Output: 'static + StatefulTD<Ch, Str, Output>,
+          F::Output: 'static + Stateful<Ch, Str, Output>,
 {
     fn empty(&self) -> Output {
         self.0.empty()
@@ -1163,12 +1157,12 @@ impl<P, F> Boxed<P, F> {
 // pub struct IterParser<P, Q, S>(P, Option<(Q, S)>);
 
 // impl<P, Str> Iterator for IterParser<P, P::State, Str>
-//     where P: Copy + Committed<Str>,
+//     where P: Copy + CommittedInfer<Str>,
 //           Str: IntoPeekable,
 //           Str::Item: ToStatic,
-//           P::State: Stateful<Str>,
+//           P::State: StatefulInfer<Str>,
 // {
-//     type Item = <P::State as Stateful<Str>>::Output;
+//     type Item = <P::State as StatefulInfer<Str>>::Output;
 //     fn next(&mut self) -> Option<Self::Item> {
 //         let (state, result) = match self.1.take() {
 //             None => (None, None),
@@ -1185,7 +1179,7 @@ impl<P, F> Boxed<P, F> {
 // }
 
 // impl<P, Str> IterParser<P, P::State, Str>
-//     where P: Copy + Committed<Str>,
+//     where P: Copy + CommittedInfer<Str>,
 //           Str: IntoPeekable,
 //           Str::Item: ToStatic,
 // {
@@ -1199,14 +1193,14 @@ impl<P, F> Boxed<P, F> {
 // TODO: restore these
 
 // #[derive(Copy, Clone, Debug)]
-// pub struct PipeStateful<P, Q, R>(P, Q, R);
+// pub struct PipeStatefulInfer<P, Q, R>(P, Q, R);
 
-// impl<P, Q, Str> Stateful<Str> for PipeStateful<P, P::State, Q>
-//     where P: Copy + Committed<Str>,
-//           Q: Stateful<Peekable<IterParser<P, P::State, Str>>>,
+// impl<P, Q, Str> StatefulInfer<Str> for PipeStatefulInfer<P, P::State, Q>
+//     where P: Copy + CommittedInfer<Str>,
+//           Q: StatefulInfer<Peekable<IterParser<P, P::State, Str>>>,
 //           Str: IntoPeekable,
 //           Str::Item: ToStatic,
-//           P::State: Stateful<Str>,
+//           P::State: StatefulInfer<Str>,
 // {
 //     type Output = Q::Output;
 //     fn parse(self, data: Str) -> ParseResult<Self, Str> {
@@ -1215,7 +1209,7 @@ impl<P, F> Boxed<P, F> {
 //             Done(rest, result) => Done(rest.iter.1.unwrap().1, result),
 //             Continue(rest, parsing2) => {
 //                 let (parsing1, data) = rest.iter.1.unwrap();
-//                 Continue(data, PipeStateful(self.0, parsing1, parsing2))
+//                 Continue(data, PipeStatefulInfer(self.0, parsing1, parsing2))
 //             }
 //         }
 //     }
@@ -1233,19 +1227,19 @@ impl<P, F> Boxed<P, F> {
 //     where P: 'static + Parser<Ch>,
 //           Q: Parser<Ch>,
 // {
-//     type State = PipeStateful<P,P::State,Q::State>;
+//     type State = PipeStatefulInfer<P,P::State,Q::State>;
 //     type StaticOutput = Q::StaticOutput;
 // }
 
-// impl<P, Q, Str> Committed<Str> for PipeParser<P, Q>
-//     where P: 'static + Copy + Committed<Str>,
-//           Q: for<'a> Committed<Peekable<&'a mut IterParser<P, P::State, Str>>>,
+// impl<P, Q, Str> CommittedInfer<Str> for PipeParser<P, Q>
+//     where P: 'static + Copy + CommittedInfer<Str>,
+//           Q: for<'a> CommittedInfer<Peekable<&'a mut IterParser<P, P::State, Str>>>,
 //           Str: IntoPeekable,
 //           Str::Item: ToStatic,
-//           P::State: Stateful<Str>,
+//           P::State: StatefulInfer<Str>,
 // {
 //     fn init(&self) -> Self::State {
-//         PipeStateful(self.0, self.0.init(), self.1.init())
+//         PipeStatefulInfer(self.0, self.0.init(), self.1.init())
 //     }
 // }
 
