@@ -473,13 +473,20 @@ pub trait Parser {
     //     impls::PipeParser::new(self, other)
     // }
 
-    // Box up this parser
+    /// Box up this parser
     fn boxed<F>(self, f: F) -> impls::Boxed<Self, F>
         where Self: Sized
     {
         impls::Boxed::new(self, f)
     }
 
+    /// Set the state of this parser
+    fn in_state<State>(self, state: State) -> InState<Self, State>
+        where Self: Sized
+    {
+        InState(self, state)
+    }
+    
     /// A parser which produces its input.
     ///
     /// This does its best to avoid having to buffer the input. The result of a buffered parser
@@ -836,6 +843,28 @@ pub trait BoxableTD<Ch, Str, Output>
 }
 
 impl<P, Ch, Str> Boxable<Ch, Str> for P where P: HasOutput<Ch, Str> + BoxableTD<Ch, Str, <P as HasOutput<Ch, Str>>::Output> {}
+
+pub struct InState<P,PState>(P,PState);
+
+impl<P, PState, Ch, Str> HasOutput<Ch, Str> for InState<P,PState>
+    where P: HasOutput<Ch, Str>
+{
+    type Output = P::Output;
+}
+
+impl<P, PState, Ch, Str, Output> StatefulTD<Ch, Str, Output> for InState<P,PState>
+    where PState: StatefulTD<Ch, Str, Output>
+{
+    fn more(self, string: &mut Str) -> ParseResult<Self, Output> {
+        match self.1.more(string) {
+            Done(result) => Done(result),
+            Continue(parsing) => Continue(InState(self.0, parsing)),
+        }
+    }
+    fn done(self) -> Output {
+        self.1.done()
+    }
+}
 
 /// A trait for one-argument functions.
 ///
@@ -1668,13 +1697,10 @@ fn test_boxable() {
     type TestCh<'a> = Cow<'a,str>;
     type TestStr<'a> = Peekable<Drain<'a,TestCh<'a>>>;
     type TestOutput<'a> = ((TestCh<'a>, TestCh<'a>), TestCh<'a>);
-    type TestState = Box<for<'a> BoxableTD<TestCh<'a>, TestStr<'a>, TestOutput<'a>>>;
-    impl<'a> HasOutput<TestCh<'a>, TestStr<'a>> for TestState {
-        type Output = TestOutput<'a>;
-    }
-    fn mk_box<P>(parser: P) -> TestState
-        where P: 'static + for<'a> BoxableTD<TestCh<'a>, TestStr<'a>, TestOutput<'a>>
-    { Box::new(parser) }
+    type TestState = InState<Test, Box<for<'a> BoxableTD<TestCh<'a>, TestStr<'a>, TestOutput<'a>>>>;
+    fn mk_box<State>(state: State) -> TestState
+        where State: 'static + for<'a> BoxableTD<TestCh<'a>, TestStr<'a>, TestOutput<'a>>
+    { Test.in_state(Box::new(state)) }
     impl Parser for Test {}
     impl<'a> HasOutput<TestCh<'a>, TestStr<'a>> for Test {
         type Output = TestOutput<'a>;
