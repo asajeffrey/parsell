@@ -993,9 +993,43 @@ impl<'a> Consumer<&'a str> for String {
     }
 }
 
+impl<'a> Consumer<Cow<'a,str>> for String {
+    fn accept(&mut self, arg: Cow<'a,str>) {
+        self.push_str(&*arg);
+    }
+}
+
 impl Consumer<char> for String {
     fn accept(&mut self, x: char) {
         self.push(x);
+    }
+}
+
+impl<'a> Consumer<String> for Cow<'a,str> {
+    fn accept(&mut self, arg: String) {
+        self.accept(Cow::Owned(arg))
+    }
+}
+
+impl<'a> Consumer<&'a str> for Cow<'a, str> {
+    fn accept(&mut self, arg: &'a str) {
+        self.accept(Cow::Borrowed(arg))
+    }
+}
+
+impl<'a> Consumer<Cow<'a,str>> for Cow<'a, str> {
+    fn accept(&mut self, arg: Cow<'a,str>) {
+        if self.is_empty() {
+            *self = arg
+        } else {
+            self.to_mut().push_str(&*arg)
+        }
+    }
+}
+
+impl<'a> Consumer<char> for Cow<'a, str> {
+    fn accept(&mut self, x: char) {
+        self.to_mut().push(x);
     }
 }
 
