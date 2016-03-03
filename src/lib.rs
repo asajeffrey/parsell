@@ -415,20 +415,27 @@ pub trait Parser {
         self.try_map(impls::Function5::new(f))
     }
 
+    /// Apply a variant function to the result
+    fn variant_map<F>(self, f: F) -> impls::VariantMap<Self, F>
+        where Self: Sized,
+    {
+        impls::VariantMap::new(self, f)
+    }
+
     /// Sequencing, discard the output of the first parse
-    fn discard_and_then<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::Second>
+    fn discard_and_then<P>(self, other: P) -> impls::VariantMap<impls::AndThen<impls::Discard<Self>, P>, impls::Second>
         where Self: Sized,
               P: Parser,
     {
-        self.and_then(other).map(impls::Second)
+        self.discard().and_then(other).variant_map(impls::Second)
     }
 
     /// Sequencing, discard the output of the second parse
-    fn and_then_discard<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::First>
+    fn and_then_discard<P>(self, other: P) -> impls::VariantMap<impls::AndThen<Self, impls::Discard<P>>, impls::First>
         where Self: Sized,
               P: Parser,
     {
-        self.and_then(other).map(impls::First)
+        self.and_then(other.discard()).variant_map(impls::First)
     }
 
     /// Sequencing, discard the output of the first parse, bubble errors from the first parser
@@ -471,10 +478,10 @@ pub trait Parser {
     }
     
     /// Discard the output
-    fn discard(self) -> impls::Map<Self, impls::Discard>
+    fn discard(self) -> impls::Discard<Self>
         where Self: Sized,
     {
-        self.map(impls::Discard)
+        impls::Discard::new(self)
     }
     
     // /// Take the results of iterating this parser, and feed it into another parser.
@@ -921,6 +928,13 @@ impl<F, S> Function<S> for F where F: Fn<(S, )>
     fn apply(&self, arg: S) -> F::Output {
         self(arg)
     }
+}
+
+/// A trait for functions that can compute their inputs from their outputs
+
+pub trait VariantFunction<T> {
+    type Input;
+    fn apply(&self, arg: Self::Input) -> T;
 }
 
 /// A trait for factories.

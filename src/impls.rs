@@ -1,8 +1,8 @@
 //! Provide implementations of parser traits.
 
 use super::{Parser, ParseResult};
-use super::{HasOutput, StatefulInfer, Stateful, CommittedInfer, Committed, UncommittedInfer, Uncommitted, Boxable};
-use super::{Function, Consumer, Factory, PeekableIterator};
+use super::{HasOutput, StatefulInfer, Stateful, CommittedInfer, Committed, UncommittedInfer, Uncommitted, Boxable, InState};
+use super::{Function, VariantFunction, Consumer, Factory, PeekableIterator};
 use super::{Upcast, Downcast, ToStatic};
 use super::ParseResult::{Done, Continue};
 
@@ -166,6 +166,13 @@ impl<S, T> Function<(S, T)> for First
         arg.0
     }
 }
+impl<T> VariantFunction<T> for First
+{
+    type Input = (T, ());
+    fn apply(&self, arg: (T, ())) -> T {
+        arg.0
+    }
+}
 
 #[derive(Copy, Clone, Debug)]
 pub struct Second;
@@ -176,18 +183,14 @@ impl<S, T> Function<(S, T)> for Second
         arg.1
     }
 }
-
-// ----------- Deal with units ---------------
-
-#[derive(Copy, Clone, Debug)]
-pub struct Discard;
-impl<T> Function<T> for Discard
+impl<T> VariantFunction<T> for Second
 {
-    type Output = ();
-    fn apply(&self, _: T) -> () {
-        ()
+    type Input = ((), T);
+    fn apply(&self, arg: ((), T)) -> T {
+        arg.1
     }
 }
+
 
 // ----------- Map ---------------
 
@@ -277,6 +280,100 @@ impl<P, F, Ch, Str, Output> Uncommitted<Ch, Str, Output> for Map<P, F>
 impl<P, F> Map<P, F> {
     pub fn new(p: P, f: F) -> Self {
         Map(p, f)
+    }
+}
+
+// ----------- Variant map ---------------
+
+// A version of map for functions that can comute their input types from their output types
+
+pub struct VariantMap<P, F>(P, F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P, F> Copy for VariantMap<P, F>
+    where P: Copy,
+          F: Copy
+{}
+impl<P, F> Clone for VariantMap<P, F>
+    where P: Clone,
+          F: Copy
+{
+    fn clone(&self) -> Self {
+        VariantMap(self.0.clone(), self.1)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<P, F> Debug for VariantMap<P, F>
+    where P: Debug
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "VariantMap({:?}, ...)", self.0)
+    }
+}
+
+impl<P, F> Parser for VariantMap<P, F> {}
+
+impl<P, F, Ch, Str, Output> Stateful<Ch, Str, Output> for VariantMap<P, F>
+    where P: Stateful<Ch, Str, F::Input>,
+          F: VariantFunction<Output>,
+{
+
+    fn done(self) -> Output {
+        self.1.apply(self.0.done())
+    }
+
+    fn more(self, string: &mut Str) -> ParseResult<Self, Output> {
+        match self.0.more(string) {
+            Done(result) => Done(self.1.apply(result)),
+            Continue(state) => Continue(VariantMap(state, self.1)),
+        }
+    }
+
+}
+
+impl<P, F, Ch, Str> HasOutput<Ch, Str> for VariantMap<P, F>
+    where P: HasOutput<Ch, Str>,
+          F: Function<P::Output>,
+{
+
+    type Output = F::Output;
+
+}
+
+impl<P, F, Ch, Str, Output> Committed<Ch, Str, Output> for VariantMap<P, F>
+    where P: Committed<Ch, Str, F::Input>,
+          F: 'static + Copy + VariantFunction<Output>,
+
+{
+
+    fn empty(&self) -> Output {
+        self.1.apply(self.0.empty())
+    }
+
+}
+
+impl<P, F, Ch, Str, Output> Uncommitted<Ch, Str, Output> for VariantMap<P, F>
+    where P: Uncommitted<Ch, Str, F::Input>,
+          F: 'static + Copy + VariantFunction<Output>,
+{
+    type State = VariantMap<P::State, F>;
+
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Output>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Done(result)) => Some(Done(self.1.apply(result))),
+            Some(Continue(state)) => Some(Continue(VariantMap(state, self.1))),
+        }
+    }
+
+}
+
+impl<P, F> VariantMap<P, F> {
+    pub fn new(p: P, f: F) -> Self {
+        VariantMap(p, f)
     }
 }
 
@@ -742,6 +839,69 @@ impl<P, Ch, Str, Output> Committed<Ch, Str, Option<Output>> for Opt<P>
 impl<P> Opt<P> {
     pub fn new(parser: P) -> Self {
         Opt(parser)
+    }
+}
+
+// ----------- Parse but discard the result -------------
+
+#[derive(Copy, Clone, Debug)]
+pub struct Discard<P>(P);
+
+impl<P> Parser for Discard<P> where P: Parser {}
+
+impl<P, Ch, Str> Stateful<Ch, Str, ()> for Discard<P>
+    where P: StatefulInfer<Ch, Str>,
+{
+
+    fn more(self, string: &mut Str) -> ParseResult<Self, ()> {
+        match self.0.more(string) {
+            Done(_) => Done(()),
+            Continue(parsing) => Continue(Discard(parsing)),
+        }
+    }
+
+    fn done(self) -> () {
+        ()
+    }
+
+}
+
+impl<P, Ch, Str> HasOutput<Ch, Str> for Discard<P>
+{
+
+    type Output = ();
+
+}
+
+impl<P, Ch, Str> Uncommitted<Ch, Str, ()> for Discard<P>
+    where P: UncommittedInfer<Ch, Str>,
+{
+
+    type State = Discard<P::State>;
+
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, ()>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Done(_)) => Some(Done(())),
+            Some(Continue(parsing)) => Some(Continue(Discard(parsing))),
+        }
+    }
+
+}
+
+impl<P, Ch, Str> Committed<Ch, Str, ()> for Discard<P>
+    where P: CommittedInfer<Ch, Str>,
+{
+
+    fn empty(&self) -> () {
+        ()
+    }
+
+}
+
+impl<P> Discard<P> {
+    pub fn new(parser: P) -> Self {
+        Discard(parser)
     }
 }
 
