@@ -1872,6 +1872,68 @@
 <span id="1829">1829</span>
 <span id="1830">1830</span>
 <span id="1831">1831</span>
+<span id="1832">1832</span>
+<span id="1833">1833</span>
+<span id="1834">1834</span>
+<span id="1835">1835</span>
+<span id="1836">1836</span>
+<span id="1837">1837</span>
+<span id="1838">1838</span>
+<span id="1839">1839</span>
+<span id="1840">1840</span>
+<span id="1841">1841</span>
+<span id="1842">1842</span>
+<span id="1843">1843</span>
+<span id="1844">1844</span>
+<span id="1845">1845</span>
+<span id="1846">1846</span>
+<span id="1847">1847</span>
+<span id="1848">1848</span>
+<span id="1849">1849</span>
+<span id="1850">1850</span>
+<span id="1851">1851</span>
+<span id="1852">1852</span>
+<span id="1853">1853</span>
+<span id="1854">1854</span>
+<span id="1855">1855</span>
+<span id="1856">1856</span>
+<span id="1857">1857</span>
+<span id="1858">1858</span>
+<span id="1859">1859</span>
+<span id="1860">1860</span>
+<span id="1861">1861</span>
+<span id="1862">1862</span>
+<span id="1863">1863</span>
+<span id="1864">1864</span>
+<span id="1865">1865</span>
+<span id="1866">1866</span>
+<span id="1867">1867</span>
+<span id="1868">1868</span>
+<span id="1869">1869</span>
+<span id="1870">1870</span>
+<span id="1871">1871</span>
+<span id="1872">1872</span>
+<span id="1873">1873</span>
+<span id="1874">1874</span>
+<span id="1875">1875</span>
+<span id="1876">1876</span>
+<span id="1877">1877</span>
+<span id="1878">1878</span>
+<span id="1879">1879</span>
+<span id="1880">1880</span>
+<span id="1881">1881</span>
+<span id="1882">1882</span>
+<span id="1883">1883</span>
+<span id="1884">1884</span>
+<span id="1885">1885</span>
+<span id="1886">1886</span>
+<span id="1887">1887</span>
+<span id="1888">1888</span>
+<span id="1889">1889</span>
+<span id="1890">1890</span>
+<span id="1891">1891</span>
+<span id="1892">1892</span>
+<span id="1893">1893</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Parsell: an LL(1) streaming parser combinator library for Rust</span>
 <span class='doccomment'>//!</span>
@@ -1910,7 +1972,7 @@
 <span class='doccomment'>/// A trait for parsers which can infer their output type from their input types.</span>
 
 <span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>HasOutput</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span><span class='op'>&gt;</span> {
-    
+
     <span class='doccomment'>/// The type of the data being produced by the parser.</span>
     <span class='kw'>type</span> <span class='ident'>Output</span>;
 
@@ -1969,8 +2031,8 @@
     <span class='doccomment'>/// let data2 = &quot;cd&quot;;</span>
     <span class='doccomment'>/// let data3 = &quot;ef!&quot;;</span>
     <span class='doccomment'>/// match parser.init(&amp;mut data1.chars()).unwrap() {</span>
-    <span class='doccomment'>///     Continue(stateful) =&gt; match stateful.more(&amp;mut data2.chars()) { </span>
-    <span class='doccomment'>///         Continue(stateful) =&gt; match stateful.more(&amp;mut data3.chars()) { </span>
+    <span class='doccomment'>///     Continue(stateful) =&gt; match stateful.more(&amp;mut data2.chars()) {</span>
+    <span class='doccomment'>///         Continue(stateful) =&gt; match stateful.more(&amp;mut data3.chars()) {</span>
     <span class='doccomment'>///             Done(result) =&gt; assert_eq!(result, &quot;abcdef&quot;),</span>
     <span class='doccomment'>///             _ =&gt; panic!(&quot;can&#39;t happen&quot;),</span>
     <span class='doccomment'>///         },</span>
@@ -1999,7 +2061,7 @@
     <span class='doccomment'>/// let data2 = &quot;cd&quot;;</span>
     <span class='doccomment'>/// let data3 = &quot;ef&quot;;</span>
     <span class='doccomment'>/// match parser.init(&amp;mut data1.chars()).unwrap() {</span>
-    <span class='doccomment'>///     Continue(stateful) =&gt; match stateful.more(&amp;mut data2.chars()) { </span>
+    <span class='doccomment'>///     Continue(stateful) =&gt; match stateful.more(&amp;mut data2.chars()) {</span>
     <span class='doccomment'>///         Continue(stateful) =&gt; assert_eq!(stateful.last(&amp;mut data3.chars()), &quot;abcdef&quot;),</span>
     <span class='doccomment'>///         _ =&gt; panic!(&quot;can&#39;t happen&quot;),</span>
     <span class='doccomment'>///     },</span>
@@ -2030,7 +2092,7 @@
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// If `parser: StatefulInfer&lt;Ch, Str&gt;` and `data: Str`, then `parser.last(&amp;mut data)`</span>
     <span class='doccomment'>/// calls `parser.more(&amp;mut data)`, then calls `done()` if the parser continues.</span>
-    
+
     <span class='kw'>fn</span> <span class='ident'>last</span>(<span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>Output</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>
     {
@@ -2070,8 +2132,8 @@
     <span class='doccomment'>/// # use parsell::ParseResult::{Continue,Done};</span>
     <span class='doccomment'>/// let parser = character(char::is_alphabetic).star(String::new);</span>
     <span class='doccomment'>/// match parser.init_str(&quot;ab&quot;).unwrap() {</span>
-    <span class='doccomment'>///     Continue(stateful) =&gt; match stateful.more_str(&quot;cd&quot;) { </span>
-    <span class='doccomment'>///         Continue(stateful) =&gt; match stateful.more_str(&quot;ef!&quot;) { </span>
+    <span class='doccomment'>///     Continue(stateful) =&gt; match stateful.more_str(&quot;cd&quot;) {</span>
+    <span class='doccomment'>///         Continue(stateful) =&gt; match stateful.more_str(&quot;ef!&quot;) {</span>
     <span class='doccomment'>///             Done(result) =&gt; assert_eq!(result, &quot;abcdef&quot;),</span>
     <span class='doccomment'>///             _ =&gt; panic!(&quot;can&#39;t happen&quot;),</span>
     <span class='doccomment'>///         },</span>
@@ -2126,7 +2188,7 @@
 
     <span class='doccomment'>/// The parse is finished.</span>
     <span class='ident'>Done</span>(<span class='ident'>Output</span>),
-    
+
     <span class='doccomment'>/// The parse can continue.</span>
     <span class='ident'>Continue</span>(<span class='ident'>State</span>),
 
@@ -2197,11 +2259,11 @@
     }
 
     <span class='doccomment'>/// Sequencing with a committed parser (bubble any errors from either parser).</span>
-    <span class='kw'>fn</span> <span class='ident'>try_and_then_try</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>TryZipTry</span><span class='op'>&gt;</span>
+    <span class='kw'>fn</span> <span class='ident'>try_and_then_try</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>TryZipTry</span><span class='op'>&gt;</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
               <span class='ident'>P</span>: <span class='ident'>Parser</span>,
     {
-        <span class='self'>self</span>.<span class='ident'>and_then</span>(<span class='ident'>other</span>).<span class='ident'>map</span>(<span class='ident'>impls</span>::<span class='ident'>TryZipTry</span>)
+        <span class='self'>self</span>.<span class='ident'>and_then</span>(<span class='ident'>other</span>).<span class='ident'>variant_map</span>(<span class='ident'>impls</span>::<span class='ident'>TryZipTry</span>)
     }
 
     <span class='doccomment'>/// Iterate one or more times (returns an uncommitted parser).</span>
@@ -2290,52 +2352,59 @@
         <span class='self'>self</span>.<span class='ident'>try_map</span>(<span class='ident'>impls</span>::<span class='ident'>Function5</span>::<span class='ident'>new</span>(<span class='ident'>f</span>))
     }
 
+    <span class='doccomment'>/// Apply a variant function to the result</span>
+    <span class='kw'>fn</span> <span class='ident'>variant_map</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>F</span><span class='op'>&gt;</span>
+        <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
+    {
+        <span class='ident'>impls</span>::<span class='ident'>VariantMap</span>::<span class='ident'>new</span>(<span class='self'>self</span>, <span class='ident'>f</span>)
+    }
+
     <span class='doccomment'>/// Sequencing, discard the output of the first parse</span>
-    <span class='kw'>fn</span> <span class='ident'>discard_and_then</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Second</span><span class='op'>&gt;</span>
+    <span class='kw'>fn</span> <span class='ident'>discard_and_then</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Discard</span><span class='op'>&lt;</span><span class='kw'>Self</span><span class='op'>&gt;</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Second</span><span class='op'>&gt;</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
               <span class='ident'>P</span>: <span class='ident'>Parser</span>,
     {
-        <span class='self'>self</span>.<span class='ident'>and_then</span>(<span class='ident'>other</span>).<span class='ident'>map</span>(<span class='ident'>impls</span>::<span class='ident'>Second</span>)
+        <span class='self'>self</span>.<span class='ident'>discard</span>().<span class='ident'>and_then</span>(<span class='ident'>other</span>).<span class='ident'>variant_map</span>(<span class='ident'>impls</span>::<span class='ident'>Second</span>)
     }
 
     <span class='doccomment'>/// Sequencing, discard the output of the second parse</span>
-    <span class='kw'>fn</span> <span class='ident'>and_then_discard</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>First</span><span class='op'>&gt;</span>
+    <span class='kw'>fn</span> <span class='ident'>and_then_discard</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>Discard</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>First</span><span class='op'>&gt;</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
               <span class='ident'>P</span>: <span class='ident'>Parser</span>,
     {
-        <span class='self'>self</span>.<span class='ident'>and_then</span>(<span class='ident'>other</span>).<span class='ident'>map</span>(<span class='ident'>impls</span>::<span class='ident'>First</span>)
+        <span class='self'>self</span>.<span class='ident'>and_then</span>(<span class='ident'>other</span>.<span class='ident'>discard</span>()).<span class='ident'>variant_map</span>(<span class='ident'>impls</span>::<span class='ident'>First</span>)
     }
 
     <span class='doccomment'>/// Sequencing, discard the output of the first parse, bubble errors from the first parser</span>
-    <span class='kw'>fn</span> <span class='ident'>try_discard_and_then</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>TryZip</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Second</span><span class='op'>&gt;&gt;</span>
+    <span class='kw'>fn</span> <span class='ident'>try_discard_and_then</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>TryDiscard</span><span class='op'>&gt;</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>TryZip</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Second</span><span class='op'>&gt;&gt;</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
               <span class='ident'>P</span>: <span class='ident'>Parser</span>,
     {
-        <span class='self'>self</span>.<span class='ident'>try_and_then</span>(<span class='ident'>other</span>).<span class='ident'>try_map</span>(<span class='ident'>impls</span>::<span class='ident'>Second</span>)
+        <span class='self'>self</span>.<span class='ident'>try_discard</span>().<span class='ident'>try_and_then</span>(<span class='ident'>other</span>).<span class='ident'>variant_map</span>(<span class='ident'>impls</span>::<span class='ident'>Try</span>::<span class='ident'>new</span>(<span class='ident'>impls</span>::<span class='ident'>Second</span>))
     }
 
     <span class='doccomment'>/// Sequencing, discard the output of the second parse, bubble errors from the second parser</span>
-    <span class='kw'>fn</span> <span class='ident'>and_then_try_discard</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>ZipTry</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>First</span><span class='op'>&gt;&gt;</span>
+    <span class='kw'>fn</span> <span class='ident'>and_then_try_discard</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>impls</span>::<span class='ident'>TryDiscard</span><span class='op'>&gt;&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>ZipTry</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>First</span><span class='op'>&gt;&gt;</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
               <span class='ident'>P</span>: <span class='ident'>Parser</span>,
     {
-        <span class='self'>self</span>.<span class='ident'>and_then_try</span>(<span class='ident'>other</span>).<span class='ident'>try_map</span>(<span class='ident'>impls</span>::<span class='ident'>First</span>)
+        <span class='self'>self</span>.<span class='ident'>and_then_try</span>(<span class='ident'>other</span>.<span class='ident'>try_discard</span>()).<span class='ident'>variant_map</span>(<span class='ident'>impls</span>::<span class='ident'>Try</span>::<span class='ident'>new</span>(<span class='ident'>impls</span>::<span class='ident'>First</span>))
     }
 
     <span class='doccomment'>/// Sequencing, discard the output of the first parse, bubble errors from either parser</span>
-    <span class='kw'>fn</span> <span class='ident'>try_discard_and_then_try</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>TryZipTry</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Second</span><span class='op'>&gt;&gt;</span>
+    <span class='kw'>fn</span> <span class='ident'>try_discard_and_then_try</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>TryDiscard</span><span class='op'>&gt;</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>TryZipTry</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Second</span><span class='op'>&gt;&gt;</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
               <span class='ident'>P</span>: <span class='ident'>Parser</span>,
     {
-        <span class='self'>self</span>.<span class='ident'>try_and_then_try</span>(<span class='ident'>other</span>).<span class='ident'>try_map</span>(<span class='ident'>impls</span>::<span class='ident'>Second</span>)
+        <span class='self'>self</span>.<span class='ident'>try_discard</span>().<span class='ident'>try_and_then_try</span>(<span class='ident'>other</span>).<span class='ident'>variant_map</span>(<span class='ident'>impls</span>::<span class='ident'>Try</span>::<span class='ident'>new</span>(<span class='ident'>impls</span>::<span class='ident'>Second</span>))
     }
 
     <span class='doccomment'>/// Sequencing, discard the output of the second parse, bubble errors from either parser</span>
-    <span class='kw'>fn</span> <span class='ident'>try_and_then_try_discard</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>P</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>TryZipTry</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>First</span><span class='op'>&gt;&gt;</span>
+    <span class='kw'>fn</span> <span class='ident'>try_and_then_try_discard</span><span class='op'>&lt;</span><span class='ident'>P</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>P</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>AndThen</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>P</span>, <span class='ident'>impls</span>::<span class='ident'>TryDiscard</span><span class='op'>&gt;&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>TryZipTry</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>First</span><span class='op'>&gt;&gt;</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
               <span class='ident'>P</span>: <span class='ident'>Parser</span>,
     {
-        <span class='self'>self</span>.<span class='ident'>try_and_then_try</span>(<span class='ident'>other</span>).<span class='ident'>try_map</span>(<span class='ident'>impls</span>::<span class='ident'>First</span>)
+        <span class='self'>self</span>.<span class='ident'>try_and_then_try</span>(<span class='ident'>other</span>.<span class='ident'>try_discard</span>()).<span class='ident'>variant_map</span>(<span class='ident'>impls</span>::<span class='ident'>Try</span>::<span class='ident'>new</span>(<span class='ident'>impls</span>::<span class='ident'>First</span>))
     }
 
     <span class='doccomment'>/// Optional parse</span>
@@ -2344,14 +2413,28 @@
     {
         <span class='ident'>impls</span>::<span class='ident'>Opt</span>::<span class='ident'>new</span>(<span class='self'>self</span>)
     }
-    
-    <span class='doccomment'>/// Discard the output</span>
-    <span class='kw'>fn</span> <span class='ident'>discard</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>Discard</span><span class='op'>&gt;</span>
+
+    <span class='doccomment'>/// Optional parse</span>
+    <span class='kw'>fn</span> <span class='ident'>try_opt</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>VariantMap</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Opt</span><span class='op'>&lt;</span><span class='kw'>Self</span><span class='op'>&gt;</span>, <span class='ident'>impls</span>::<span class='ident'>TryOpt</span><span class='op'>&gt;</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
     {
-        <span class='self'>self</span>.<span class='ident'>map</span>(<span class='ident'>impls</span>::<span class='ident'>Discard</span>)
+        <span class='self'>self</span>.<span class='ident'>opt</span>().<span class='ident'>variant_map</span>(<span class='ident'>impls</span>::<span class='ident'>TryOpt</span>)
     }
-    
+
+    <span class='doccomment'>/// Discard the output</span>
+    <span class='kw'>fn</span> <span class='ident'>discard</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Discard</span><span class='op'>&lt;</span><span class='kw'>Self</span><span class='op'>&gt;</span>
+        <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
+    {
+        <span class='ident'>impls</span>::<span class='ident'>Discard</span>::<span class='ident'>new</span>(<span class='self'>self</span>)
+    }
+
+    <span class='doccomment'>/// Discard the output, bubbling errors</span>
+    <span class='kw'>fn</span> <span class='ident'>try_discard</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>TryDiscard</span><span class='op'>&gt;</span>
+        <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
+    {
+        <span class='self'>self</span>.<span class='ident'>map</span>(<span class='ident'>impls</span>::<span class='ident'>TryDiscard</span>)
+    }
+
     <span class='comment'>// /// Take the results of iterating this parser, and feed it into another parser.</span>
     <span class='comment'>// fn pipe&lt;P&gt;(self, other: P) -&gt; impls::PipeParser&lt;Self, P&gt;</span>
     <span class='comment'>//     where Self: Sized</span>
@@ -2372,7 +2455,7 @@
     {
         <span class='ident'>InState</span>(<span class='self'>self</span>, <span class='ident'>state</span>)
     }
-    
+
     <span class='doccomment'>/// A parser which produces its input.</span>
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// This does its best to avoid having to buffer the input. The result of a buffered parser</span>
@@ -2434,7 +2517,7 @@
 
     <span class='doccomment'>/// Parse an EOF.</span>
     <span class='kw'>fn</span> <span class='ident'>empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Output</span>;
-    
+
 }
 
 <span class='doccomment'>/// A trait for committed parsers which can infer their output type from their input types.</span>
@@ -2521,8 +2604,8 @@
     <span class='doccomment'>/// # use parsell::ParseResult::{Continue,Done};</span>
     <span class='doccomment'>/// let parser = character(char::is_alphabetic).star(String::new);</span>
     <span class='doccomment'>/// match parser.init_str(&quot;ab&quot;).unwrap() {</span>
-    <span class='doccomment'>///     Continue(stateful) =&gt; match stateful.more_str(&quot;cd&quot;) { </span>
-    <span class='doccomment'>///         Continue(stateful) =&gt; match stateful.more_str(&quot;ef!&quot;) { </span>
+    <span class='doccomment'>///     Continue(stateful) =&gt; match stateful.more_str(&quot;cd&quot;) {</span>
+    <span class='doccomment'>///         Continue(stateful) =&gt; match stateful.more_str(&quot;ef!&quot;) {</span>
     <span class='doccomment'>///             Done(result) =&gt; assert_eq!(result, &quot;abcdef&quot;),</span>
     <span class='doccomment'>///             _ =&gt; panic!(&quot;can&#39;t happen&quot;),</span>
     <span class='doccomment'>///         },</span>
@@ -2728,7 +2811,7 @@
 <span class='doccomment'>/// is that it provides weaker safety guarantees. `StatefulInfer&lt;S&gt;` enforces that</span>
 <span class='doccomment'>/// clients cannot call `parse` after `done`, but `Boxable&lt;S&gt;` does not.</span>
 
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span><span class='op'>&gt;</span> 
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Boxable</span><span class='op'>&lt;</span><span class='ident'>Ch</span>, <span class='ident'>Str</span>, <span class='ident'>Output</span><span class='op'>&gt;</span>
 {
     <span class='kw'>fn</span> <span class='ident'>more_boxable</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>string</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Str</span>) <span class='op'>-&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span>(), <span class='ident'>Output</span><span class='op'>&gt;</span>;
     <span class='kw'>fn</span> <span class='ident'>done_boxable</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Output</span>;
@@ -2796,6 +2879,13 @@
     <span class='kw'>fn</span> <span class='ident'>apply</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>arg</span>: <span class='ident'>S</span>) <span class='op'>-&gt;</span> <span class='ident'>F</span>::<span class='ident'>Output</span> {
         <span class='self'>self</span>(<span class='ident'>arg</span>)
     }
+}
+
+<span class='doccomment'>/// A trait for functions that can compute their inputs from their outputs</span>
+
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>VariantFunction</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>type</span> <span class='ident'>Input</span>;
+    <span class='kw'>fn</span> <span class='ident'>apply</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>arg</span>: <span class='ident'>Self</span>::<span class='ident'>Input</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span>;
 }
 
 <span class='doccomment'>/// A trait for factories.</span>
@@ -2868,9 +2958,43 @@
     }
 }
 
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>str</span><span class='op'>&gt;&gt;</span> <span class='kw'>for</span> <span class='ident'>String</span> {
+    <span class='kw'>fn</span> <span class='ident'>accept</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>arg</span>: <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>str</span><span class='op'>&gt;</span>) {
+        <span class='self'>self</span>.<span class='ident'>push_str</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>arg</span>);
+    }
+}
+
 <span class='kw'>impl</span> <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>String</span> {
     <span class='kw'>fn</span> <span class='ident'>accept</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>x</span>: <span class='ident'>char</span>) {
         <span class='self'>self</span>.<span class='ident'>push</span>(<span class='ident'>x</span>);
+    }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>str</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>accept</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>arg</span>: <span class='ident'>String</span>) {
+        <span class='self'>self</span>.<span class='ident'>accept</span>(<span class='ident'>Cow</span>::<span class='ident'>Owned</span>(<span class='ident'>arg</span>))
+    }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>str</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>accept</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>) {
+        <span class='self'>self</span>.<span class='ident'>accept</span>(<span class='ident'>Cow</span>::<span class='ident'>Borrowed</span>(<span class='ident'>arg</span>))
+    }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>str</span><span class='op'>&gt;&gt;</span> <span class='kw'>for</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>str</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>accept</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>arg</span>: <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>str</span><span class='op'>&gt;</span>) {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>is_empty</span>() {
+            <span class='op'>*</span><span class='self'>self</span> <span class='op'>=</span> <span class='ident'>arg</span>
+        } <span class='kw'>else</span> {
+            <span class='self'>self</span>.<span class='ident'>to_mut</span>().<span class='ident'>push_str</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>arg</span>)
+        }
+    }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Consumer</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>str</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>accept</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>x</span>: <span class='ident'>char</span>) {
+        <span class='self'>self</span>.<span class='ident'>to_mut</span>().<span class='ident'>push</span>(<span class='ident'>x</span>);
     }
 }
 
@@ -2973,7 +3097,7 @@
 <span class='doccomment'>/// and restored from `Cow&lt;&#39;static,T&gt;` when `T` is static.</span>
 
 <span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>ToStatic</span> {
-    <span class='kw'>type</span> <span class='ident'>Static</span>: <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Upcast</span><span class='op'>&lt;</span><span class='kw'>Self</span><span class='op'>&gt;</span>;
+    <span class='kw'>type</span> <span class='ident'>Static</span>;
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span>: ?<span class='ident'>Sized</span><span class='op'>&gt;</span> <span class='ident'>ToStatic</span> <span class='kw'>for</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span>
@@ -3067,7 +3191,7 @@
     <span class='kw'>fn</span> <span class='ident'>is_empty</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
         <span class='self'>self</span>.<span class='ident'>peek</span>().<span class='ident'>is_none</span>()
     }
-        
+
     <span class='kw'>fn</span> <span class='ident'>next_if_ref</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span>
         <span class='kw'>where</span> <span class='ident'>F</span>: <span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Function</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Self</span>::<span class='ident'>Item</span>, <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>bool</span><span class='op'>&gt;</span>
     {
@@ -3091,7 +3215,7 @@
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>as_str</span>().<span class='ident'>chars</span>().<span class='ident'>next</span>() {
             <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>ch</span>) <span class='kw'>if</span> <span class='ident'>f</span>.<span class='ident'>apply</span>(<span class='ident'>ch</span>) <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>next</span>(),
             _ <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>
-        }        
+        }
     }
 }
 
@@ -3135,7 +3259,7 @@
 <span class='comment'>// ----------- Tests -------------</span>
 
 <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>non_snake_case</span>)]</span>
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>State</span>, <span class='ident'>Output</span><span class='op'>&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>State</span>, <span class='ident'>Output</span><span class='op'>&gt;</span> 
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>State</span>, <span class='ident'>Output</span><span class='op'>&gt;</span> <span class='ident'>ParseResult</span><span class='op'>&lt;</span><span class='ident'>State</span>, <span class='ident'>Output</span><span class='op'>&gt;</span>
 {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>unDone</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Output</span> {
         <span class='kw'>match</span> <span class='self'>self</span> {
@@ -3611,7 +3735,7 @@
         }
     }
     <span class='kw'>fn</span> <span class='ident'>is_owned</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>T</span>:?<span class='ident'>Sized</span><span class='op'>+</span><span class='ident'>ToOwned</span><span class='op'>&gt;</span>(<span class='ident'>cow</span>: <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='kw'>match</span> <span class='ident'>cow</span> { <span class='ident'>Cow</span>::<span class='ident'>Owned</span>(_) <span class='op'>=&gt;</span> <span class='boolval'>true</span>, _ <span class='op'>=&gt;</span> <span class='boolval'>false</span> } }
-    <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>Test</span>; 
+    <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>Test</span>;
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>Cow</span>::<span class='ident'>Borrowed</span>(<span class='string'>&quot;foo&quot;</span>), <span class='ident'>Cow</span>::<span class='ident'>Borrowed</span>(<span class='string'>&quot;bar&quot;</span>), <span class='ident'>Cow</span>::<span class='ident'>Borrowed</span>(<span class='string'>&quot;foo&quot;</span>)];
     <span class='kw'>let</span> ((<span class='ident'>fst</span>, <span class='ident'>snd</span>), <span class='ident'>thd</span>) <span class='op'>=</span> <span class='ident'>parser</span>.<span class='ident'>init</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>.<span class='ident'>drain</span>(..).<span class='ident'>peekable</span>()).<span class='ident'>unwrap</span>().<span class='ident'>unDone</span>();
     <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>fst</span>, <span class='string'>&quot;foo&quot;</span>);
