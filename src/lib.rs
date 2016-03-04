@@ -35,7 +35,7 @@ pub mod impls;
 /// A trait for parsers which can infer their output type from their input types.
 
 pub trait HasOutput<Ch, Str> {
-    
+
     /// The type of the data being produced by the parser.
     type Output;
 
@@ -94,8 +94,8 @@ pub trait Stateful<Ch, Str, Output> {
     /// let data2 = "cd";
     /// let data3 = "ef!";
     /// match parser.init(&mut data1.chars()).unwrap() {
-    ///     Continue(stateful) => match stateful.more(&mut data2.chars()) { 
-    ///         Continue(stateful) => match stateful.more(&mut data3.chars()) { 
+    ///     Continue(stateful) => match stateful.more(&mut data2.chars()) {
+    ///         Continue(stateful) => match stateful.more(&mut data3.chars()) {
     ///             Done(result) => assert_eq!(result, "abcdef"),
     ///             _ => panic!("can't happen"),
     ///         },
@@ -124,7 +124,7 @@ pub trait Stateful<Ch, Str, Output> {
     /// let data2 = "cd";
     /// let data3 = "ef";
     /// match parser.init(&mut data1.chars()).unwrap() {
-    ///     Continue(stateful) => match stateful.more(&mut data2.chars()) { 
+    ///     Continue(stateful) => match stateful.more(&mut data2.chars()) {
     ///         Continue(stateful) => assert_eq!(stateful.last(&mut data3.chars()), "abcdef"),
     ///         _ => panic!("can't happen"),
     ///     },
@@ -155,7 +155,7 @@ pub trait Stateful<Ch, Str, Output> {
     ///
     /// If `parser: StatefulInfer<Ch, Str>` and `data: Str`, then `parser.last(&mut data)`
     /// calls `parser.more(&mut data)`, then calls `done()` if the parser continues.
-    
+
     fn last(self, string: &mut Str) -> Output
         where Self: Sized
     {
@@ -195,8 +195,8 @@ pub trait StatefulStr<'a>: StatefulInfer<char, Chars<'a>> {
     /// # use parsell::ParseResult::{Continue,Done};
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// match parser.init_str("ab").unwrap() {
-    ///     Continue(stateful) => match stateful.more_str("cd") { 
-    ///         Continue(stateful) => match stateful.more_str("ef!") { 
+    ///     Continue(stateful) => match stateful.more_str("cd") {
+    ///         Continue(stateful) => match stateful.more_str("ef!") {
     ///             Done(result) => assert_eq!(result, "abcdef"),
     ///             _ => panic!("can't happen"),
     ///         },
@@ -251,7 +251,7 @@ pub enum ParseResult<State, Output> {
 
     /// The parse is finished.
     Done(Output),
-    
+
     /// The parse can continue.
     Continue(State),
 
@@ -322,11 +322,11 @@ pub trait Parser {
     }
 
     /// Sequencing with a committed parser (bubble any errors from either parser).
-    fn try_and_then_try<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::TryZipTry>
+    fn try_and_then_try<P>(self, other: P) -> impls::VariantMap<impls::AndThen<Self, P>, impls::TryZipTry>
         where Self: Sized,
               P: Parser,
     {
-        self.and_then(other).map(impls::TryZipTry)
+        self.and_then(other).variant_map(impls::TryZipTry)
     }
 
     /// Iterate one or more times (returns an uncommitted parser).
@@ -415,52 +415,59 @@ pub trait Parser {
         self.try_map(impls::Function5::new(f))
     }
 
+    /// Apply a variant function to the result
+    fn variant_map<F>(self, f: F) -> impls::VariantMap<Self, F>
+        where Self: Sized,
+    {
+        impls::VariantMap::new(self, f)
+    }
+
     /// Sequencing, discard the output of the first parse
-    fn discard_and_then<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::Second>
+    fn discard_and_then<P>(self, other: P) -> impls::VariantMap<impls::AndThen<impls::Discard<Self>, P>, impls::Second>
         where Self: Sized,
               P: Parser,
     {
-        self.and_then(other).map(impls::Second)
+        self.discard().and_then(other).variant_map(impls::Second)
     }
 
     /// Sequencing, discard the output of the second parse
-    fn and_then_discard<P>(self, other: P) -> impls::Map<impls::AndThen<Self, P>, impls::First>
+    fn and_then_discard<P>(self, other: P) -> impls::VariantMap<impls::AndThen<Self, impls::Discard<P>>, impls::First>
         where Self: Sized,
               P: Parser,
     {
-        self.and_then(other).map(impls::First)
+        self.and_then(other.discard()).variant_map(impls::First)
     }
 
     /// Sequencing, discard the output of the first parse, bubble errors from the first parser
-    fn try_discard_and_then<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::TryZip>, impls::Try<impls::Second>>
+    fn try_discard_and_then<P>(self, other: P) -> impls::VariantMap<impls::Map<impls::AndThen<impls::Map<Self, impls::TryDiscard>, P>, impls::TryZip>, impls::Try<impls::Second>>
         where Self: Sized,
               P: Parser,
     {
-        self.try_and_then(other).try_map(impls::Second)
+        self.try_discard().try_and_then(other).variant_map(impls::Try::new(impls::Second))
     }
 
     /// Sequencing, discard the output of the second parse, bubble errors from the second parser
-    fn and_then_try_discard<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::ZipTry>, impls::Try<impls::First>>
+    fn and_then_try_discard<P>(self, other: P) -> impls::VariantMap<impls::Map<impls::AndThen<Self, impls::Map<P, impls::TryDiscard>>, impls::ZipTry>, impls::Try<impls::First>>
         where Self: Sized,
               P: Parser,
     {
-        self.and_then_try(other).try_map(impls::First)
+        self.and_then_try(other.try_discard()).variant_map(impls::Try::new(impls::First))
     }
 
     /// Sequencing, discard the output of the first parse, bubble errors from either parser
-    fn try_discard_and_then_try<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::TryZipTry>, impls::Try<impls::Second>>
+    fn try_discard_and_then_try<P>(self, other: P) -> impls::VariantMap<impls::VariantMap<impls::AndThen<impls::Map<Self, impls::TryDiscard>, P>, impls::TryZipTry>, impls::Try<impls::Second>>
         where Self: Sized,
               P: Parser,
     {
-        self.try_and_then_try(other).try_map(impls::Second)
+        self.try_discard().try_and_then_try(other).variant_map(impls::Try::new(impls::Second))
     }
 
     /// Sequencing, discard the output of the second parse, bubble errors from either parser
-    fn try_and_then_try_discard<P>(self, other: P) -> impls::Map<impls::Map<impls::AndThen<Self, P>, impls::TryZipTry>, impls::Try<impls::First>>
+    fn try_and_then_try_discard<P>(self, other: P) -> impls::VariantMap<impls::VariantMap<impls::AndThen<Self, impls::Map<P, impls::TryDiscard>>, impls::TryZipTry>, impls::Try<impls::First>>
         where Self: Sized,
               P: Parser,
     {
-        self.try_and_then_try(other).try_map(impls::First)
+        self.try_and_then_try(other.try_discard()).variant_map(impls::Try::new(impls::First))
     }
 
     /// Optional parse
@@ -469,14 +476,28 @@ pub trait Parser {
     {
         impls::Opt::new(self)
     }
-    
-    /// Discard the output
-    fn discard(self) -> impls::Map<Self, impls::Discard>
+
+    /// Optional parse
+    fn try_opt(self) -> impls::VariantMap<impls::Opt<Self>, impls::TryOpt>
         where Self: Sized,
     {
-        self.map(impls::Discard)
+        self.opt().variant_map(impls::TryOpt)
     }
-    
+
+    /// Discard the output
+    fn discard(self) -> impls::Discard<Self>
+        where Self: Sized,
+    {
+        impls::Discard::new(self)
+    }
+
+    /// Discard the output, bubbling errors
+    fn try_discard(self) -> impls::Map<Self, impls::TryDiscard>
+        where Self: Sized,
+    {
+        self.map(impls::TryDiscard)
+    }
+
     // /// Take the results of iterating this parser, and feed it into another parser.
     // fn pipe<P>(self, other: P) -> impls::PipeParser<Self, P>
     //     where Self: Sized
@@ -497,7 +518,7 @@ pub trait Parser {
     {
         InState(self, state)
     }
-    
+
     /// A parser which produces its input.
     ///
     /// This does its best to avoid having to buffer the input. The result of a buffered parser
@@ -559,7 +580,7 @@ pub trait Committed<Ch, Str, Output>: Uncommitted<Ch, Str, Output>
 
     /// Parse an EOF.
     fn empty(&self) -> Output;
-    
+
 }
 
 /// A trait for committed parsers which can infer their output type from their input types.
@@ -646,8 +667,8 @@ pub trait UncommittedStr<'a>: UncommittedInfer<char, Chars<'a>> {
     /// # use parsell::ParseResult::{Continue,Done};
     /// let parser = character(char::is_alphabetic).star(String::new);
     /// match parser.init_str("ab").unwrap() {
-    ///     Continue(stateful) => match stateful.more_str("cd") { 
-    ///         Continue(stateful) => match stateful.more_str("ef!") { 
+    ///     Continue(stateful) => match stateful.more_str("cd") {
+    ///         Continue(stateful) => match stateful.more_str("ef!") {
     ///             Done(result) => assert_eq!(result, "abcdef"),
     ///             _ => panic!("can't happen"),
     ///         },
@@ -853,7 +874,7 @@ impl<'a, P> UncommittedStr<'a> for P where P: UncommittedInfer<char, Chars<'a>> 
 /// is that it provides weaker safety guarantees. `StatefulInfer<S>` enforces that
 /// clients cannot call `parse` after `done`, but `Boxable<S>` does not.
 
-pub trait Boxable<Ch, Str, Output> 
+pub trait Boxable<Ch, Str, Output>
 {
     fn more_boxable(&mut self, string: &mut Str) -> ParseResult<(), Output>;
     fn done_boxable(&mut self) -> Output;
@@ -921,6 +942,13 @@ impl<F, S> Function<S> for F where F: Fn<(S, )>
     fn apply(&self, arg: S) -> F::Output {
         self(arg)
     }
+}
+
+/// A trait for functions that can compute their inputs from their outputs
+
+pub trait VariantFunction<T> {
+    type Input;
+    fn apply(&self, arg: Self::Input) -> T;
 }
 
 /// A trait for factories.
@@ -993,9 +1021,43 @@ impl<'a> Consumer<&'a str> for String {
     }
 }
 
+impl<'a> Consumer<Cow<'a,str>> for String {
+    fn accept(&mut self, arg: Cow<'a,str>) {
+        self.push_str(&*arg);
+    }
+}
+
 impl Consumer<char> for String {
     fn accept(&mut self, x: char) {
         self.push(x);
+    }
+}
+
+impl<'a> Consumer<String> for Cow<'a,str> {
+    fn accept(&mut self, arg: String) {
+        self.accept(Cow::Owned(arg))
+    }
+}
+
+impl<'a> Consumer<&'a str> for Cow<'a, str> {
+    fn accept(&mut self, arg: &'a str) {
+        self.accept(Cow::Borrowed(arg))
+    }
+}
+
+impl<'a> Consumer<Cow<'a,str>> for Cow<'a, str> {
+    fn accept(&mut self, arg: Cow<'a,str>) {
+        if self.is_empty() {
+            *self = arg
+        } else {
+            self.to_mut().push_str(&*arg)
+        }
+    }
+}
+
+impl<'a> Consumer<char> for Cow<'a, str> {
+    fn accept(&mut self, x: char) {
+        self.to_mut().push(x);
     }
 }
 
@@ -1098,7 +1160,7 @@ impl<S, T, D, E> Downcast<Result<T,E>> for Result<S,D>
 /// and restored from `Cow<'static,T>` when `T` is static.
 
 pub trait ToStatic {
-    type Static: 'static + Upcast<Self>;
+    type Static;
 }
 
 impl<'a, T: ?Sized> ToStatic for Cow<'a, T>
@@ -1192,7 +1254,7 @@ impl<I> PeekableIterator for Peekable<I>
     fn is_empty(&mut self) -> bool {
         self.peek().is_none()
     }
-        
+
     fn next_if_ref<F>(&mut self, f: F) -> Option<Self::Item>
         where F: for<'a> Function<&'a Self::Item, Output = bool>
     {
@@ -1216,7 +1278,7 @@ impl<'a> PeekableIterator for Chars<'a>
         match self.as_str().chars().next() {
             Some(ref ch) if f.apply(ch) => self.next(),
             _ => None
-        }        
+        }
     }
 }
 
@@ -1260,7 +1322,7 @@ pub fn emit<T>(t: T) -> impls::Emit<T> {
 // ----------- Tests -------------
 
 #[allow(non_snake_case)]
-impl<State, Output> ParseResult<State, Output> 
+impl<State, Output> ParseResult<State, Output>
 {
     pub fn unDone(self) -> Output {
         match self {
@@ -1736,7 +1798,7 @@ fn test_boxable() {
         }
     }
     fn is_owned<'a,T:?Sized+ToOwned>(cow: Cow<'a,T>) -> bool { match cow { Cow::Owned(_) => true, _ => false } }
-    let parser = Test; 
+    let parser = Test;
     let mut data = vec![Cow::Borrowed("foo"), Cow::Borrowed("bar"), Cow::Borrowed("foo")];
     let ((fst, snd), thd) = parser.init(&mut data.drain(..).peekable()).unwrap().unDone();
     assert_eq!(fst, "foo");

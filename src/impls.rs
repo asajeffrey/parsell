@@ -2,7 +2,7 @@
 
 use super::{Parser, ParseResult};
 use super::{HasOutput, StatefulInfer, Stateful, CommittedInfer, Committed, UncommittedInfer, Uncommitted, Boxable};
-use super::{Function, Consumer, Factory, PeekableIterator};
+use super::{Function, VariantFunction, Consumer, Factory, PeekableIterator};
 use super::{Upcast, Downcast, ToStatic};
 use super::ParseResult::{Done, Continue};
 
@@ -110,9 +110,25 @@ impl<F, S, E> Function<Result<S, E>> for Try<F> where F: Function<S>
         Ok(self.0.apply(try!(args)))
     }
 }
+impl<F, T, E> VariantFunction<Result<T, E>> for Try<F> where F: VariantFunction<T>
+{
+    type Input = Result<F::Input,E>;
+    fn apply(&self, args: Result<F::Input, E>) -> Result<T, E> {
+        Ok(self.0.apply(try!(args)))
+    }
+}
 impl<F> Try<F> {
     pub fn new(f: F) -> Try<F> {
         Try(f)
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TryDiscard;
+impl<S, E> Function<Result<S, E>> for TryDiscard {
+    type Output = Result<(),E>;
+    fn apply(&self, arg: Result<S, E>) -> Result<(), E> {
+        try!(arg); Ok(())
     }
 }
 
@@ -142,6 +158,35 @@ impl<S, T, E> Function<(Result<S, E>, Result<T, E>)> for TryZipTry {
         Ok((try!(args.0), try!(args.1)))
     }
 }
+impl<S, T, E> VariantFunction<Result<(S, T), E>> for TryZipTry {
+    type Input = (Result<S, E>, Result<T, E>);
+    fn apply(&self, args: (Result<S, E>, Result<T, E>)) -> Result<(S, T), E> {
+        Ok((try!(args.0), try!(args.1)))
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TryOpt;
+impl<T, E> Function<Option<Result<T, E>>> for TryOpt {
+    type Output = Result<Option<T>,E>;
+    fn apply(&self, arg: Option<Result<T, E>>) -> Result<Option<T>,E> {
+        match arg {
+            Some(Ok(res)) => Ok(Some(res)),
+            Some(Err(err)) => Err(err),
+            None => Ok(None),
+        }
+    }
+}
+impl<T, E> VariantFunction<Result<Option<T>, E>> for TryOpt {
+    type Input = Option<Result<T, E>>;
+    fn apply(&self, arg: Option<Result<T, E>>) -> Result<Option<T>,E> {
+        match arg {
+            Some(Ok(res)) => Ok(Some(res)),
+            Some(Err(err)) => Err(err),
+            None => Ok(None),
+        }
+    }
+}
 
 // ----------- Deal with options ---------------
 
@@ -166,6 +211,13 @@ impl<S, T> Function<(S, T)> for First
         arg.0
     }
 }
+impl<T> VariantFunction<T> for First
+{
+    type Input = (T, ());
+    fn apply(&self, arg: (T, ())) -> T {
+        arg.0
+    }
+}
 
 #[derive(Copy, Clone, Debug)]
 pub struct Second;
@@ -176,18 +228,14 @@ impl<S, T> Function<(S, T)> for Second
         arg.1
     }
 }
-
-// ----------- Deal with units ---------------
-
-#[derive(Copy, Clone, Debug)]
-pub struct Discard;
-impl<T> Function<T> for Discard
+impl<T> VariantFunction<T> for Second
 {
-    type Output = ();
-    fn apply(&self, _: T) -> () {
-        ()
+    type Input = ((), T);
+    fn apply(&self, arg: ((), T)) -> T {
+        arg.1
     }
 }
+
 
 // ----------- Map ---------------
 
@@ -280,6 +328,100 @@ impl<P, F> Map<P, F> {
     }
 }
 
+// ----------- Variant map ---------------
+
+// A version of map for functions that can comute their input types from their output types
+
+pub struct VariantMap<P, F>(P, F);
+
+// A work around for functions implmenting copy but not clone
+// https://github.com/rust-lang/rust/issues/28229
+impl<P, F> Copy for VariantMap<P, F>
+    where P: Copy,
+          F: Copy
+{}
+impl<P, F> Clone for VariantMap<P, F>
+    where P: Clone,
+          F: Copy
+{
+    fn clone(&self) -> Self {
+        VariantMap(self.0.clone(), self.1)
+    }
+}
+
+// A work around for named functions not implmenting Debug
+// https://github.com/rust-lang/rust/issues/31522
+impl<P, F> Debug for VariantMap<P, F>
+    where P: Debug
+{
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        write!(fmt, "VariantMap({:?}, ...)", self.0)
+    }
+}
+
+impl<P, F> Parser for VariantMap<P, F> {}
+
+impl<P, F, Ch, Str, Output> Stateful<Ch, Str, Output> for VariantMap<P, F>
+    where P: Stateful<Ch, Str, F::Input>,
+          F: VariantFunction<Output>,
+{
+
+    fn done(self) -> Output {
+        self.1.apply(self.0.done())
+    }
+
+    fn more(self, string: &mut Str) -> ParseResult<Self, Output> {
+        match self.0.more(string) {
+            Done(result) => Done(self.1.apply(result)),
+            Continue(state) => Continue(VariantMap(state, self.1)),
+        }
+    }
+
+}
+
+impl<P, F, Ch, Str> HasOutput<Ch, Str> for VariantMap<P, F>
+    where P: HasOutput<Ch, Str>,
+          F: Function<P::Output>,
+{
+
+    type Output = F::Output;
+
+}
+
+impl<P, F, Ch, Str, Output> Committed<Ch, Str, Output> for VariantMap<P, F>
+    where P: Committed<Ch, Str, F::Input>,
+          F: 'static + Copy + VariantFunction<Output>,
+
+{
+
+    fn empty(&self) -> Output {
+        self.1.apply(self.0.empty())
+    }
+
+}
+
+impl<P, F, Ch, Str, Output> Uncommitted<Ch, Str, Output> for VariantMap<P, F>
+    where P: Uncommitted<Ch, Str, F::Input>,
+          F: 'static + Copy + VariantFunction<Output>,
+{
+    type State = VariantMap<P::State, F>;
+
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, Output>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Done(result)) => Some(Done(self.1.apply(result))),
+            Some(Continue(state)) => Some(Continue(VariantMap(state, self.1))),
+        }
+    }
+
+}
+
+impl<P, F> VariantMap<P, F> {
+    pub fn new(p: P, f: F) -> Self {
+        VariantMap(p, f)
+    }
+}
+
 // ----------- Sequencing ---------------
 
 #[derive(Copy, Clone, Debug)]
@@ -287,10 +429,10 @@ pub struct AndThen<P, Q>(P, Q);
 
 impl<P, Q> Parser for AndThen<P, Q> {}
 
-impl<P, Q, Ch, Str, POutput, QOutput> Committed<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
+impl<P, Q, Ch, Str, POutput, PStaticOutput, QOutput> Committed<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
     where P: Committed<Ch, Str, POutput>,
           Q: 'static + Copy + Committed<Ch, Str, QOutput>,
-          POutput: ToStatic + Downcast<<POutput as ToStatic>::Static>,
+          POutput: ToStatic<Static = PStaticOutput> + Downcast<PStaticOutput>,
 {
 
     fn empty(&self) -> (POutput, QOutput) {
@@ -299,13 +441,13 @@ impl<P, Q, Ch, Str, POutput, QOutput> Committed<Ch, Str, (POutput, QOutput)> for
 
 }
 
-impl<P, Q, Ch, Str, POutput, QOutput> Uncommitted<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
+impl<P, Q, Ch, Str, POutput, PStaticOutput, QOutput> Uncommitted<Ch, Str, (POutput, QOutput)> for AndThen<P, Q>
     where P: Uncommitted<Ch, Str, POutput>,
           Q: 'static + Copy + Committed<Ch, Str, QOutput>,
-          POutput: ToStatic + Downcast<<POutput as ToStatic>::Static>,
+          POutput: ToStatic<Static = PStaticOutput> + Downcast<PStaticOutput>,
 {
 
-    type State = AndThenState<P::State, Q, POutput::Static, Q::State>;
+    type State = AndThenState<P::State, Q, PStaticOutput, Q::State>;
 
     fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, (POutput, QOutput)>> {
         match self.0.init(string) {
@@ -343,10 +485,10 @@ pub enum AndThenState<PState, Q, PStaticOutput, QState> {
     InRhs(PStaticOutput, QState),
 }
 
-impl<PState, Q, PStaticOutput, Ch, Str, POutput, QOutput> Stateful<Ch, Str, (POutput, QOutput)> for AndThenState<PState, Q, PStaticOutput, Q::State>
+impl<PState, Q, PStaticOutput, QState, Ch, Str, POutput, QOutput> Stateful<Ch, Str, (POutput, QOutput)> for AndThenState<PState, Q, PStaticOutput, QState>
     where PState: Stateful<Ch, Str, POutput>,
-          Q: Committed<Ch, Str, QOutput>,
-          Q::State: Stateful<Ch, Str, QOutput>,
+          Q: Committed<Ch, Str, QOutput, State = QState>,
+          QState: Stateful<Ch, Str, QOutput>,
           POutput: Downcast<PStaticOutput>,
           PStaticOutput: 'static + Upcast<POutput>,
 {
@@ -391,9 +533,9 @@ impl<PState, Q, PStaticOutput, Ch, Str, POutput, QOutput> Stateful<Ch, Str, (POu
 
 }
 
-impl<PState, Q, PStaticOutput, Ch, Str> HasOutput<Ch, Str> for AndThenState<PState, Q, PStaticOutput, Q::State>
+impl<PState, Q, PStaticOutput, QState, Ch, Str> HasOutput<Ch, Str> for AndThenState<PState, Q, PStaticOutput, QState>
     where PState: HasOutput<Ch, Str>,
-          Q: CommittedInfer<Ch, Str>,
+          Q: HasOutput<Ch, Str>,
 {
 
     type Output = (PState::Output, Q::Output);
@@ -742,6 +884,69 @@ impl<P, Ch, Str, Output> Committed<Ch, Str, Option<Output>> for Opt<P>
 impl<P> Opt<P> {
     pub fn new(parser: P) -> Self {
         Opt(parser)
+    }
+}
+
+// ----------- Parse but discard the result -------------
+
+#[derive(Copy, Clone, Debug)]
+pub struct Discard<P>(P);
+
+impl<P> Parser for Discard<P> where P: Parser {}
+
+impl<P, Ch, Str> Stateful<Ch, Str, ()> for Discard<P>
+    where P: StatefulInfer<Ch, Str>,
+{
+
+    fn more(self, string: &mut Str) -> ParseResult<Self, ()> {
+        match self.0.more(string) {
+            Done(_) => Done(()),
+            Continue(parsing) => Continue(Discard(parsing)),
+        }
+    }
+
+    fn done(self) -> () {
+        ()
+    }
+
+}
+
+impl<P, Ch, Str> HasOutput<Ch, Str> for Discard<P>
+{
+
+    type Output = ();
+
+}
+
+impl<P, Ch, Str> Uncommitted<Ch, Str, ()> for Discard<P>
+    where P: UncommittedInfer<Ch, Str>,
+{
+
+    type State = Discard<P::State>;
+
+    fn init(&self, string: &mut Str) -> Option<ParseResult<Self::State, ()>> {
+        match self.0.init(string) {
+            None => None,
+            Some(Done(_)) => Some(Done(())),
+            Some(Continue(parsing)) => Some(Continue(Discard(parsing))),
+        }
+    }
+
+}
+
+impl<P, Ch, Str> Committed<Ch, Str, ()> for Discard<P>
+    where P: CommittedInfer<Ch, Str>,
+{
+
+    fn empty(&self) -> () {
+        ()
+    }
+
+}
+
+impl<P> Discard<P> {
+    pub fn new(parser: P) -> Self {
+        Discard(parser)
     }
 }
 
