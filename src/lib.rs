@@ -415,6 +415,13 @@ pub trait Parser {
         self.try_map(impls::Function5::new(f))
     }
 
+    /// Apply a by-reference function to the result
+    fn map_ref<F>(self, f: F) -> impls::Map<Self, impls::Dereference<F>>
+        where Self: Sized,
+    {
+        self.map(impls::Dereference::new(f))
+    }
+
     /// Apply a variant function to the result
     fn variant_map<F>(self, f: F) -> impls::VariantMap<Self, F>
         where Self: Sized,
@@ -1296,7 +1303,7 @@ pub fn character<F>(f: F) -> impls::Character<F> {
 
 /// An uncommitted parser that reads one character by reference.
 ///
-/// The parser `character(f)` reads one character `ch` from the input,
+/// The parser `character_ref(f)` reads one character `ch` from the input,
 /// if `f(&ch)` is `true` then it commits and the result is `ch`,
 /// otherwise it backtracks.
 ///
@@ -1304,6 +1311,34 @@ pub fn character<F>(f: F) -> impls::Character<F> {
 
 pub fn character_ref<F>(f: F) -> impls::CharacterRef<F> {
     impls::CharacterRef::new(f)
+}
+
+/// An uncommitted parser that reads one character by reference and applies a function to it.
+///
+/// The parser `character_ref_map(f)` reads one character `ch` from the input,
+/// if `f(&ch)` is `Some(value)` then it commits and the result is `value`,
+/// otherwise it backtracks.
+///
+/// This does not require characters to be copyable.
+
+pub fn character_map_ref<F>(f: F) -> impls::Map<impls::CharacterRef<impls::IsSome<F>>, impls::Dereference<impls::Unwrap<F>>>
+    where F: Copy,
+{
+    character_ref(impls::IsSome::new(f)).map_ref(impls::Unwrap::new(f))
+}
+
+/// An uncommitted parser that reads one character and applies a function to it.
+///
+/// The parser `character_map(f)` reads one character `ch` from the input,
+/// if `f(ch)` is `Some(value)` then it commits and the result is `value`,
+/// otherwise it backtracks.
+///
+/// This requires characters to be copyable.
+
+pub fn character_map<F>(f: F) -> impls::Map<impls::Character<impls::IsSome<F>>, impls::Unwrap<F>>
+    where F: Copy,
+{
+    character(impls::IsSome::new(f)).map(impls::Unwrap::new(f))
 }
 
 /// A committed parser that reads one character.
@@ -1367,6 +1402,36 @@ fn test_character_ref() {
     let mut data = "abcd".chars();
     assert_eq!(parser.init(&mut data).unwrap().unDone(), 'a');
     assert_eq!(data.as_str(), "bcd");
+}
+
+#[test]
+fn test_character_map() {
+    fn to_decimal_digit(ch: char) -> Option<u32> { ch.to_digit(10) }
+    let parser = character_map(to_decimal_digit);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "989".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), 9);
+    assert_eq!(data.as_str(), "89");
+    let mut data = "abcd".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "abcd");
+}
+
+#[test]
+fn test_character_map_ref() {
+    fn to_decimal_digit<'a>(ch: &'a char) -> Option<u32> { ch.to_digit(10) }
+    let parser = character_map_ref(to_decimal_digit);
+    let mut data = "".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "");
+    let mut data = "989".chars();
+    assert_eq!(parser.init(&mut data).unwrap().unDone(), 9);
+    assert_eq!(data.as_str(), "89");
+    let mut data = "abcd".chars();
+    assert!(parser.init(&mut data).is_none());
+    assert_eq!(data.as_str(), "abcd");
 }
 
 #[test]

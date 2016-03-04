@@ -200,6 +200,57 @@ impl<T> Function<T> for MkSome
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct IsSome<F>(F);
+impl<F, S, T> Function<S> for IsSome<F>
+    where F: Function<S, Output = Option<T>>
+{
+    type Output = bool;
+    fn apply(&self, arg: S) -> bool {
+        self.0.apply(arg).is_some()
+    }
+}
+impl<F> IsSome<F> {
+    pub fn new(f: F) -> IsSome<F> {
+        IsSome(f)
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Unwrap<F>(F);
+impl<F, S, T> Function<S> for Unwrap<F>
+    where F: Function<S, Output = Option<T>>
+{
+    type Output = T;
+    fn apply(&self, arg: S) -> T {
+        self.0.apply(arg).unwrap()
+    }
+}
+impl<F> Unwrap<F> {
+    pub fn new(f: F) -> Unwrap<F> {
+        Unwrap(f)
+    }
+}
+
+// ----------- Deal with dereferencing ---------------
+
+#[derive(Copy, Clone, Debug)]
+pub struct Dereference<F>(F);
+impl<F, S, T> Function<S> for Dereference<F>
+    where F: for<'a> Function<&'a S, Output = T>
+{
+    type Output = T;
+    fn apply(&self, arg: S) -> T {
+        self.0.apply(&arg)
+    }
+}
+impl<F> Dereference<F> {
+    pub fn new(f: F) -> Dereference<F> {
+        Dereference(f)
+    }
+}
+
+
 // ----------- Deal with pairs ---------------
 
 #[derive(Copy, Clone, Debug)]
