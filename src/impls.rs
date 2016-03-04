@@ -1,7 +1,7 @@
 //! Provide implementations of parser traits.
 
 use super::{Parser, ParseResult};
-use super::{HasOutput, StatefulInfer, Stateful, CommittedInfer, Committed, UncommittedInfer, Uncommitted, Boxable, InState};
+use super::{HasOutput, StatefulInfer, Stateful, CommittedInfer, Committed, UncommittedInfer, Uncommitted, Boxable};
 use super::{Function, VariantFunction, Consumer, Factory, PeekableIterator};
 use super::{Upcast, Downcast, ToStatic};
 use super::ParseResult::{Done, Continue};
@@ -110,9 +110,25 @@ impl<F, S, E> Function<Result<S, E>> for Try<F> where F: Function<S>
         Ok(self.0.apply(try!(args)))
     }
 }
+impl<F, T, E> VariantFunction<Result<T, E>> for Try<F> where F: VariantFunction<T>
+{
+    type Input = Result<F::Input,E>;
+    fn apply(&self, args: Result<F::Input, E>) -> Result<T, E> {
+        Ok(self.0.apply(try!(args)))
+    }
+}
 impl<F> Try<F> {
     pub fn new(f: F) -> Try<F> {
         Try(f)
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TryDiscard;
+impl<S, E> Function<Result<S, E>> for TryDiscard {
+    type Output = Result<(),E>;
+    fn apply(&self, arg: Result<S, E>) -> Result<(), E> {
+        try!(arg); Ok(())
     }
 }
 
@@ -140,6 +156,35 @@ impl<S, T, E> Function<(Result<S, E>, Result<T, E>)> for TryZipTry {
     type Output = Result<(S,T),E>;
     fn apply(&self, args: (Result<S, E>, Result<T, E>)) -> Result<(S, T), E> {
         Ok((try!(args.0), try!(args.1)))
+    }
+}
+impl<S, T, E> VariantFunction<Result<(S, T), E>> for TryZipTry {
+    type Input = (Result<S, E>, Result<T, E>);
+    fn apply(&self, args: (Result<S, E>, Result<T, E>)) -> Result<(S, T), E> {
+        Ok((try!(args.0), try!(args.1)))
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TryOpt;
+impl<T, E> Function<Option<Result<T, E>>> for TryOpt {
+    type Output = Result<Option<T>,E>;
+    fn apply(&self, arg: Option<Result<T, E>>) -> Result<Option<T>,E> {
+        match arg {
+            Some(Ok(res)) => Ok(Some(res)),
+            Some(Err(err)) => Err(err),
+            None => Ok(None),
+        }
+    }
+}
+impl<T, E> VariantFunction<Result<Option<T>, E>> for TryOpt {
+    type Input = Option<Result<T, E>>;
+    fn apply(&self, arg: Option<Result<T, E>>) -> Result<Option<T>,E> {
+        match arg {
+            Some(Ok(res)) => Ok(Some(res)),
+            Some(Err(err)) => Err(err),
+            None => Ok(None),
+        }
     }
 }
 
