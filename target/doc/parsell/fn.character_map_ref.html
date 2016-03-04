@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="API documentation for the Rust `character_ref` fn in crate `parsell`.">
-    <meta name="keywords" content="rust, rustlang, rust-lang, character_ref">
+    <meta name="description" content="API documentation for the Rust `character_map_ref` fn in crate `parsell`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, character_map_ref">
 
-    <title>parsell::character_ref - Rust</title>
+    <title>parsell::character_map_ref - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../main.css">
@@ -27,7 +27,7 @@
 
     <nav class="sidebar">
         
-        <p class='location'><a href='index.html'>parsell</a></p><script>window.sidebarCurrent = {name: 'character_ref', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <p class='location'><a href='index.html'>parsell</a></p><script>window.sidebarCurrent = {name: 'character_map_ref', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
     </nav>
 
     <nav class="sub">
@@ -42,15 +42,15 @@
     </nav>
 
     <section id='main' class="content fn">
-<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>parsell</a>::<wbr><a class='fn' href=''>character_ref</a></span><span class='out-of-band'><span id='render-detail'>
+<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>parsell</a>::<wbr><a class='fn' href=''>character_map_ref</a></span><span class='out-of-band'><span id='render-detail'>
             <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                 [<span class='inner'>&#x2212;</span>]
             </a>
-        </span><a id='src-2037' class='srclink' href='../src/parsell/lib.rs.html#1312-1314' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn character_ref&lt;F&gt;(f: F) -&gt; <a class='struct' href='../parsell/impls/struct.CharacterRef.html' title='parsell::impls::CharacterRef'>CharacterRef</a>&lt;F&gt;</pre><div class='docblock'><p>An uncommitted parser that reads one character by reference.</p>
+        </span><a id='src-2040' class='srclink' href='../src/parsell/lib.rs.html#1324-1328' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn character_map_ref&lt;F&gt;(f: F) -&gt; <a class='struct' href='../parsell/impls/struct.Map.html' title='parsell::impls::Map'>Map</a>&lt;<a class='struct' href='../parsell/impls/struct.CharacterRef.html' title='parsell::impls::CharacterRef'>CharacterRef</a>&lt;<a class='struct' href='../parsell/impls/struct.IsSome.html' title='parsell::impls::IsSome'>IsSome</a>&lt;F&gt;&gt;, <a class='struct' href='../parsell/impls/struct.Dereference.html' title='parsell::impls::Dereference'>Dereference</a>&lt;<a class='struct' href='../parsell/impls/struct.Unwrap.html' title='parsell::impls::Unwrap'>Unwrap</a>&lt;F&gt;&gt;&gt; <span class='where'>where F: <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a></span></pre><div class='docblock'><p>An uncommitted parser that reads one character by reference and applies a function to it.</p>
 
-<p>The parser <code>character_ref(f)</code> reads one character <code>ch</code> from the input,
-if <code>f(&amp;ch)</code> is <code>true</code> then it commits and the result is <code>ch</code>,
+<p>The parser <code>character_ref_map(f)</code> reads one character <code>ch</code> from the input,
+if <code>f(&amp;ch)</code> is <code>Some(value)</code> then it commits and the result is <code>value</code>,
 otherwise it backtracks.</p>
 
 <p>This does not require characters to be copyable.</p>
