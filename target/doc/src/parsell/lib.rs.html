@@ -1999,6 +1999,20 @@
 <span id="1956">1956</span>
 <span id="1957">1957</span>
 <span id="1958">1958</span>
+<span id="1959">1959</span>
+<span id="1960">1960</span>
+<span id="1961">1961</span>
+<span id="1962">1962</span>
+<span id="1963">1963</span>
+<span id="1964">1964</span>
+<span id="1965">1965</span>
+<span id="1966">1966</span>
+<span id="1967">1967</span>
+<span id="1968">1968</span>
+<span id="1969">1969</span>
+<span id="1970">1970</span>
+<span id="1971">1971</span>
+<span id="1972">1972</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Parsell: an LL(1) streaming parser combinator library for Rust</span>
 <span class='doccomment'>//!</span>
@@ -2382,6 +2396,13 @@
         <span class='ident'>impls</span>::<span class='ident'>Map</span>::<span class='ident'>new</span>(<span class='self'>self</span>, <span class='ident'>impls</span>::<span class='ident'>Function5</span>::<span class='ident'>new</span>(<span class='ident'>f</span>))
     }
 
+    <span class='doccomment'>/// Apply a 6-arguent function to the result</span>
+    <span class='kw'>fn</span> <span class='ident'>map6</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>Function6</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;&gt;</span>
+        <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>,
+    {
+        <span class='ident'>impls</span>::<span class='ident'>Map</span>::<span class='ident'>new</span>(<span class='self'>self</span>, <span class='ident'>impls</span>::<span class='ident'>Function6</span>::<span class='ident'>new</span>(<span class='ident'>f</span>))
+    }
+
     <span class='doccomment'>/// Apply a function to the result (bubble any errors).</span>
     <span class='kw'>fn</span> <span class='ident'>try_map</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;&gt;</span>
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>
@@ -2415,6 +2436,13 @@
         <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>
     {
         <span class='self'>self</span>.<span class='ident'>try_map</span>(<span class='ident'>impls</span>::<span class='ident'>Function5</span>::<span class='ident'>new</span>(<span class='ident'>f</span>))
+    }
+
+    <span class='doccomment'>/// Apply a 6-argument function to the result (bubble any errors).</span>
+    <span class='kw'>fn</span> <span class='ident'>try_map6</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>impls</span>::<span class='ident'>Map</span><span class='op'>&lt;</span><span class='kw'>Self</span>, <span class='ident'>impls</span>::<span class='ident'>Try</span><span class='op'>&lt;</span><span class='ident'>impls</span>::<span class='ident'>Function6</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>
+        <span class='kw'>where</span> <span class='kw'>Self</span>: <span class='ident'>Sized</span>
+    {
+        <span class='self'>self</span>.<span class='ident'>try_map</span>(<span class='ident'>impls</span>::<span class='ident'>Function6</span>::<span class='ident'>new</span>(<span class='ident'>f</span>))
     }
 
     <span class='doccomment'>/// Apply a by-reference function to the result</span>

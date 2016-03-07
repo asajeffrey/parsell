@@ -1548,6 +1548,31 @@
 <span id="1505">1505</span>
 <span id="1506">1506</span>
 <span id="1507">1507</span>
+<span id="1508">1508</span>
+<span id="1509">1509</span>
+<span id="1510">1510</span>
+<span id="1511">1511</span>
+<span id="1512">1512</span>
+<span id="1513">1513</span>
+<span id="1514">1514</span>
+<span id="1515">1515</span>
+<span id="1516">1516</span>
+<span id="1517">1517</span>
+<span id="1518">1518</span>
+<span id="1519">1519</span>
+<span id="1520">1520</span>
+<span id="1521">1521</span>
+<span id="1522">1522</span>
+<span id="1523">1523</span>
+<span id="1524">1524</span>
+<span id="1525">1525</span>
+<span id="1526">1526</span>
+<span id="1527">1527</span>
+<span id="1528">1528</span>
+<span id="1529">1529</span>
+<span id="1530">1530</span>
+<span id="1531">1531</span>
+<span id="1532">1532</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Provide implementations of parser traits.</span>
 
@@ -1643,6 +1668,31 @@
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
     <span class='kw'>fn</span> <span class='ident'>apply</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>args</span>: ((((<span class='ident'>S1</span>, <span class='ident'>S2</span>), <span class='ident'>S3</span>), <span class='ident'>S4</span>), <span class='ident'>S5</span>)) <span class='op'>-&gt;</span> <span class='ident'>F</span>::<span class='ident'>Output</span> {
         (<span class='self'>self</span>.<span class='number'>0</span>)((((<span class='ident'>args</span>.<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>0</span>,
+                 (((<span class='ident'>args</span>.<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>1</span>,
+                 ((<span class='ident'>args</span>.<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>1</span>,
+                 (<span class='ident'>args</span>.<span class='number'>0</span>).<span class='number'>1</span>,
+                 <span class='ident'>args</span>.<span class='number'>1</span>)
+    }
+}
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Function6</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>F</span>);
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> <span class='ident'>Function6</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='kw'>Self</span> {
+        <span class='ident'>Function6</span>(<span class='ident'>f</span>)
+    }
+}
+
+<span class='comment'>// NOTE(eddyb): a generic over U where F: Fn(T) -&gt; U doesn&#39;t allow HRTB in both T and U.</span>
+<span class='comment'>// See https://github.com/rust-lang/rust/issues/30867 for more details.</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>S1</span>, <span class='ident'>S2</span>, <span class='ident'>S3</span>, <span class='ident'>S4</span>, <span class='ident'>S5</span>, <span class='ident'>S6</span><span class='op'>&gt;</span> <span class='ident'>Function</span><span class='op'>&lt;</span>(((((<span class='ident'>S1</span>, <span class='ident'>S2</span>), <span class='ident'>S3</span>), <span class='ident'>S4</span>), <span class='ident'>S5</span>), <span class='ident'>S6</span>)<span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Function6</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>
+    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span><span class='op'>&lt;</span>(<span class='ident'>S1</span>, <span class='ident'>S2</span>, <span class='ident'>S3</span>, <span class='ident'>S4</span>, <span class='ident'>S5</span>, <span class='ident'>S6</span>, )<span class='op'>&gt;</span>
+{
+    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>F</span>::<span class='ident'>Output</span>;
+    <span class='kw'>fn</span> <span class='ident'>apply</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>args</span>: (((((<span class='ident'>S1</span>, <span class='ident'>S2</span>), <span class='ident'>S3</span>), <span class='ident'>S4</span>), <span class='ident'>S5</span>), <span class='ident'>S6</span>)) <span class='op'>-&gt;</span> <span class='ident'>F</span>::<span class='ident'>Output</span> {
+        (<span class='self'>self</span>.<span class='number'>0</span>)(((((<span class='ident'>args</span>.<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>0</span>,
+                 ((((<span class='ident'>args</span>.<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>1</span>,
                  (((<span class='ident'>args</span>.<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>1</span>,
                  ((<span class='ident'>args</span>.<span class='number'>0</span>).<span class='number'>0</span>).<span class='number'>1</span>,
                  (<span class='ident'>args</span>.<span class='number'>0</span>).<span class='number'>1</span>,
