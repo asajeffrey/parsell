@@ -380,6 +380,13 @@ pub trait Parser {
         impls::Map::new(self, impls::Function5::new(f))
     }
 
+    /// Apply a 6-arguent function to the result
+    fn map6<F>(self, f: F) -> impls::Map<Self, impls::Function6<F>>
+        where Self: Sized,
+    {
+        impls::Map::new(self, impls::Function6::new(f))
+    }
+
     /// Apply a function to the result (bubble any errors).
     fn try_map<F>(self, f: F) -> impls::Map<Self, impls::Try<F>>
         where Self: Sized
@@ -413,6 +420,13 @@ pub trait Parser {
         where Self: Sized
     {
         self.try_map(impls::Function5::new(f))
+    }
+
+    /// Apply a 6-argument function to the result (bubble any errors).
+    fn try_map6<F>(self, f: F) -> impls::Map<Self, impls::Try<impls::Function6<F>>>
+        where Self: Sized
+    {
+        self.try_map(impls::Function6::new(f))
     }
 
     /// Apply a by-reference function to the result
