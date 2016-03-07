@@ -99,6 +99,31 @@ impl<F, S1, S2, S3, S4, S5> Function<((((S1, S2), S3), S4), S5)> for Function5<F
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct Function6<F>(F);
+
+impl<F> Function6<F> {
+    pub fn new(f: F) -> Self {
+        Function6(f)
+    }
+}
+
+// NOTE(eddyb): a generic over U where F: Fn(T) -> U doesn't allow HRTB in both T and U.
+// See https://github.com/rust-lang/rust/issues/30867 for more details.
+impl<F, S1, S2, S3, S4, S5, S6> Function<(((((S1, S2), S3), S4), S5), S6)> for Function6<F>
+    where F: Fn<(S1, S2, S3, S4, S5, S6, )>
+{
+    type Output = F::Output;
+    fn apply(&self, args: (((((S1, S2), S3), S4), S5), S6)) -> F::Output {
+        (self.0)(((((args.0).0).0).0).0,
+                 ((((args.0).0).0).0).1,
+                 (((args.0).0).0).1,
+                 ((args.0).0).1,
+                 (args.0).1,
+                 args.1)
+    }
+}
+
 // ----------- Deal with errors ---------------
 
 #[derive(Copy, Clone, Debug)]
